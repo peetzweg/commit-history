@@ -143,7 +143,7 @@ export const getStartPageData = createServerFn({ method: "GET" }).handler(
 	async (): Promise<StartPageData> => {
 		const [recent, leaderboard] = await Promise.all([
 			queryRecent(RECENT_LIMIT),
-			queryLeaderboard("both", 0, LEADERBOARD_PAGE_SIZE),
+			queryLeaderboard("public", 0, LEADERBOARD_PAGE_SIZE),
 		]);
 		return { recent, leaderboard };
 	},

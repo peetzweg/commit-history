@@ -234,17 +234,18 @@ function Stat({
 	);
 }
 
-function SingleView({
+/** Avatar + name + joined line + the headline stats. Shared by the single
+ *  view and (stacked) by the comparison view, so profiles look identical. */
+function ProfilePanel({
 	result,
-	otherLogins,
+	color,
 }: {
 	result: UserResult;
-	otherLogins: string[];
+	color?: string;
 }) {
 	// biome-ignore lint/style/noNonNullAssertion: ok results always have history
 	const { user, points, total, totalRestricted } = result.history!;
 	const hasPrivate = totalRestricted > 0;
-	const [mode, setMode] = useState<ChartMode>("both");
 	const since = monthYear(user.createdAt);
 	// Busiest month by total activity (public + private), so it's meaningful for private-heavy users.
 	const busiest = points.reduce(
@@ -254,15 +255,24 @@ function SingleView({
 	);
 
 	return (
-		<>
-			<header className="mt-6 flex items-center gap-4">
+		<div>
+			<header className="flex items-center gap-4">
 				<img
 					src={user.avatarUrl}
 					alt={user.login}
 					className="h-20 w-20 rounded-full border border-border"
+					style={color ? { borderColor: color, borderWidth: 2 } : undefined}
 				/>
 				<div>
-					<h1 className="text-2xl font-bold">{user.name ?? user.login}</h1>
+					<h1 className="flex items-center gap-2 text-2xl font-bold">
+						{color && (
+							<span
+								className="h-2.5 w-2.5 shrink-0 rounded-full"
+								style={{ backgroundColor: color }}
+							/>
+						)}
+						{user.name ?? user.login}
+					</h1>
 					<a
 						href={`https://github.com/${user.login}`}
 						target="_blank"
@@ -277,7 +287,7 @@ function SingleView({
 				</div>
 			</header>
 
-			<div className="mt-8 flex flex-wrap gap-10">
+			<div className="mt-6 flex flex-wrap gap-10">
 				<Stat label="Public commits" value={total.toLocaleString()} />
 				{hasPrivate && (
 					<Stat
@@ -295,6 +305,28 @@ function SingleView({
 					}
 				/>
 				<Stat label="Followers" value={user.followers.toLocaleString()} />
+			</div>
+		</div>
+	);
+}
+
+function SingleView({
+	result,
+	otherLogins,
+}: {
+	result: UserResult;
+	otherLogins: string[];
+}) {
+	// biome-ignore lint/style/noNonNullAssertion: ok results always have history
+	const { user, points, totalRestricted } = result.history!;
+	const hasPrivate = totalRestricted > 0;
+	const [mode, setMode] = useState<ChartMode>("both");
+	const since = monthYear(user.createdAt);
+
+	return (
+		<>
+			<div className="mt-6">
+				<ProfilePanel result={result} />
 			</div>
 
 			{hasPrivate && (
@@ -318,8 +350,6 @@ function SingleView({
 				</p>
 				<AddUser currentLogins={otherLogins} label="Compare with…" />
 			</div>
-
-			<EmbedSnippet login={user.login} />
 		</>
 	);
 }
@@ -411,6 +441,22 @@ function ComparisonView({
 				))}
 				<AddUser currentLogins={allLogins} label="Add user…" />
 			</div>
+
+			<section className="mt-12">
+				<h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+					Profiles
+				</h2>
+				<div className="mt-6 flex flex-col divide-y divide-border">
+					{results.map((r, i) => (
+						<div key={r.login} className="py-6 first:pt-0 last:pb-0">
+							<ProfilePanel
+								result={r}
+								color={SERIES_COLORS[i % SERIES_COLORS.length]}
+							/>
+						</div>
+					))}
+				</div>
+			</section>
 		</>
 	);
 }
@@ -495,52 +541,18 @@ function AddUser({
 	}
 
 	return (
-		<form onSubmit={submit} className="inline-flex items-center gap-2">
+		<form onSubmit={submit} className="flex items-stretch gap-2">
 			<input
 				value={value}
 				onChange={(e) => setValue(e.target.value)}
 				placeholder={label}
 				aria-label={label}
-				className="w-36 rounded-md border bg-transparent px-2 py-1 text-sm shadow-inner outline-none focus:shadow-[0_0_0_0.125em_var(--ring)]"
+				className="w-44 rounded-md border bg-transparent px-3 text-sm shadow-inner outline-none focus:shadow-[0_0_0_0.125em_var(--ring)]"
 			/>
-			<button type="submit" className="btn-secondary">
+			<button type="submit" className="btn-secondary shrink-0">
 				Add
 			</button>
 		</form>
-	);
-}
-
-function EmbedSnippet({ login }: { login: string }) {
-	const [copied, setCopied] = useState(false);
-	const markdown = `[![Commit History](https://commit-history.com/embed/${login})](https://commit-history.com/${login})`;
-
-	async function copy() {
-		try {
-			await navigator.clipboard.writeText(markdown);
-			setCopied(true);
-			setTimeout(() => setCopied(false), 1500);
-		} catch {
-			/* clipboard unavailable */
-		}
-	}
-
-	return (
-		<section className="mt-10">
-			<h2 className="text-sm font-semibold">Embed in your README</h2>
-			<p className="mt-1 text-xs text-muted-foreground">
-				Drops in a live chart that updates over time. Append{" "}
-				<code className="rounded bg-muted px-1">?theme=dark</code> for dark
-				mode.
-			</p>
-			<div className="mt-3 flex items-stretch gap-2">
-				<code className="flex-1 overflow-x-auto whitespace-nowrap rounded-md border bg-muted px-3 py-2 text-xs">
-					{markdown}
-				</code>
-				<button type="button" onClick={copy} className="btn-secondary shrink-0">
-					{copied ? "Copied!" : "Copy"}
-				</button>
-			</div>
-		</section>
 	);
 }
 

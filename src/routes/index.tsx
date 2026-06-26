@@ -138,7 +138,7 @@ function Leaderboard({
 	initialPage: LeaderEntry[];
 	onPick: (login: string) => void;
 }) {
-	const [mode, setMode] = useState<LeaderMode>("both");
+	const [mode, setMode] = useState<LeaderMode>("public");
 	const value = LB_VALUE[mode];
 
 	const query = useInfiniteQuery({
@@ -152,9 +152,9 @@ function Leaderboard({
 			lastPage.length < LEADERBOARD_PAGE_SIZE
 				? undefined
 				: allPages.reduce((n, p) => n + p.length, 0),
-		// Seed page 1 of the default (Both) mode from the SSR loader — no flash.
+		// Seed page 1 of the default (Public) mode from the SSR loader — no flash.
 		initialData:
-			mode === "both" ? { pages: [initialPage], pageParams: [0] } : undefined,
+			mode === "public" ? { pages: [initialPage], pageParams: [0] } : undefined,
 		refetchInterval: 10_000,
 	});
 
