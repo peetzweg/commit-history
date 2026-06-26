@@ -23,12 +23,35 @@ function monthLabel(date: string) {
 	});
 }
 
-export function CommitChart({ points }: { points: CommitPoint[] }) {
+export type ChartMode = "public" | "private" | "both";
+
+export function CommitChart({
+	points,
+	mode = "both",
+}: {
+	points: CommitPoint[];
+	mode?: ChartMode;
+}) {
 	const [hover, setHover] = useState<number | null>(null);
 	if (points.length === 0) return null;
 
+	// Cumulative value to plot, and the month's delta — per the selected mode.
+	// "both" is the per-month sum of public commits + private contributions.
+	const cval = (p: CommitPoint) =>
+		mode === "public"
+			? p.cumulative
+			: mode === "private"
+				? p.restrictedCumulative
+				: p.cumulative + p.restrictedCumulative;
+	const dval = (p: CommitPoint) =>
+		mode === "public"
+			? p.commits
+			: mode === "private"
+				? p.restricted
+				: p.commits + p.restricted;
+
 	const n = points.length;
-	const max = Math.max(...points.map((p) => p.cumulative), 1);
+	const max = Math.max(...points.map(cval), 1);
 	const x = (i: number) =>
 		PAD.left + (n === 1 ? innerW / 2 : (i / (n - 1)) * innerW);
 	const y = (v: number) => PAD.top + innerH - (v / max) * innerH;
@@ -37,7 +60,7 @@ export function CommitChart({ points }: { points: CommitPoint[] }) {
 	const line = points
 		.map(
 			(p, i) =>
-				`${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(p.cumulative).toFixed(1)}`,
+				`${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(cval(p)).toFixed(1)}`,
 		)
 		.join(" ");
 	const area = `${line} L${x(n - 1).toFixed(1)},${baseline} L${x(0).toFixed(1)},${baseline} Z`;
@@ -165,7 +188,7 @@ export function CommitChart({ points }: { points: CommitPoint[] }) {
 						<circle
 							key={p.date}
 							cx={x(i)}
-							cy={y(p.cumulative)}
+							cy={y(cval(p))}
 							r={2.5}
 							fill={ACCENT}
 						/>
@@ -186,7 +209,7 @@ export function CommitChart({ points }: { points: CommitPoint[] }) {
 					/>
 					<circle
 						cx={hx}
-						cy={y(hp.cumulative)}
+						cy={y(cval(hp))}
 						r={4.5}
 						fill={ACCENT}
 						stroke="#fff"
@@ -199,8 +222,8 @@ export function CommitChart({ points }: { points: CommitPoint[] }) {
 						fill="currentColor"
 						fontSize={15}
 					>
-						{monthLabel(hp.date)}: {hp.cumulative.toLocaleString()} total
-						{hp.commits ? ` (+${hp.commits})` : ""}
+						{monthLabel(hp.date)}: {cval(hp).toLocaleString()} total
+						{dval(hp) ? ` (+${dval(hp)})` : ""}
 					</text>
 				</g>
 			)}

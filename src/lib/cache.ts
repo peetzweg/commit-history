@@ -1,36 +1,34 @@
+import { eq, sql } from "drizzle-orm";
+import { type DB, db } from "#/lib/db";
+import { entities, lookups, monthlyCommits } from "#/lib/db/schema";
 import {
+	buildPoints,
 	type CommitHistory,
 	type CommitPoint,
 	fetchCommitHistory,
 	fetchMonthlyCommits,
 	fetchProfile,
+	type MonthlyCount,
 	monthlyWindows,
+	type Profile,
 } from "#/lib/github";
 
 /**
- * In-memory, incremental commit-history cache.
+ * Incremental commit-history cache.
  *
  * Completed past months never change, so a returning user only needs the trailing month(s)
  * re-fetched — turning a ~`months/12`-request lifetime fetch into a single small request.
  *
+ * Storage is Neon Postgres when DATABASE_URL is set (durable + shared across instances), else a
+ * per-process in-memory Map (so local dev / the app still work with no database).
+ *
  * Two TTLs:
  *  - TAIL_TTL: how long a cached result is served untouched (no GitHub call at all).
  *  - FULL_TTL: after this, rebuild from scratch — catches *backfilled* history (rebases,
- *    repos made public, email/identity changes) that can alter long-past months.
- *
- * This Map resets on server restart and is per-instance. The production swap is a shared store
- * (KV / Redis / SQLite) behind the same two functions — see README scaling path.
+ *    repos made public, identity changes) that can alter long-past months.
  */
-const TAIL_TTL = 60_000; // 1 min: collapse rapid reloads into one cache hit
-const FULL_TTL = 7 * 24 * 60 * 60_000; // 7 days: periodic full rebuild
-
-interface Entry {
-	history: CommitHistory;
-	fetchedAt: number;
-	builtAt: number; // when a full rebuild last happened
-}
-
-const store = new Map<string, Entry>();
+const TAIL_TTL = 60_000; // 1 min
+const FULL_TTL = 7 * 24 * 60 * 60_000; // 7 days
 
 export async function getCommitHistory(
 	login: string,
@@ -41,65 +39,259 @@ export async function getCommitHistory(
 		// Defer to the uncached path so it throws the canonical "missing token" error.
 		return fetchCommitHistory(login, token);
 	}
+	return db
+		? getFromDb(db, login, token, now)
+		: getFromMemory(login, token, now);
+}
 
-	const key = login.trim().toLowerCase();
-	const cached = store.get(key);
+/** Recompute a series' tail from `tail`, splicing it onto the months before it. */
+function applyTail(
+	prevPoints: CommitPoint[],
+	profile: Profile,
+	tailWindows: { label: string }[],
+	tail: MonthlyCount[],
+): CommitHistory {
+	const tailKeys = new Set(tailWindows.map((w) => w.label));
+	const head = prevPoints.filter((p) => !tailKeys.has(p.date));
+	let cumulative = head.at(-1)?.cumulative ?? 0;
+	let restrictedCumulative = head.at(-1)?.restrictedCumulative ?? 0;
+	const tailPoints: CommitPoint[] = tailWindows.map((w, i) => {
+		const commits = tail[i]?.commits ?? 0;
+		const restricted = tail[i]?.restricted ?? 0;
+		cumulative += commits;
+		restrictedCumulative += restricted;
+		return {
+			date: w.label,
+			commits,
+			cumulative,
+			restricted,
+			restrictedCumulative,
+		};
+	});
+	const points = [...head, ...tailPoints];
+	const last = points.at(-1);
+	return {
+		user: profile,
+		points,
+		total: last?.cumulative ?? 0,
+		totalRestricted: last?.restrictedCumulative ?? 0,
+	};
+}
+
+// ── Neon-backed store ────────────────────────────────────────────────────────
+
+function entityId(login: string) {
+	return `user:${login.trim().toLowerCase()}`;
+}
+
+async function getFromDb(
+	database: DB,
+	login: string,
+	token: string,
+	now: Date,
+): Promise<CommitHistory> {
+	const id = entityId(login);
 	const nowMs = now.getTime();
 
-	// Stale → rebuild fully (also the cold-start path).
-	if (!cached || nowMs - cached.builtAt > FULL_TTL) {
+	let row: typeof entities.$inferSelect | undefined;
+	try {
+		[row] = await database
+			.select()
+			.from(entities)
+			.where(eq(entities.id, id))
+			.limit(1);
+	} catch {
+		// DB read failed — degrade to a direct fetch so the page still renders.
+		return fetchCommitHistory(login, token);
+	}
+
+	// Cold or stale → full rebuild.
+	if (!row || !row.builtAt || nowMs - row.builtAt.getTime() > FULL_TTL) {
 		const history = await fetchCommitHistory(login, token);
-		store.set(key, { history, fetchedAt: nowMs, builtAt: nowMs });
+		await persist(database, id, history, now, true);
+		await recordLookup(database, id, now);
 		return history;
 	}
 
-	// Fresh enough → serve untouched.
-	if (nowMs - cached.fetchedAt < TAIL_TTL) return cached.history;
+	// Reconstruct the cached series from stored months.
+	const rows = await database
+		.select()
+		.from(monthlyCommits)
+		.where(eq(monthlyCommits.entityId, id));
+	const byMonth = new Map(
+		rows.map((r) => [
+			r.month,
+			{ commits: r.commits, restricted: r.restricted },
+		]),
+	);
+	const profile: Profile = {
+		login: row.login,
+		name: row.name,
+		avatarUrl: row.avatarUrl ?? "",
+		createdAt: (row.createdAt ?? now).toISOString(),
+	};
+	const windows = monthlyWindows(row.createdAt ?? now, now);
+	const points = buildPoints(
+		windows,
+		windows.map((w) => byMonth.get(w.label) ?? { commits: 0, restricted: 0 }),
+	);
+	const last = points.at(-1);
+	const cached: CommitHistory = {
+		user: profile,
+		points,
+		total: last?.cumulative ?? 0,
+		totalRestricted: last?.restrictedCumulative ?? 0,
+	};
 
-	// Otherwise refresh only the trailing months (last cached month → now). New months get
-	// appended; the current month's count is updated in place.
-	const { user, points } = cached.history;
-	const lastLabel = points.at(-1)?.date;
+	// Fresh enough → serve untouched.
+	if (row.lastFetched && nowMs - row.lastFetched.getTime() < TAIL_TTL) {
+		await recordLookup(database, id, now);
+		return cached;
+	}
+
+	// Trailing refresh: re-fetch only the last cached month → now.
+	const lastLabel = cached.points.at(-1)?.date;
 	const tailStart = lastLabel
 		? new Date(`${lastLabel}T00:00:00Z`)
-		: new Date(user.createdAt);
+		: (row.createdAt ?? now);
 	const tailWindows = monthlyWindows(tailStart, now);
 
-	let tailCommits: number[];
-	let profile = user;
+	let history: CommitHistory;
 	try {
-		tailCommits = await fetchMonthlyCommits(user.login, token, tailWindows);
+		const tailCommits = await fetchMonthlyCommits(login, token, tailWindows);
+		let profileNext = profile;
+		try {
+			profileNext = await fetchProfile(login, token);
+		} catch {
+			/* keep cached profile */
+		}
+		history = applyTail(cached.points, profileNext, tailWindows, tailCommits);
+		await persist(database, id, history, now, false);
 	} catch {
-		// Network hiccup on refresh: serve what we have rather than erroring the page.
+		// Network hiccup on refresh: serve what we have.
+		history = cached;
+	}
+	await recordLookup(database, id, now);
+	return history;
+}
+
+/** Upsert the entity + its months. `fullRebuild` also stamps builtAt (else it's left intact). */
+async function persist(
+	database: DB,
+	id: string,
+	history: CommitHistory,
+	now: Date,
+	fullRebuild: boolean,
+) {
+	const { user, points, total, totalRestricted } = history;
+	try {
+		await database
+			.insert(entities)
+			.values({
+				id,
+				kind: "user",
+				login: user.login,
+				name: user.name,
+				avatarUrl: user.avatarUrl,
+				htmlUrl: `https://github.com/${user.login}`,
+				createdAt: new Date(user.createdAt),
+				totalCommits: total,
+				totalRestricted,
+				lastFetched: now,
+				builtAt: now,
+			})
+			.onConflictDoUpdate({
+				target: entities.id,
+				set: {
+					name: user.name,
+					avatarUrl: user.avatarUrl,
+					totalCommits: total,
+					totalRestricted,
+					lastFetched: now,
+					...(fullRebuild ? { builtAt: now } : {}),
+				},
+			});
+
+		if (points.length > 0) {
+			await database
+				.insert(monthlyCommits)
+				.values(
+					points.map((p) => ({
+						entityId: id,
+						month: p.date,
+						commits: p.commits,
+						restricted: p.restricted,
+					})),
+				)
+				.onConflictDoUpdate({
+					target: [monthlyCommits.entityId, monthlyCommits.month],
+					set: {
+						commits: sql`excluded.commits`,
+						restricted: sql`excluded.restricted`,
+					},
+				});
+		}
+	} catch {
+		// Persisting is best-effort: a write failure shouldn't break the response.
+	}
+}
+
+async function recordLookup(database: DB, id: string, now: Date) {
+	try {
+		await database.insert(lookups).values({ entityId: id, searchedAt: now });
+	} catch {
+		/* best-effort */
+	}
+}
+
+// ── In-memory fallback (no DATABASE_URL) ─────────────────────────────────────
+
+interface MemEntry {
+	history: CommitHistory;
+	fetchedAt: number;
+	builtAt: number;
+}
+const mem = new Map<string, MemEntry>();
+
+async function getFromMemory(
+	login: string,
+	token: string,
+	now: Date,
+): Promise<CommitHistory> {
+	const key = login.trim().toLowerCase();
+	const cached = mem.get(key);
+	const nowMs = now.getTime();
+
+	if (!cached || nowMs - cached.builtAt > FULL_TTL) {
+		const history = await fetchCommitHistory(login, token);
+		mem.set(key, { history, fetchedAt: nowMs, builtAt: nowMs });
+		return history;
+	}
+	if (nowMs - cached.fetchedAt < TAIL_TTL) return cached.history;
+
+	const lastLabel = cached.history.points.at(-1)?.date;
+	const tailStart = lastLabel
+		? new Date(`${lastLabel}T00:00:00Z`)
+		: new Date(cached.history.user.createdAt);
+	const tailWindows = monthlyWindows(tailStart, now);
+
+	try {
+		const tailCommits = await fetchMonthlyCommits(login, token, tailWindows);
+		let profile = cached.history.user;
+		try {
+			profile = await fetchProfile(login, token);
+		} catch {
+			/* keep */
+		}
+		const history = applyTail(
+			cached.history.points,
+			profile,
+			tailWindows,
+			tailCommits,
+		);
+		mem.set(key, { history, fetchedAt: nowMs, builtAt: cached.builtAt });
+		return history;
+	} catch {
 		return cached.history;
 	}
-
-	// Avatar/name can change; refresh the profile opportunistically but don't fail on it.
-	try {
-		profile = await fetchProfile(user.login, token);
-	} catch {
-		/* keep cached profile */
-	}
-
-	// Merge: keep all months strictly before the tail, then recompute the tail's cumulative
-	// continuing from the running total just before it.
-	const tailKeys = new Set(tailWindows.map((w) => w.label));
-	const head = points.filter((p) => !tailKeys.has(p.date));
-	const baseCumulative = head.at(-1)?.cumulative ?? 0;
-
-	let cumulative = baseCumulative;
-	const tail: CommitPoint[] = tailWindows.map((w, i) => {
-		const commits = tailCommits[i] ?? 0;
-		cumulative += commits;
-		return { date: w.label, commits, cumulative };
-	});
-
-	const merged = [...head, ...tail];
-	const history: CommitHistory = {
-		user: profile,
-		points: merged,
-		total: merged.at(-1)?.cumulative ?? 0,
-	};
-	store.set(key, { history, fetchedAt: nowMs, builtAt: cached.builtAt });
-	return history;
 }

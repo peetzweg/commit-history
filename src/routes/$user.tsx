@@ -5,7 +5,7 @@ import {
 	useRouter,
 } from "@tanstack/react-router";
 import { useState } from "react";
-import { CommitChart } from "#/components/CommitChart";
+import { type ChartMode, CommitChart } from "#/components/CommitChart";
 import {
 	type ChartSeries,
 	MultiCommitChart,
@@ -148,10 +148,14 @@ function SingleView({
 	otherLogins: string[];
 }) {
 	// biome-ignore lint/style/noNonNullAssertion: ok results always have history
-	const { user, points, total } = result.history!;
+	const { user, points, total, totalRestricted } = result.history!;
+	const hasPrivate = totalRestricted > 0;
+	const [mode, setMode] = useState<ChartMode>("both");
 	const since = monthYear(user.createdAt);
+	// Busiest month by total activity (public + private), so it's meaningful for private-heavy users.
 	const busiest = points.reduce(
-		(best, p) => (p.commits > best.commits ? p : best),
+		(best, p) =>
+			p.commits + p.restricted > best.commits + best.restricted ? p : best,
 		points[0],
 	);
 
@@ -176,20 +180,33 @@ function SingleView({
 				</div>
 			</header>
 
-			<div className="mt-8 flex gap-10">
-				<Stat label="Total commits" value={total.toLocaleString()} />
+			<div className="mt-8 flex flex-wrap gap-10">
+				<Stat label="Public commits" value={total.toLocaleString()} />
+				{hasPrivate && (
+					<Stat
+						label="Private contributions"
+						value={totalRestricted.toLocaleString()}
+					/>
+				)}
 				<Stat
 					label="Busiest month"
 					value={busiest ? monthYear(busiest.date) : "—"}
 					hint={
-						busiest ? `${busiest.commits.toLocaleString()} commits` : undefined
+						busiest
+							? `${(busiest.commits + busiest.restricted).toLocaleString()} ${hasPrivate ? "contributions" : "commits"}`
+							: undefined
 					}
 				/>
 				<Stat label="Since" value={since} />
 			</div>
 
-			<div className="mt-8 rounded-xl border border-border p-4">
-				<CommitChart points={points} />
+			{hasPrivate && (
+				<div className="mt-8 flex justify-end">
+					<ChartModeToggle mode={mode} onChange={setMode} />
+				</div>
+			)}
+			<div className="mt-3 rounded-xl border border-border p-4">
+				<CommitChart points={points} mode={hasPrivate ? mode : "public"} />
 			</div>
 
 			<div className="mt-4 flex flex-wrap items-center justify-between gap-3">
@@ -312,6 +329,39 @@ function TimelineToggle({
 					}
 				>
 					{m === "date" ? "Date" : "Aligned"}
+				</button>
+			))}
+		</div>
+	);
+}
+
+const MODE_LABELS: Record<ChartMode, string> = {
+	public: "Public",
+	private: "Private",
+	both: "Both",
+};
+
+function ChartModeToggle({
+	mode,
+	onChange,
+}: {
+	mode: ChartMode;
+	onChange: (m: ChartMode) => void;
+}) {
+	return (
+		<div className="inline-flex overflow-hidden rounded-md border text-sm">
+			{(["public", "private", "both"] as const).map((m) => (
+				<button
+					key={m}
+					type="button"
+					onClick={() => onChange(m)}
+					className={
+						mode === m
+							? "bg-foreground px-3 py-1.5 text-background"
+							: "px-3 py-1.5 text-muted-foreground hover:bg-muted"
+					}
+				>
+					{MODE_LABELS[m]}
 				</button>
 			))}
 		</div>

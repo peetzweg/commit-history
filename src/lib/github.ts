@@ -31,16 +31,33 @@ export interface Profile {
 export interface CommitPoint {
 	/** First day of the month, ISO date (YYYY-MM-DD). */
 	date: string;
-	/** Commits attributed in that month. */
+	/** Public commits attributed in that month. */
 	commits: number;
-	/** Running total up to and including that month. */
+	/** Running total of public commits up to and including that month. */
 	cumulative: number;
+	/**
+	 * GitHub "private contributions" in that month (restrictedContributionsCount) — an opaque,
+	 * all-types count GitHub only exposes when the user shows private contributions on their
+	 * profile. Kept SEPARATE from `commits`; never summed into it.
+	 */
+	restricted: number;
+	/** Running total of private contributions. */
+	restrictedCumulative: number;
+}
+
+/** Per-month counts as fetched from GitHub, before accumulation. */
+export interface MonthlyCount {
+	commits: number;
+	restricted: number;
 }
 
 export interface CommitHistory {
 	user: Profile;
 	points: CommitPoint[];
+	/** Lifetime public commits. */
 	total: number;
+	/** Lifetime private contributions (0 unless the user exposes them). */
+	totalRestricted: number;
 }
 
 export class GitHubError extends Error {
@@ -143,15 +160,15 @@ export async function fetchProfile(
 }
 
 /**
- * Fetch commit counts for the given month windows, batched into parallel queries.
- * Returns counts aligned 1:1 with `windows`. The cache uses this to refresh only the trailing
- * months instead of refetching a whole lifetime.
+ * Fetch per-month public commits + private contributions for the given windows, batched into
+ * parallel queries. Returns counts aligned 1:1 with `windows`. The cache uses this to refresh
+ * only the trailing months instead of refetching a whole lifetime.
  */
 export async function fetchMonthlyCommits(
 	rawLogin: string,
 	token: string,
 	windows: MonthWindow[],
-): Promise<number[]> {
+): Promise<MonthlyCount[]> {
 	const login = assertLogin(rawLogin);
 	if (windows.length === 0) return [];
 
@@ -165,30 +182,48 @@ export async function fetchMonthlyCommits(
 			const aliases = batch
 				.map(
 					(w, i) =>
-						`w${i}: contributionsCollection(from: "${w.from}", to: "${w.to}") { totalCommitContributions }`,
+						`w${i}: contributionsCollection(from: "${w.from}", to: "${w.to}") { totalCommitContributions restrictedContributionsCount }`,
 				)
 				.join("\n");
 			return graphql<{
-				user: Record<string, { totalCommitContributions: number }>;
+				user: Record<
+					string,
+					{
+						totalCommitContributions: number;
+						restrictedContributionsCount: number;
+					}
+				>;
 			}>(token, `query { user(login: "${login}") { ${aliases} } }`);
 		}),
 	);
 
 	return results.flatMap((res, b) =>
-		batches[b].map((_, i) => res.user[`w${i}`]?.totalCommitContributions ?? 0),
+		batches[b].map((_, i) => ({
+			commits: res.user[`w${i}`]?.totalCommitContributions ?? 0,
+			restricted: res.user[`w${i}`]?.restrictedContributionsCount ?? 0,
+		})),
 	);
 }
 
-/** Accumulate per-month commit counts into a cumulative series. */
+/** Accumulate per-month counts into separate cumulative series (public + private). */
 export function buildPoints(
 	windows: MonthWindow[],
-	monthly: number[],
+	monthly: MonthlyCount[],
 ): CommitPoint[] {
 	let cumulative = 0;
+	let restrictedCumulative = 0;
 	return windows.map((w, i) => {
-		const commits = monthly[i] ?? 0;
+		const commits = monthly[i]?.commits ?? 0;
+		const restricted = monthly[i]?.restricted ?? 0;
 		cumulative += commits;
-		return { date: w.label, commits, cumulative };
+		restrictedCumulative += restricted;
+		return {
+			date: w.label,
+			commits,
+			cumulative,
+			restricted,
+			restrictedCumulative,
+		};
 	});
 }
 
@@ -203,5 +238,11 @@ export async function fetchCommitHistory(
 	const windows = monthlyWindows(new Date(user.createdAt), new Date());
 	const monthly = await fetchMonthlyCommits(user.login, token, windows);
 	const points = buildPoints(windows, monthly);
-	return { user, points, total: points.at(-1)?.cumulative ?? 0 };
+	const last = points.at(-1);
+	return {
+		user,
+		points,
+		total: last?.cumulative ?? 0,
+		totalRestricted: last?.restrictedCumulative ?? 0,
+	};
 }
