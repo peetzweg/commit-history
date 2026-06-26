@@ -42,6 +42,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.5",
+    "@netlify/vite-plugin-tanstack-start": "^1.3.16",
     "@tailwindcss/typography": "^0.5.16",
     "@tanstack/devtools-vite": "latest",
     "@tanstack/router-cli": "^1.132.0",

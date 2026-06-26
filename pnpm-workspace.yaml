@@ -1,6 +1,6 @@
 allowBuilds:
-  esbuild: set this to true or false
-onlyBuiltDependencies:
-  - esbuild
-  - lightningcss
+  '@parcel/watcher': true
+  esbuild: true
+  lightningcss: true
+  sharp: true
 verifyDepsBeforeRun: false
