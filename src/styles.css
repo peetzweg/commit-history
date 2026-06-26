@@ -1,0 +1,105 @@
+/* Aesthetic is a deliberate homage to star-history.com:
+   Inter UI font, #363636 dark / #f5f5f5 light, green-600 (#16a34a) accent, white canvas,
+   rounded-md buttons with shadow-inner, and a hand-drawn ("xkcd") chart. */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100;300;400;500;600;700&display=swap');
+@import 'tailwindcss';
+@plugin '@tailwindcss/typography';
+
+@font-face {
+  font-family: 'xkcd';
+  src: url('/fonts/xkcd.ttf') format('truetype');
+  font-display: swap;
+}
+
+:root {
+  --background: #ffffff;
+  --foreground: #363636; /* star-history "dark" */
+  --card: #ffffff;
+  --card-foreground: #363636;
+  --muted: #f5f5f5; /* star-history "light" */
+  --muted-foreground: #6b7280; /* gray-500 */
+  --border: #e5e7eb; /* gray-200 */
+  --input: #e5e7eb;
+  --primary: #16a34a; /* green-600 — the brand accent */
+  --primary-foreground: #ffffff;
+  --primary-hover: #15803d; /* green-700 */
+  --ring: rgba(54, 54, 54, 0.25); /* their subtle focus glow */
+  --destructive: #dc2626;
+  --radius: 0.5rem;
+}
+
+@theme inline {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-hand: 'xkcd', 'Comic Sans MS', cursive;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-destructive: var(--destructive);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  color: var(--foreground);
+  background-color: var(--background);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+@layer components {
+  /* star-history button + input vocabulary */
+  .btn-primary {
+    @apply cursor-pointer rounded-md px-4 leading-10 text-white shadow-inner;
+    background-color: var(--primary);
+  }
+  .btn-primary:hover {
+    background-color: var(--primary-hover);
+  }
+  .btn-secondary {
+    @apply cursor-pointer rounded border bg-muted px-3 leading-9 text-sm text-foreground;
+  }
+  .btn-secondary:hover {
+    background-color: #ececec;
+  }
+  .input {
+    @apply w-full rounded-md border p-2 shadow-inner outline-none;
+  }
+  .input:focus {
+    box-shadow: 0 0 0 0.125em var(--ring);
+  }
+  .accent-text {
+    color: var(--primary);
+  }
+  /* hand-drawn chart text */
+  .chart-sketch text {
+    font-family: var(--font-hand);
+  }
+  .header-link {
+    @apply flex h-full flex-row items-center justify-center px-3;
+  }
+  .header-link:hover {
+    background-color: #2a2a2a; /* zinc-800-ish on the dark bar */
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+}

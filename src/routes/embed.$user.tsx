@@ -1,0 +1,45 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { getCommitHistory } from "#/lib/cache";
+import { renderChartSvg, renderMessageSvg } from "#/lib/chart-svg";
+import { GitHubError } from "#/lib/github";
+
+/**
+ * Embeddable SVG chart for GitHub READMEs etc:  ![](https://commit-history.com/embed/<user>)
+ *
+ * A pure server route — `server.handlers.GET` returns raw image/svg+xml (no React component).
+ * The SVG inlines its font + filter so it renders standalone in GitHub's <img> sandbox.
+ */
+export const Route = createFileRoute("/embed/$user")({
+	server: {
+		handlers: {
+			GET: async ({ request, params }) => {
+				const theme =
+					new URL(request.url).searchParams.get("theme") === "dark"
+						? "dark"
+						: "light";
+				const token = process.env.GITHUB_TOKEN ?? "";
+
+				try {
+					const history = await getCommitHistory(params.user, token);
+					return new Response(renderChartSvg(history, theme), {
+						headers: {
+							"content-type": "image/svg+xml; charset=utf-8",
+							// Long-ish cache: our data is monthly and the cache layer keeps it fresh.
+							"cache-control": "public, max-age=3600, s-maxage=3600",
+						},
+					});
+				} catch (e) {
+					const message =
+						e instanceof GitHubError ? e.message : "Something went wrong";
+					// Return 200 with a message card so the embed shows a graceful image, not broken.
+					return new Response(renderMessageSvg(message, theme), {
+						headers: {
+							"content-type": "image/svg+xml; charset=utf-8",
+							"cache-control": "public, max-age=60",
+						},
+					});
+				}
+			},
+		},
+	},
+});
