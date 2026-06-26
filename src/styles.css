@@ -102,4 +102,11 @@ body {
   * {
     @apply border-border;
   }
+  /* Tailwind v4 no longer defaults buttons to a pointer cursor — restore it for clickables. */
+  button:not(:disabled),
+  [role="button"],
+  label[for],
+  summary {
+    cursor: pointer;
+  }
 }

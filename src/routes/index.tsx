@@ -1,25 +1,48 @@
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
+import { useEffect, useRef, useState } from "react";
+import {
+	getLeaderboard,
+	getRecentLookups,
+	getStartPageData,
+	LEADERBOARD_PAGE_SIZE,
+	type LeaderEntry,
+	type LeaderMode,
+	type RecentEntry,
+} from "#/lib/commit-history";
 
 export const Route = createFileRoute("/")({
 	head: () => ({
 		links: [{ rel: "canonical", href: "https://commit-history.com/" }],
 	}),
+	loader: () => getStartPageData(),
 	component: Home,
 });
 
 function Home() {
 	const navigate = useNavigate();
+	const initial = Route.useLoaderData();
+	// Live "Recently looked up": poll every 10s, seeded by the SSR loader.
+	const { data: recent } = useQuery({
+		queryKey: ["recent"],
+		queryFn: () => getRecentLookups(),
+		initialData: initial.recent,
+		refetchInterval: 10_000,
+	});
 	const [login, setLogin] = useState("");
 
+	function go(user: string) {
+		navigate({ to: "/$user", params: { user } });
+	}
 	function submit(e: React.FormEvent) {
 		e.preventDefault();
 		const user = login.trim();
-		if (user) navigate({ to: "/$user", params: { user } });
+		if (user) go(user);
 	}
 
 	return (
-		<main className="mx-auto flex min-h-[calc(100svh-3.5rem)] max-w-xl flex-col justify-center px-6">
+		<main className="mx-auto max-w-2xl px-6 py-16">
 			<h1 className="text-center text-5xl font-bold tracking-tight">
 				Commit History
 			</h1>
@@ -46,19 +69,212 @@ function Home() {
 				</button>
 			</form>
 
-			<div className="mt-6 flex justify-center gap-3 text-sm text-muted-foreground">
-				<span>Try:</span>
-				{["peetzweg", "torvalds", "gaearon"].map((u) => (
-					<button
-						key={u}
-						type="button"
-						onClick={() => navigate({ to: "/$user", params: { user: u } })}
-						className="accent-text hover:underline"
-					>
-						{u}
-					</button>
-				))}
-			</div>
+			{recent.length > 0 && <RecentSection recent={recent} onPick={go} />}
+			{initial.leaderboard.length > 0 && (
+				<Leaderboard initialPage={initial.leaderboard} onPick={go} />
+			)}
 		</main>
+	);
+}
+
+function SectionHeading({ children }: { children: React.ReactNode }) {
+	return (
+		<h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+			{children}
+		</h2>
+	);
+}
+
+function RecentSection({
+	recent,
+	onPick,
+}: {
+	recent: RecentEntry[];
+	onPick: (login: string) => void;
+}) {
+	return (
+		<section className="mt-14">
+			<SectionHeading>Recently looked up</SectionHeading>
+			<div className="mt-4 flex flex-wrap gap-2">
+				<AnimatePresence initial={false} mode="popLayout">
+					{recent.map((u) => (
+						<motion.button
+							key={u.login}
+							layout
+							initial={{ opacity: 0, scale: 0.8 }}
+							animate={{ opacity: 1, scale: 1 }}
+							exit={{ opacity: 0, scale: 0.8 }}
+							transition={{ type: "spring", stiffness: 500, damping: 32 }}
+							type="button"
+							onClick={() => onPick(u.login)}
+							className="flex items-center gap-2 rounded-full border py-1 pr-3 pl-1 text-sm hover:bg-muted"
+							title={u.name ?? u.login}
+						>
+							<img
+								src={u.avatarUrl ?? ""}
+								alt=""
+								className="h-6 w-6 rounded-full border border-border"
+							/>
+							{u.login}
+						</motion.button>
+					))}
+				</AnimatePresence>
+			</div>
+		</section>
+	);
+}
+
+const LB_VALUE: Record<LeaderMode, (u: LeaderEntry) => number> = {
+	public: (u) => u.totalCommits,
+	private: (u) => u.totalRestricted,
+	both: (u) => u.totalCommits + u.totalRestricted,
+};
+
+function Leaderboard({
+	initialPage,
+	onPick,
+}: {
+	initialPage: LeaderEntry[];
+	onPick: (login: string) => void;
+}) {
+	const [mode, setMode] = useState<LeaderMode>("both");
+	const value = LB_VALUE[mode];
+
+	const query = useInfiniteQuery({
+		queryKey: ["leaderboard", mode],
+		queryFn: ({ pageParam }) =>
+			getLeaderboard({
+				data: { mode, offset: pageParam, limit: LEADERBOARD_PAGE_SIZE },
+			}),
+		initialPageParam: 0,
+		getNextPageParam: (lastPage, allPages) =>
+			lastPage.length < LEADERBOARD_PAGE_SIZE
+				? undefined
+				: allPages.reduce((n, p) => n + p.length, 0),
+		// Seed page 1 of the default (Both) mode from the SSR loader — no flash.
+		initialData:
+			mode === "both" ? { pages: [initialPage], pageParams: [0] } : undefined,
+		refetchInterval: 10_000,
+	});
+
+	const rows = query.data?.pages.flat() ?? [];
+
+	// Infinite scroll: load the next page when the sentinel nears the viewport.
+	const sentinel = useRef<HTMLDivElement>(null);
+	const { hasNextPage, isFetchingNextPage, fetchNextPage } = query;
+	useEffect(() => {
+		const el = sentinel.current;
+		if (!el) return;
+		const io = new IntersectionObserver(
+			(entries) => {
+				if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
+					fetchNextPage();
+				}
+			},
+			{ rootMargin: "300px" },
+		);
+		io.observe(el);
+		return () => io.disconnect();
+	}, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+
+	const subtitle =
+		mode === "public"
+			? "Public commits."
+			: mode === "private"
+				? "Private contributions (only users who expose them)."
+				: "Total activity — public commits + private contributions.";
+
+	return (
+		<section className="mt-14">
+			<div className="flex items-center justify-between gap-3">
+				<SectionHeading>All-time leaderboard</SectionHeading>
+				<LeaderToggle mode={mode} onChange={setMode} />
+			</div>
+			<p className="mt-1 text-xs text-muted-foreground">{subtitle}</p>
+			<ol className="mt-4">
+				<AnimatePresence initial={false} mode="popLayout">
+					{rows.map((u, i) => (
+						<motion.li
+							key={u.login}
+							layout
+							initial={{ opacity: 0 }}
+							animate={{ opacity: 1 }}
+							exit={{ opacity: 0 }}
+							transition={{ type: "spring", stiffness: 600, damping: 40 }}
+							className="border-border border-b"
+						>
+							<button
+								type="button"
+								onClick={() => onPick(u.login)}
+								className="flex w-full items-center gap-3 py-2.5 text-left hover:bg-muted"
+							>
+								<span className="w-6 text-right text-sm tabular-nums text-muted-foreground">
+									{i + 1}
+								</span>
+								<img
+									src={u.avatarUrl ?? ""}
+									alt=""
+									className="h-8 w-8 rounded-full border border-border"
+								/>
+								<span className="flex-1 truncate font-medium">{u.login}</span>
+								<span className="text-right">
+									<span className="block font-semibold tabular-nums">
+										{value(u).toLocaleString()}
+									</span>
+									<span className="block text-xs text-muted-foreground tabular-nums">
+										{mode === "private"
+											? "private"
+											: mode === "public"
+												? "commits"
+												: u.totalRestricted > 0
+													? `${u.totalCommits.toLocaleString()} commits · ${u.totalRestricted.toLocaleString()} private`
+													: `${u.totalCommits.toLocaleString()} commits`}
+									</span>
+								</span>
+							</button>
+						</motion.li>
+					))}
+				</AnimatePresence>
+			</ol>
+			<div ref={sentinel} className="h-px" />
+			{isFetchingNextPage && (
+				<p className="py-3 text-center text-xs text-muted-foreground">
+					Loading more…
+				</p>
+			)}
+		</section>
+	);
+}
+
+const LB_LABELS: Record<LeaderMode, string> = {
+	public: "Public",
+	private: "Private",
+	both: "Both",
+};
+
+function LeaderToggle({
+	mode,
+	onChange,
+}: {
+	mode: LeaderMode;
+	onChange: (m: LeaderMode) => void;
+}) {
+	return (
+		<div className="inline-flex overflow-hidden rounded-md border text-xs">
+			{(["public", "private", "both"] as const).map((m) => (
+				<button
+					key={m}
+					type="button"
+					onClick={() => onChange(m)}
+					className={
+						mode === m
+							? "bg-foreground px-2.5 py-1 text-background"
+							: "px-2.5 py-1 text-muted-foreground hover:bg-muted"
+					}
+				>
+					{LB_LABELS[m]}
+				</button>
+			))}
+		</div>
 	);
 }

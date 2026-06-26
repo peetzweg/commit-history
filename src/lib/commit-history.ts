@@ -1,5 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
+import { desc, eq, gt, sql } from "drizzle-orm";
 import { getCommitHistory as getCachedCommitHistory } from "#/lib/cache";
+import { db } from "#/lib/db";
+import { entities, lookups } from "#/lib/db/schema";
 import { type CommitHistory, GitHubError } from "#/lib/github";
 
 /**
@@ -54,6 +57,100 @@ export interface UserResult {
 	history: CommitHistory | null;
 	error: string | null;
 }
+
+export interface LeaderEntry {
+	login: string;
+	name: string | null;
+	avatarUrl: string | null;
+	totalCommits: number;
+	totalRestricted: number;
+}
+export interface RecentEntry {
+	login: string;
+	name: string | null;
+	avatarUrl: string | null;
+}
+export interface StartPageData {
+	recent: RecentEntry[];
+	leaderboard: LeaderEntry[];
+}
+
+export type LeaderMode = "public" | "private" | "both";
+
+export const LEADERBOARD_PAGE_SIZE = 20;
+const RECENT_LIMIT = 16;
+
+// Ranking is done in SQL per mode so pagination stays consistent as you scroll.
+async function queryLeaderboard(
+	mode: LeaderMode,
+	offset: number,
+	limit: number,
+): Promise<LeaderEntry[]> {
+	if (!db) return [];
+	const order =
+		mode === "public"
+			? desc(entities.totalCommits)
+			: mode === "private"
+				? desc(entities.totalRestricted)
+				: desc(sql`${entities.totalCommits} + ${entities.totalRestricted}`);
+	const cols = {
+		login: entities.login,
+		name: entities.name,
+		avatarUrl: entities.avatarUrl,
+		totalCommits: entities.totalCommits,
+		totalRestricted: entities.totalRestricted,
+	};
+	const base = db.select(cols).from(entities);
+	// Private mode only lists users who actually expose private contributions.
+	const scoped =
+		mode === "private" ? base.where(gt(entities.totalRestricted, 0)) : base;
+	return scoped.orderBy(order).limit(limit).offset(offset);
+}
+
+async function queryRecent(limit: number): Promise<RecentEntry[]> {
+	if (!db) return [];
+	const rows = await db
+		.select({
+			login: entities.login,
+			name: entities.name,
+			avatarUrl: entities.avatarUrl,
+			last: sql<string>`max(${lookups.searchedAt})`,
+		})
+		.from(lookups)
+		.innerJoin(entities, eq(entities.id, lookups.entityId))
+		.groupBy(entities.id)
+		.orderBy(desc(sql`max(${lookups.searchedAt})`))
+		.limit(limit);
+	return rows.map((r) => ({
+		login: r.login,
+		name: r.name,
+		avatarUrl: r.avatarUrl,
+	}));
+}
+
+/** First-paint data for the start page: recent lookups + leaderboard page 1 (Both). */
+export const getStartPageData = createServerFn({ method: "GET" }).handler(
+	async (): Promise<StartPageData> => {
+		const [recent, leaderboard] = await Promise.all([
+			queryRecent(RECENT_LIMIT),
+			queryLeaderboard("both", 0, LEADERBOARD_PAGE_SIZE),
+		]);
+		return { recent, leaderboard };
+	},
+);
+
+/** One page of the leaderboard for a given mode — drives infinite scroll. */
+export const getLeaderboard = createServerFn({ method: "GET" })
+	.validator((p: { mode: LeaderMode; offset: number; limit: number }) => p)
+	.handler(
+		({ data }): Promise<LeaderEntry[]> =>
+			queryLeaderboard(data.mode, data.offset, data.limit),
+	);
+
+/** Recent lookups — polled for the live "Recently looked up" strip. */
+export const getRecentLookups = createServerFn({ method: "GET" }).handler(
+	(): Promise<RecentEntry[]> => queryRecent(RECENT_LIMIT),
+);
 
 /**
  * Resolve several users' histories in one round-trip, tolerating partial failure so one bad

@@ -44,7 +44,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 		],
 		links: [
 			{ rel: "stylesheet", href: appCss },
-			{ rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
+			{ rel: "icon", href: "/crown.svg", type: "image/svg+xml" },
 			{ rel: "alternate icon", href: "/favicon.ico" },
 			{ rel: "apple-touch-icon", href: "/logo192.png" },
 			// NB: canonical is set per-route (here it would duplicate on sub-pages —

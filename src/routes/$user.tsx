@@ -4,6 +4,7 @@ import {
 	useNavigate,
 	useRouter,
 } from "@tanstack/react-router";
+import { motion } from "motion/react";
 import { useState } from "react";
 import { type ChartMode, CommitChart } from "#/components/CommitChart";
 import {
@@ -17,6 +18,7 @@ import {
 	parseLogins,
 	type UserResult,
 } from "#/lib/commit-history";
+import type { CommitPoint } from "#/lib/github";
 
 export const Route = createFileRoute("/$user")({
 	loader: ({ params }) =>
@@ -47,7 +49,76 @@ export const Route = createFileRoute("/$user")({
 	},
 	component: View,
 	errorComponent: UserError,
+	// Navigate instantly: show the placeholder while the loader runs (skipped for fast cache hits).
+	pendingComponent: PendingUser,
+	pendingMs: 150,
 });
+
+// A generic rising curve, blurred behind the loading state — gives the page real shape while
+// the actual data streams in (instead of a shimmering skeleton).
+const GENERIC_POINTS: CommitPoint[] = (() => {
+	const pts: CommitPoint[] = [];
+	let cumulative = 0;
+	for (let i = 0; i < 54; i++) {
+		const commits = Math.round(15 + i * 1.5 + i ** 1.8 * 0.25);
+		cumulative += commits;
+		const year = 2021 + Math.floor(i / 12);
+		const month = (i % 12) + 1;
+		pts.push({
+			date: `${year}-${String(month).padStart(2, "0")}-01`,
+			commits,
+			cumulative,
+			restricted: 0,
+			restrictedCumulative: 0,
+		});
+	}
+	return pts;
+})();
+
+function PendingUser() {
+	const { user } = Route.useParams();
+	const login = user.split(",")[0];
+	const labels = ["Public commits", "Busiest month", "Since"];
+	return (
+		<main className="mx-auto max-w-4xl px-6 py-12">
+			<Link
+				to="/"
+				className="text-sm text-muted-foreground hover:text-foreground"
+			>
+				← commit-history
+			</Link>
+
+			{/* Mirror the loaded layout so nothing jumps: name line reserved above, @login in its
+			    final small slot (we already know it from the URL). */}
+			<header className="mt-6 flex items-center gap-4">
+				<div className="h-14 w-14 rounded-full border border-border bg-muted" />
+				<div>
+					<h1 className="text-2xl font-bold">&nbsp;</h1>
+					<span className="text-sm text-muted-foreground">@{login}</span>
+				</div>
+			</header>
+
+			<div className="mt-8 flex flex-wrap gap-10">
+				{labels.map((label) => (
+					<div key={label}>
+						{/* reserve value + hint heights; they animate in once data arrives */}
+						<div className="h-8" />
+						<div className="text-xs uppercase tracking-wide text-muted-foreground">
+							{label}
+						</div>
+						<div className="h-4" />
+					</div>
+				))}
+			</div>
+
+			<div className="mt-3 rounded-xl border border-border p-4">
+				<div className="pointer-events-none opacity-40 blur-[6px]">
+					<CommitChart points={GENERIC_POINTS} mode="public" />
+				</div>
+			</div>
+		</main>
+	);
+}
 
 function monthYear(date: string) {
 	return new Date(date).toLocaleDateString("en-US", {
@@ -129,7 +200,14 @@ function Stat({
 }) {
 	return (
 		<div>
-			<div className="text-2xl font-semibold tabular-nums">{value}</div>
+			<motion.div
+				initial={{ opacity: 0, y: -4 }}
+				animate={{ opacity: 1, y: 0 }}
+				transition={{ duration: 0.35 }}
+				className="text-2xl font-semibold tabular-nums"
+			>
+				{value}
+			</motion.div>
 			<div className="text-xs uppercase tracking-wide text-muted-foreground">
 				{label}
 			</div>
@@ -205,9 +283,14 @@ function SingleView({
 					<ChartModeToggle mode={mode} onChange={setMode} />
 				</div>
 			)}
-			<div className="mt-3 rounded-xl border border-border p-4">
+			<motion.div
+				initial={{ opacity: 0, filter: "blur(8px)" }}
+				animate={{ opacity: 1, filter: "blur(0px)" }}
+				transition={{ duration: 0.5 }}
+				className="mt-3 rounded-xl border border-border p-4"
+			>
 				<CommitChart points={points} mode={hasPrivate ? mode : "public"} />
-			</div>
+			</motion.div>
 
 			<div className="mt-4 flex flex-wrap items-center justify-between gap-3">
 				<p className="text-xs text-muted-foreground">
@@ -257,9 +340,14 @@ function ComparisonView({
 				<TimelineToggle mode={mode} onChange={setMode} />
 			</header>
 
-			<div className="mt-6 rounded-xl border border-border p-4">
+			<motion.div
+				initial={{ opacity: 0, filter: "blur(8px)" }}
+				animate={{ opacity: 1, filter: "blur(0px)" }}
+				transition={{ duration: 0.5 }}
+				className="mt-6 rounded-xl border border-border p-4"
+			>
 				<MultiCommitChart series={series} mode={mode} />
-			</div>
+			</motion.div>
 
 			{mode === "aligned" && (
 				<p className="mt-3 text-xs text-muted-foreground">
