@@ -211,8 +211,16 @@ function Leaderboard({
 								onClick={() => onPick(u.login)}
 								className="flex w-full items-center gap-3 py-2.5 text-left hover:bg-muted"
 							>
-								<span className="w-6 text-right text-sm tabular-nums text-muted-foreground">
-									{i + 1}
+								<span className="flex w-6 items-center justify-end text-sm tabular-nums text-muted-foreground">
+									{i === 0 ? (
+										<img
+											src="/crown.svg"
+											alt="1st place"
+											className="h-4 w-auto"
+										/>
+									) : (
+										i + 1
+									)}
 								</span>
 								<img
 									src={u.avatarUrl ?? ""}
