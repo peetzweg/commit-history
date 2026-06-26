@@ -52,7 +52,7 @@ function Home() {
 			</p>
 
 			<form onSubmit={submit} className="mt-10 flex items-stretch gap-2">
-				<div className="flex flex-1 items-center rounded-md border shadow-inner focus-within:shadow-[0_0_0_0.125em_var(--ring)]">
+				<div className="flex min-w-0 flex-1 items-center rounded-md border shadow-inner focus-within:shadow-[0_0_0_0.125em_var(--ring)]">
 					<span className="pl-3 text-muted-foreground">github.com/</span>
 					<input
 						// biome-ignore lint/a11y/noAutofocus: single-purpose landing page; focusing the one input is the intent
@@ -61,7 +61,7 @@ function Home() {
 						onChange={(e) => setLogin(e.target.value)}
 						placeholder="peetzweg"
 						aria-label="GitHub username"
-						className="flex-1 bg-transparent p-2 pl-1 outline-none"
+						className="min-w-0 flex-1 bg-transparent p-2 pl-1 outline-none"
 					/>
 				</div>
 				<button type="submit" className="btn-primary">
@@ -189,7 +189,7 @@ function Leaderboard({
 
 	return (
 		<section className="mt-14">
-			<div className="flex items-center justify-between gap-3">
+			<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 				<SectionHeading>All-time leaderboard</SectionHeading>
 				<LeaderToggle mode={mode} onChange={setMode} />
 			</div>
@@ -274,7 +274,7 @@ function LeaderToggle({
 	onChange: (m: LeaderMode) => void;
 }) {
 	return (
-		<div className="inline-flex overflow-hidden rounded-md border text-xs">
+		<div className="flex w-full overflow-hidden rounded-md border text-xs sm:inline-flex sm:w-auto">
 			{(["public", "private", "both", "followers"] as const).map((m) => (
 				<button
 					key={m}
@@ -282,8 +282,8 @@ function LeaderToggle({
 					onClick={() => onChange(m)}
 					className={
 						mode === m
-							? "bg-foreground px-2.5 py-1 text-background"
-							: "px-2.5 py-1 text-muted-foreground hover:bg-muted"
+							? "flex-1 bg-foreground px-3 py-1.5 text-background sm:flex-none"
+							: "flex-1 px-3 py-1.5 text-muted-foreground hover:bg-muted sm:flex-none"
 					}
 				>
 					{LB_LABELS[m]}
