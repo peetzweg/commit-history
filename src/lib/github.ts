@@ -26,6 +26,17 @@ export interface Profile {
 	name: string | null;
 	avatarUrl: string;
 	createdAt: string;
+	bio: string | null;
+	company: string | null;
+	location: string | null;
+	websiteUrl: string | null;
+	twitterUsername: string | null;
+	/** Follower count at fetch time. */
+	followers: number;
+	/** Following count at fetch time. */
+	following: number;
+	/** Public repos owned by the user. */
+	publicRepos: number;
 }
 
 export interface CommitPoint {
@@ -145,18 +156,57 @@ function assertLogin(rawLogin: string): string {
 	return login;
 }
 
-/** Fetch the profile + account creation date (defines the window range). */
+/** Raw shape from GraphQL, before flattening the `{ totalCount }` connections. */
+interface RawProfile {
+	login: string;
+	name: string | null;
+	avatarUrl: string;
+	createdAt: string;
+	bio: string | null;
+	company: string | null;
+	location: string | null;
+	websiteUrl: string | null;
+	twitterUsername: string | null;
+	followers: { totalCount: number };
+	following: { totalCount: number };
+	repositories: { totalCount: number };
+}
+
+/**
+ * Fetch the profile + account creation date (defines the window range) plus cheap profile
+ * metadata (followers/following/public repos, bio, company, location, links). All of this comes
+ * from the *same* single `user` query — no extra requests.
+ */
 export async function fetchProfile(
 	rawLogin: string,
 	token: string,
 ): Promise<Profile> {
 	const login = assertLogin(rawLogin);
-	const data = await graphql<{ user: Profile | null }>(
+	const data = await graphql<{ user: RawProfile | null }>(
 		token,
-		`query { user(login: "${login}") { login name avatarUrl createdAt } }`,
+		`query { user(login: "${login}") {
+			login name avatarUrl createdAt bio company location websiteUrl twitterUsername
+			followers { totalCount }
+			following { totalCount }
+			repositories(ownerAffiliations: OWNER, privacy: PUBLIC) { totalCount }
+		} }`,
 	);
 	if (!data.user) throw new GitHubError(`User "${login}" not found.`, 404);
-	return data.user;
+	const u = data.user;
+	return {
+		login: u.login,
+		name: u.name,
+		avatarUrl: u.avatarUrl,
+		createdAt: u.createdAt,
+		bio: u.bio,
+		company: u.company,
+		location: u.location,
+		websiteUrl: u.websiteUrl,
+		twitterUsername: u.twitterUsername,
+		followers: u.followers.totalCount,
+		following: u.following.totalCount,
+		publicRepos: u.repositories.totalCount,
+	};
 }
 
 /**

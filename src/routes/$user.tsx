@@ -127,6 +127,22 @@ function monthYear(date: string) {
 	});
 }
 
+/** Rough, human "14 years ago" / "8 months ago" since a date. */
+function timeAgo(date: string) {
+	const then = new Date(date);
+	const now = new Date();
+	let years = now.getFullYear() - then.getFullYear();
+	const monthDiff = now.getMonth() - then.getMonth();
+	if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < then.getDate())) {
+		years--;
+	}
+	if (years >= 1) return `${years} year${years === 1 ? "" : "s"} ago`;
+	let months = years * 12 + monthDiff;
+	if (now.getDate() < then.getDate()) months--;
+	if (months >= 1) return `${months} month${months === 1 ? "" : "s"} ago`;
+	return "this month";
+}
+
 /** Navigate to the route for a given set of logins (single = detailed view, many = comparison). */
 function useGoToLogins() {
 	const navigate = useNavigate();
@@ -243,7 +259,7 @@ function SingleView({
 				<img
 					src={user.avatarUrl}
 					alt={user.login}
-					className="h-14 w-14 rounded-full border border-border"
+					className="h-20 w-20 rounded-full border border-border"
 				/>
 				<div>
 					<h1 className="text-2xl font-bold">{user.name ?? user.login}</h1>
@@ -255,6 +271,9 @@ function SingleView({
 					>
 						@{user.login}
 					</a>
+					<p className="mt-0.5 text-xs text-muted-foreground">
+						Joined {since} ({timeAgo(user.createdAt)})
+					</p>
 				</div>
 			</header>
 
@@ -275,7 +294,7 @@ function SingleView({
 							: undefined
 					}
 				/>
-				<Stat label="Since" value={since} />
+				<Stat label="Followers" value={user.followers.toLocaleString()} />
 			</div>
 
 			{hasPrivate && (

@@ -22,7 +22,17 @@ export const entities = pgTable("entities", {
 	createdAt: timestamp("created_at", { withTimezone: true }), // defines the window start
 	totalCommits: integer("total_commits").notNull().default(0), // public commits
 	totalRestricted: integer("total_restricted").notNull().default(0), // private contributions
-	lastFetched: timestamp("last_fetched", { withTimezone: true }), // staleness / trailing refresh
+	// Profile metadata — mutable, refreshed on the trailing-refresh path (see cache.ts). All
+	// nullable so an unknown value (older row, fetch failure) stays distinguishable from a real 0.
+	followers: integer("followers"),
+	following: integer("following"),
+	publicRepos: integer("public_repos"),
+	bio: text("bio"),
+	company: text("company"),
+	location: text("location"),
+	websiteUrl: text("website_url"),
+	twitterUsername: text("twitter_username"),
+	lastFetched: timestamp("last_fetched", { withTimezone: true }), // staleness / trailing refresh; also "profile last updated"
 	builtAt: timestamp("built_at", { withTimezone: true }), // last full rebuild (catches backfills)
 });
 

@@ -128,6 +128,7 @@ const LB_VALUE: Record<LeaderMode, (u: LeaderEntry) => number> = {
 	public: (u) => u.totalCommits,
 	private: (u) => u.totalRestricted,
 	both: (u) => u.totalCommits + u.totalRestricted,
+	followers: (u) => u.followers ?? 0,
 };
 
 function Leaderboard({
@@ -182,7 +183,9 @@ function Leaderboard({
 			? "Public commits."
 			: mode === "private"
 				? "Private contributions (only users who expose them)."
-				: "Total activity — public commits + private contributions.";
+				: mode === "followers"
+					? "GitHub followers."
+					: "Total activity — public commits + private contributions.";
 
 	return (
 		<section className="mt-14">
@@ -226,9 +229,11 @@ function Leaderboard({
 											? "private"
 											: mode === "public"
 												? "commits"
-												: u.totalRestricted > 0
-													? `${u.totalCommits.toLocaleString()} commits · ${u.totalRestricted.toLocaleString()} private`
-													: `${u.totalCommits.toLocaleString()} commits`}
+												: mode === "followers"
+													? "followers"
+													: u.totalRestricted > 0
+														? `${u.totalCommits.toLocaleString()} commits · ${u.totalRestricted.toLocaleString()} private`
+														: `${u.totalCommits.toLocaleString()} commits`}
 									</span>
 								</span>
 							</button>
@@ -250,6 +255,7 @@ const LB_LABELS: Record<LeaderMode, string> = {
 	public: "Public",
 	private: "Private",
 	both: "Both",
+	followers: "Followers",
 };
 
 function LeaderToggle({
@@ -261,7 +267,7 @@ function LeaderToggle({
 }) {
 	return (
 		<div className="inline-flex overflow-hidden rounded-md border text-xs">
-			{(["public", "private", "both"] as const).map((m) => (
+			{(["public", "private", "both", "followers"] as const).map((m) => (
 				<button
 					key={m}
 					type="button"

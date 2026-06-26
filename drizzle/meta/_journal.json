@@ -15,6 +15,13 @@
       "when": 1782495635612,
       "tag": "0001_colorful_titania",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1782501939952,
+      "tag": "0002_fat_sir_ram",
+      "breakpoints": true
     }
   ]
 }

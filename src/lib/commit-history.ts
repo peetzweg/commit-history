@@ -64,6 +64,7 @@ export interface LeaderEntry {
 	avatarUrl: string | null;
 	totalCommits: number;
 	totalRestricted: number;
+	followers: number | null;
 }
 export interface RecentEntry {
 	login: string;
@@ -75,7 +76,7 @@ export interface StartPageData {
 	leaderboard: LeaderEntry[];
 }
 
-export type LeaderMode = "public" | "private" | "both";
+export type LeaderMode = "public" | "private" | "both" | "followers";
 
 export const LEADERBOARD_PAGE_SIZE = 20;
 const RECENT_LIMIT = 16;
@@ -92,18 +93,27 @@ async function queryLeaderboard(
 			? desc(entities.totalCommits)
 			: mode === "private"
 				? desc(entities.totalRestricted)
-				: desc(sql`${entities.totalCommits} + ${entities.totalRestricted}`);
+				: mode === "followers"
+					? // NULLS LAST so not-yet-backfilled rows sink to the bottom.
+						sql`${entities.followers} desc nulls last`
+					: desc(sql`${entities.totalCommits} + ${entities.totalRestricted}`);
 	const cols = {
 		login: entities.login,
 		name: entities.name,
 		avatarUrl: entities.avatarUrl,
 		totalCommits: entities.totalCommits,
 		totalRestricted: entities.totalRestricted,
+		followers: entities.followers,
 	};
 	const base = db.select(cols).from(entities);
-	// Private mode only lists users who actually expose private contributions.
+	// Private mode only lists users who expose private contributions; followers mode only those
+	// with a known follower count.
 	const scoped =
-		mode === "private" ? base.where(gt(entities.totalRestricted, 0)) : base;
+		mode === "private"
+			? base.where(gt(entities.totalRestricted, 0))
+			: mode === "followers"
+				? base.where(gt(entities.followers, 0))
+				: base;
 	return scoped.orderBy(order).limit(limit).offset(offset);
 }
 
