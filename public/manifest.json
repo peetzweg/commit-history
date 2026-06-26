@@ -1,24 +1,25 @@
 {
   "short_name": "Commit History",
   "name": "Commit History — lifetime GitHub commits",
+  "description": "Visualize any GitHub user's cumulative commits over their entire lifetime, like star-history but for commits.",
   "icons": [
     {
-      "src": "favicon.svg",
+      "src": "crown.svg",
       "type": "image/svg+xml",
       "sizes": "any"
     },
     {
       "src": "favicon.ico",
-      "sizes": "64x64 32x32 24x24 16x16",
+      "sizes": "32x32 16x16",
       "type": "image/x-icon"
     },
     {
-      "src": "logo192.png",
+      "src": "crown-192.png",
       "type": "image/png",
       "sizes": "192x192"
     },
     {
-      "src": "logo512.png",
+      "src": "crown-512.png",
       "type": "image/png",
       "sizes": "512x512"
     }
