@@ -23,12 +23,12 @@ export const Route = createFileRoute("/")({
 function Home() {
 	const navigate = useNavigate();
 	const initial = Route.useLoaderData();
-	// Live "Recently looked up": poll every 10s, seeded by the SSR loader.
+	// Live "Recently looked up": poll every 4s, seeded by the SSR loader.
 	const { data: recent } = useQuery({
 		queryKey: ["recent"],
 		queryFn: () => getRecentLookups(),
 		initialData: initial.recent,
-		refetchInterval: 10_000,
+		refetchInterval: 4_000,
 	});
 	const [login, setLogin] = useState("");
 
