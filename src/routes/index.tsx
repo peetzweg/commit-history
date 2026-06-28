@@ -1,7 +1,7 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import {
 	getLeaderboard,
 	getRecentLookups,
@@ -124,6 +124,58 @@ function RecentSection({
 	);
 }
 
+/**
+ * A single hardcoded self-promo row, shown in the 4th slot after the top 3.
+ *
+ * Placeholder until the DB-driven sponsorship system lands (see the `feat/sponsorships` branch).
+ * For now it's pure markup — no database, no ads — pointing at the author's GitHub and Ko-fi.
+ */
+function SelfPromoRow() {
+	return (
+		<motion.li
+			layout
+			initial={{ opacity: 0 }}
+			animate={{ opacity: 1 }}
+			exit={{ opacity: 0 }}
+			transition={{ type: "spring", stiffness: 600, damping: 40 }}
+			className="border-border border-b border-dashed bg-muted/40"
+		>
+			<div className="flex w-full flex-wrap items-center gap-x-3 gap-y-2 py-2.5">
+				<span className="flex w-6 shrink-0 items-center justify-center text-base">
+					☕
+				</span>
+				<img
+					src="https://github.com/peetzweg.png"
+					alt="peetzweg"
+					className="h-8 w-8 shrink-0 rounded-full border border-border"
+				/>
+				<p className="min-w-0 flex-1 text-sm text-muted-foreground">
+					Do you like this page?
+					<br />
+					Consider supporting me,{" "}
+					<a
+						href="https://github.com/peetzweg"
+						target="_blank"
+						rel="noreferrer"
+						className="font-medium text-foreground hover:underline"
+					>
+						peetzweg
+					</a>
+					.
+				</p>
+				<a
+					href="https://ko-fi.com/peetzweg"
+					target="_blank"
+					rel="noreferrer"
+					className="btn-secondary shrink-0 text-xs"
+				>
+					Buy me a coffee →
+				</a>
+			</div>
+		</motion.li>
+	);
+}
+
 const LB_VALUE: Record<LeaderMode, (u: LeaderEntry) => number> = {
 	public: (u) => u.totalCommits,
 	private: (u) => u.totalRestricted,
@@ -197,55 +249,58 @@ function Leaderboard({
 			<ol className="mt-4">
 				<AnimatePresence initial={false} mode="popLayout">
 					{rows.map((u, i) => (
-						<motion.li
-							key={u.login}
-							layout
-							initial={{ opacity: 0 }}
-							animate={{ opacity: 1 }}
-							exit={{ opacity: 0 }}
-							transition={{ type: "spring", stiffness: 600, damping: 40 }}
-							className="border-border border-b"
-						>
-							<button
-								type="button"
-								onClick={() => onPick(u.login)}
-								className="flex w-full items-center gap-3 py-2.5 text-left hover:bg-muted"
+						<Fragment key={u.login}>
+							<motion.li
+								layout
+								initial={{ opacity: 0 }}
+								animate={{ opacity: 1 }}
+								exit={{ opacity: 0 }}
+								transition={{ type: "spring", stiffness: 600, damping: 40 }}
+								className="border-border border-b"
 							>
-								<span className="flex w-6 items-center justify-end text-sm tabular-nums text-muted-foreground">
-									{i === 0 ? (
-										<img
-											src="/crown.svg"
-											alt="1st place"
-											className="h-4 w-auto"
-										/>
-									) : (
-										i + 1
-									)}
-								</span>
-								<img
-									src={u.avatarUrl ?? ""}
-									alt=""
-									className="h-8 w-8 rounded-full border border-border"
-								/>
-								<span className="flex-1 truncate font-medium">{u.login}</span>
-								<span className="text-right">
-									<span className="block font-semibold tabular-nums">
-										{value(u).toLocaleString()}
+								<button
+									type="button"
+									onClick={() => onPick(u.login)}
+									className="flex w-full items-center gap-3 py-2.5 text-left hover:bg-muted"
+								>
+									<span className="flex w-6 items-center justify-end text-sm tabular-nums text-muted-foreground">
+										{i === 0 ? (
+											<img
+												src="/crown.svg"
+												alt="1st place"
+												className="h-4 w-auto"
+											/>
+										) : (
+											i + 1
+										)}
 									</span>
-									<span className="block text-xs text-muted-foreground tabular-nums">
-										{mode === "private"
-											? "private"
-											: mode === "public"
-												? "commits"
-												: mode === "followers"
-													? "followers"
-													: u.totalRestricted > 0
-														? `${u.totalCommits.toLocaleString()} commits · ${u.totalRestricted.toLocaleString()} private`
-														: `${u.totalCommits.toLocaleString()} commits`}
+									<img
+										src={u.avatarUrl ?? ""}
+										alt=""
+										className="h-8 w-8 rounded-full border border-border"
+									/>
+									<span className="flex-1 truncate font-medium">{u.login}</span>
+									<span className="text-right">
+										<span className="block font-semibold tabular-nums">
+											{value(u).toLocaleString()}
+										</span>
+										<span className="block text-xs text-muted-foreground tabular-nums">
+											{mode === "private"
+												? "private"
+												: mode === "public"
+													? "commits"
+													: mode === "followers"
+														? "followers"
+														: u.totalRestricted > 0
+															? `${u.totalCommits.toLocaleString()} commits · ${u.totalRestricted.toLocaleString()} private`
+															: `${u.totalCommits.toLocaleString()} commits`}
+										</span>
 									</span>
-								</span>
-							</button>
-						</motion.li>
+								</button>
+							</motion.li>
+							{/* Self-promo sits in the 4th slot, after the top 3 (only once there's more below). */}
+							{i === 2 && rows.length > 3 && <SelfPromoRow />}
+						</Fragment>
 					))}
 				</AnimatePresence>
 			</ol>
