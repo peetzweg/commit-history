@@ -14,3 +14,6 @@ todos.json
 
 # Local Netlify folder
 .netlify
+
+# Local DB backups — never commit
+backups/
