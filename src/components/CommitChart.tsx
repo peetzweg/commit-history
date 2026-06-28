@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ChartLegend } from "#/components/ChartLegend";
 import type { CommitPoint } from "#/lib/github";
 
 // Fixed viewBox; the <svg> scales to its container via width:100%. No DOM measurement, so this
@@ -28,9 +29,12 @@ export type ChartMode = "public" | "private" | "both";
 export function CommitChart({
 	points,
 	mode = "both",
+	label,
 }: {
 	points: CommitPoint[];
 	mode?: ChartMode;
+	/** Username shown in the in-chart legend (omit to hide the legend). */
+	label?: string;
 }) {
 	const [hover, setHover] = useState<number | null>(null);
 	if (points.length === 0) return null;
@@ -193,6 +197,14 @@ export function CommitChart({
 					) : null,
 				)}
 			</g>
+
+			{label && (
+				<ChartLegend
+					entries={[{ label, color: ACCENT }]}
+					x={PAD.left + 14}
+					y={PAD.top + 6}
+				/>
+			)}
 
 			{/* Hover marker (kept crisp for precision) */}
 			{hp && (

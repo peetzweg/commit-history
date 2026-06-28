@@ -340,7 +340,11 @@ function SingleView({
 				transition={{ duration: 0.5 }}
 				className="mt-3 rounded-xl border border-border p-4"
 			>
-				<CommitChart points={points} mode={hasPrivate ? mode : "public"} />
+				<CommitChart
+					points={points}
+					mode={hasPrivate ? mode : "public"}
+					label={user.login}
+				/>
 			</motion.div>
 
 			<div className="mt-4 flex flex-wrap items-center justify-between gap-3">

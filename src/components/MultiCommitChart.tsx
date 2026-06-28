@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ChartLegend } from "#/components/ChartLegend";
 import type { ChartMode } from "#/components/CommitChart";
 import type { CommitPoint } from "#/lib/github";
 
@@ -249,6 +250,12 @@ export function MultiCommitChart({
 					/>
 				))}
 			</g>
+
+			<ChartLegend
+				entries={series.map((s) => ({ label: s.login, color: s.color }))}
+				x={PAD.left + 14}
+				y={PAD.top + 6}
+			/>
 
 			{/* Hover: vertical guide + a dot and value per series */}
 			{hoverX != null && (
