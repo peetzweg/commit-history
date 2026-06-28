@@ -11,7 +11,7 @@ import {
 } from "drizzle-orm";
 import { getCommitHistory as getCachedCommitHistory } from "#/lib/cache";
 import { db } from "#/lib/db";
-import { entities, lookups } from "#/lib/db/schema";
+import { adSlots, entities, lookups, sponsorships } from "#/lib/db/schema";
 import { type CommitHistory, GitHubError } from "#/lib/github";
 
 /**
@@ -83,9 +83,24 @@ export interface RecentEntry {
 	name: string | null;
 	avatarUrl: string | null;
 }
+/** A sold sponsor's creative, rendered in its slot's ad row. */
+export interface Sponsor {
+	label: string;
+	imageUrl: string | null;
+	linkUrl: string;
+}
+/** One purchasable ad slot + its current occupant (null when unsold). */
+export interface AdSlot {
+	afterRank: number; // the slot renders right after this leaderboard rank
+	tier: string;
+	priceWeekly: number; // USD per 7 days
+	checkoutUrl: string | null; // Stripe Payment Link; null = no CTA
+	sponsor: Sponsor | null;
+}
 export interface StartPageData {
 	recent: RecentEntry[];
 	leaderboard: LeaderEntry[];
+	adSlots: AdSlot[];
 }
 
 export type LeaderMode = "public" | "private" | "both" | "followers";
@@ -153,14 +168,67 @@ async function queryRecent(limit: number): Promise<RecentEntry[]> {
 	}));
 }
 
-/** First-paint data for the start page: recent lookups + leaderboard page 1 (Both). */
+/**
+ * Every enabled ad slot, each with its current active+in-window sponsor (or null when unsold).
+ * Two small queries merged in JS — cheaper than a join and trivial at this row count.
+ */
+async function queryAdSlots(): Promise<AdSlot[]> {
+	if (!db) return [];
+	const now = sql`now()`;
+	const [slots, sponsors] = await Promise.all([
+		db
+			.select({
+				afterRank: adSlots.afterRank,
+				tier: adSlots.tier,
+				priceWeekly: adSlots.priceWeekly,
+				checkoutUrl: adSlots.checkoutUrl,
+			})
+			.from(adSlots)
+			.where(eq(adSlots.enabled, true))
+			.orderBy(adSlots.afterRank),
+		db
+			.select({
+				afterRank: sponsorships.afterRank,
+				label: sponsorships.label,
+				imageUrl: sponsorships.imageUrl,
+				linkUrl: sponsorships.linkUrl,
+			})
+			.from(sponsorships)
+			.where(
+				and(
+					eq(sponsorships.status, "active"),
+					sql`${sponsorships.activeFrom} <= ${now}`,
+					sql`(${sponsorships.activeUntil} is null or ${sponsorships.activeUntil} > ${now})`,
+				),
+			)
+			.orderBy(desc(sponsorships.activeFrom)),
+	]);
+	// First active sponsor wins per slot (newest activeFrom, thanks to the order above).
+	const byRank = new Map<number, Sponsor>();
+	for (const s of sponsors) {
+		if (!byRank.has(s.afterRank)) {
+			byRank.set(s.afterRank, {
+				label: s.label,
+				imageUrl: s.imageUrl,
+				linkUrl: s.linkUrl,
+			});
+		}
+	}
+	return slots.map((slot) => ({
+		...slot,
+		sponsor: byRank.get(slot.afterRank) ?? null,
+	}));
+}
+
+/** First-paint data for the start page: recent lookups + leaderboard page 1 + ad slots. */
 export const getStartPageData = createServerFn({ method: "GET" }).handler(
 	async (): Promise<StartPageData> => {
-		const [recent, leaderboard] = await Promise.all([
+		const [recent, leaderboard, adSlotList] = await Promise.all([
 			queryRecent(RECENT_LIMIT),
 			queryLeaderboard("public", 0, LEADERBOARD_PAGE_SIZE),
+			queryAdSlots(),
 		]);
-		return { recent, leaderboard };
+		return { recent, leaderboard, adSlots: adSlotList };
 	},
 );
 

@@ -1,8 +1,9 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import {
+	type AdSlot,
 	getLeaderboard,
 	getRecentLookups,
 	getStartPageData,
@@ -71,7 +72,11 @@ function Home() {
 
 			{recent.length > 0 && <RecentSection recent={recent} onPick={go} />}
 			{initial.leaderboard.length > 0 && (
-				<Leaderboard initialPage={initial.leaderboard} onPick={go} />
+				<Leaderboard
+					initialPage={initial.leaderboard}
+					adSlots={initial.adSlots}
+					onPick={go}
+				/>
 			)}
 		</main>
 	);
@@ -133,13 +138,17 @@ const LB_VALUE: Record<LeaderMode, (u: LeaderEntry) => number> = {
 
 function Leaderboard({
 	initialPage,
+	adSlots,
 	onPick,
 }: {
 	initialPage: LeaderEntry[];
+	adSlots: AdSlot[];
 	onPick: (login: string) => void;
 }) {
 	const [mode, setMode] = useState<LeaderMode>("public");
 	const value = LB_VALUE[mode];
+	// afterRank → slot, so we can drop the right ad row after each leaderboard rank.
+	const slotsByRank = new Map(adSlots.map((s) => [s.afterRank, s]));
 
 	const query = useInfiniteQuery({
 		queryKey: ["leaderboard", mode],
@@ -197,55 +206,61 @@ function Leaderboard({
 			<ol className="mt-4">
 				<AnimatePresence initial={false} mode="popLayout">
 					{rows.map((u, i) => (
-						<motion.li
-							key={u.login}
-							layout
-							initial={{ opacity: 0 }}
-							animate={{ opacity: 1 }}
-							exit={{ opacity: 0 }}
-							transition={{ type: "spring", stiffness: 600, damping: 40 }}
-							className="border-border border-b"
-						>
-							<button
-								type="button"
-								onClick={() => onPick(u.login)}
-								className="flex w-full items-center gap-3 py-2.5 text-left hover:bg-muted"
+						<Fragment key={u.login}>
+							<motion.li
+								layout
+								initial={{ opacity: 0 }}
+								animate={{ opacity: 1 }}
+								exit={{ opacity: 0 }}
+								transition={{ type: "spring", stiffness: 600, damping: 40 }}
+								className="border-border border-b"
 							>
-								<span className="flex w-6 items-center justify-end text-sm tabular-nums text-muted-foreground">
-									{i === 0 ? (
-										<img
-											src="/crown.svg"
-											alt="1st place"
-											className="h-4 w-auto"
-										/>
-									) : (
-										i + 1
-									)}
-								</span>
-								<img
-									src={u.avatarUrl ?? ""}
-									alt=""
-									className="h-8 w-8 rounded-full border border-border"
-								/>
-								<span className="flex-1 truncate font-medium">{u.login}</span>
-								<span className="text-right">
-									<span className="block font-semibold tabular-nums">
-										{value(u).toLocaleString()}
+								<button
+									type="button"
+									onClick={() => onPick(u.login)}
+									className="flex w-full items-center gap-3 py-2.5 text-left hover:bg-muted"
+								>
+									<span className="flex w-6 items-center justify-end text-sm tabular-nums text-muted-foreground">
+										{i === 0 ? (
+											<img
+												src="/crown.svg"
+												alt="1st place"
+												className="h-4 w-auto"
+											/>
+										) : (
+											i + 1
+										)}
 									</span>
-									<span className="block text-xs text-muted-foreground tabular-nums">
-										{mode === "private"
-											? "private"
-											: mode === "public"
-												? "commits"
-												: mode === "followers"
-													? "followers"
-													: u.totalRestricted > 0
-														? `${u.totalCommits.toLocaleString()} commits · ${u.totalRestricted.toLocaleString()} private`
-														: `${u.totalCommits.toLocaleString()} commits`}
+									<img
+										src={u.avatarUrl ?? ""}
+										alt=""
+										className="h-8 w-8 rounded-full border border-border"
+									/>
+									<span className="flex-1 truncate font-medium">{u.login}</span>
+									<span className="text-right">
+										<span className="block font-semibold tabular-nums">
+											{value(u).toLocaleString()}
+										</span>
+										<span className="block text-xs text-muted-foreground tabular-nums">
+											{mode === "private"
+												? "private"
+												: mode === "public"
+													? "commits"
+													: mode === "followers"
+														? "followers"
+														: u.totalRestricted > 0
+															? `${u.totalCommits.toLocaleString()} commits · ${u.totalRestricted.toLocaleString()} private`
+															: `${u.totalCommits.toLocaleString()} commits`}
+										</span>
 									</span>
-								</span>
-							</button>
-						</motion.li>
+								</button>
+							</motion.li>
+							{/* A paid slot sits after its rank, but only once there's a real user below it. */}
+							{slotsByRank.has(i + 1) && rows.length > i + 1 && (
+								// biome-ignore lint/style/noNonNullAssertion: guarded by slotsByRank.has above
+								<SponsorRow slot={slotsByRank.get(i + 1)!} />
+							)}
+						</Fragment>
 					))}
 				</AnimatePresence>
 			</ol>
@@ -256,6 +271,79 @@ function Leaderboard({
 				</p>
 			)}
 		</section>
+	);
+}
+
+/**
+ * A paid ad slot, rendered as a spacer row after its leaderboard rank.
+ * - Sold: links to the sponsor's URL (rel="sponsored nofollow", opens in a new tab).
+ * - Unsold: a faint "Sponsor this spot · $X/wk" CTA → this slot's Stripe Payment Link.
+ * Either way it carries an "Ad"/"Sponsored" marker for ad-disclosure.
+ */
+function SponsorRow({ slot }: { slot: AdSlot }) {
+	const { sponsor } = slot;
+	if (!sponsor) {
+		if (!slot.checkoutUrl) return null;
+		return (
+			<motion.li
+				layout
+				initial={{ opacity: 0 }}
+				animate={{ opacity: 1 }}
+				exit={{ opacity: 0 }}
+				transition={{ type: "spring", stiffness: 600, damping: 40 }}
+				className="border-border border-b border-dashed"
+			>
+				<a
+					href={slot.checkoutUrl}
+					target="_blank"
+					rel="noopener"
+					className="flex w-full items-center gap-3 py-2.5 text-left text-muted-foreground hover:bg-muted"
+				>
+					<span className="flex w-6 items-center justify-end text-[10px] uppercase tracking-wide">
+						Ad
+					</span>
+					<span className="flex h-8 w-8 items-center justify-center rounded-full border border-dashed border-border text-xs">
+						+
+					</span>
+					<span className="flex-1 truncate font-medium">Sponsor this spot</span>
+					<span className="text-right text-xs">${slot.priceWeekly}/wk →</span>
+				</a>
+			</motion.li>
+		);
+	}
+	return (
+		<motion.li
+			layout
+			initial={{ opacity: 0 }}
+			animate={{ opacity: 1 }}
+			exit={{ opacity: 0 }}
+			transition={{ type: "spring", stiffness: 600, damping: 40 }}
+			className="border-border border-b bg-muted/40"
+		>
+			<a
+				href={sponsor.linkUrl}
+				target="_blank"
+				rel="sponsored nofollow noopener"
+				className="flex w-full items-center gap-3 py-2.5 text-left hover:bg-muted"
+			>
+				<span className="flex w-6 items-center justify-end text-[10px] uppercase tracking-wide text-muted-foreground">
+					Ad
+				</span>
+				{sponsor.imageUrl ? (
+					<img
+						src={sponsor.imageUrl}
+						alt=""
+						className="h-8 w-8 rounded-full border border-border object-cover"
+					/>
+				) : (
+					<span className="h-8 w-8 rounded-full border border-border" />
+				)}
+				<span className="flex-1 truncate font-medium">{sponsor.label}</span>
+				<span className="text-right text-xs text-muted-foreground">
+					Sponsored
+				</span>
+			</a>
+		</motion.li>
 	);
 }
 
