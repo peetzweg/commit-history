@@ -203,6 +203,31 @@ function View() {
 	);
 }
 
+/** Shown on a suspended profile — public-facing, never reveals the internal reason. */
+function SuspendedNotice() {
+	return (
+		<div className="mt-6 rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm">
+			<p className="font-medium text-amber-700 dark:text-amber-400">
+				⚠️ This profile is under review.
+			</p>
+			<p className="mt-1 text-muted-foreground">
+				Its commit history looks suspicious, so it's hidden from the leaderboard
+				while we investigate. If this is your account and you think it's a
+				mistake, please{" "}
+				<a
+					href="https://github.com/peetzweg/commit-history/issues"
+					target="_blank"
+					rel="noreferrer"
+					className="underline hover:text-foreground"
+				>
+					open an issue
+				</a>
+				.
+			</p>
+		</div>
+	);
+}
+
 // ── Single user: the detailed view ──────────────────────────────────────────
 
 function Stat({
@@ -325,6 +350,7 @@ function SingleView({
 
 	return (
 		<>
+			{result.suspended && <SuspendedNotice />}
 			<div className="mt-6">
 				<ProfilePanel result={result} />
 			</div>
@@ -481,6 +507,7 @@ function ComparisonView({
 								result={r}
 								color={SERIES_COLORS[i % SERIES_COLORS.length]}
 							/>
+							{r.suspended && <SuspendedNotice />}
 						</div>
 					))}
 				</div>

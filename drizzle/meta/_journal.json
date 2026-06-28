@@ -22,6 +22,13 @@
       "when": 1782501939952,
       "tag": "0002_fat_sir_ram",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1782664311926,
+      "tag": "0003_flimsy_cloak",
+      "breakpoints": true
     }
   ]
 }

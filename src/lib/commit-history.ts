@@ -1,5 +1,14 @@
 import { createServerFn } from "@tanstack/react-start";
-import { desc, eq, gt, sql } from "drizzle-orm";
+import {
+	and,
+	desc,
+	eq,
+	gt,
+	inArray,
+	isNotNull,
+	isNull,
+	sql,
+} from "drizzle-orm";
 import { getCommitHistory as getCachedCommitHistory } from "#/lib/cache";
 import { db } from "#/lib/db";
 import { entities, lookups } from "#/lib/db/schema";
@@ -56,6 +65,9 @@ export interface UserResult {
 	login: string;
 	history: CommitHistory | null;
 	error: string | null;
+	// True when the entity is suspended (under investigation) — the profile is still shown, but
+	// with an under-review notice. The internal reason is never sent to the client.
+	suspended: boolean;
 }
 
 export interface LeaderEntry {
@@ -106,14 +118,16 @@ async function queryLeaderboard(
 		followers: entities.followers,
 	};
 	const base = db.select(cols).from(entities);
+	// Suspended entities (gamed/under-investigation) are hidden from every mode.
+	const active = isNull(entities.suspendedAt);
 	// Private mode only lists users who expose private contributions; followers mode only those
 	// with a known follower count.
 	const scoped =
 		mode === "private"
-			? base.where(gt(entities.totalRestricted, 0))
+			? base.where(and(active, gt(entities.totalRestricted, 0)))
 			: mode === "followers"
-				? base.where(gt(entities.followers, 0))
-				: base;
+				? base.where(and(active, gt(entities.followers, 0)))
+				: base.where(active);
 	return scoped.orderBy(order).limit(limit).offset(offset);
 }
 
@@ -128,6 +142,7 @@ async function queryRecent(limit: number): Promise<RecentEntry[]> {
 		})
 		.from(lookups)
 		.innerJoin(entities, eq(entities.id, lookups.entityId))
+		.where(isNull(entities.suspendedAt))
 		.groupBy(entities.id)
 		.orderBy(desc(sql`max(${lookups.searchedAt})`))
 		.limit(limit);
@@ -162,6 +177,17 @@ export const getRecentLookups = createServerFn({ method: "GET" }).handler(
 	(): Promise<RecentEntry[]> => queryRecent(RECENT_LIMIT),
 );
 
+/** Which of these logins are currently suspended (lower-cased). Empty without a DB. */
+async function suspendedSet(logins: string[]): Promise<Set<string>> {
+	if (!db || logins.length === 0) return new Set();
+	const ids = logins.map((l) => `user:${l.trim().toLowerCase()}`);
+	const rows = await db
+		.select({ login: entities.login })
+		.from(entities)
+		.where(and(inArray(entities.id, ids), isNotNull(entities.suspendedAt)));
+	return new Set(rows.map((r) => r.login.toLowerCase()));
+}
+
 /**
  * Resolve several users' histories in one round-trip, tolerating partial failure so one bad
  * username doesn't sink the whole comparison.
@@ -170,18 +196,24 @@ export const getCommitHistories = createServerFn({ method: "GET" })
 	.validator((logins: string[]) => logins)
 	.handler(async ({ data: logins }): Promise<UserResult[]> => {
 		const token = serverToken();
-		return Promise.all(
-			logins.map(async (login): Promise<UserResult> => {
-				try {
-					const history = await getCachedCommitHistory(login, token);
-					return { login, history, error: null };
-				} catch (e) {
-					return {
-						login,
-						history: null,
-						error: e instanceof Error ? e.message : "Failed to load",
-					};
-				}
-			}),
-		);
+		const [results, suspended] = await Promise.all([
+			Promise.all(
+				logins.map(async (login): Promise<UserResult> => {
+					try {
+						const history = await getCachedCommitHistory(login, token);
+						return { login, history, error: null, suspended: false };
+					} catch (e) {
+						return {
+							login,
+							history: null,
+							error: e instanceof Error ? e.message : "Failed to load",
+							suspended: false,
+						};
+					}
+				}),
+			),
+			suspendedSet(logins),
+		]);
+		for (const r of results) r.suspended = suspended.has(r.login.toLowerCase());
+		return results;
 	});
