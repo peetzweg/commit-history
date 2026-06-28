@@ -52,6 +52,19 @@ A classic Personal Access Token with `read:user` is enough for the **public** co
 - The chart is **hand-rolled inline SVG** (`src/components/CommitChart.tsx`) — no chart library — which is what makes the xkcd filter and the standalone embed (`src/lib/chart-svg.ts`) possible.
 - **Caching** (`src/lib/cache.ts`) is incremental: past months are immutable, so a returning user only re-fetches the trailing month. With `DATABASE_URL` set it persists to **Neon Postgres** (via Drizzle) and powers the leaderboard + recent lookups; without it, it falls back to an in-memory cache so the app still runs.
 
+## 🛡️ Moderation
+
+Some accounts game the board (botted commits, bought followers). To hide one until you've
+investigated, suspend it — a soft, reversible flag (`entities.suspended_at`). Suspended
+accounts drop off the leaderboard and "recently looked up" but stay directly viewable with an
+under-review notice. Run with [bun](https://bun.sh) (it auto-loads your local `.env`):
+
+```bash
+bun run suspend <login> "botted commits"   # suspend (asks to confirm)
+bun run suspend --remove <login>           # reactivate
+bun run suspend --list                     # list suspended accounts
+```
+
 ## ☁️ Deploy (Netlify)
 
 The app is wired for Netlify via [`@netlify/vite-plugin-tanstack-start`](https://www.npmjs.com/package/@netlify/vite-plugin-tanstack-start) (already in `vite.config.ts`). Settings (also in `netlify.toml`):

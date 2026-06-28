@@ -34,6 +34,10 @@ export const entities = pgTable("entities", {
 	twitterUsername: text("twitter_username"),
 	lastFetched: timestamp("last_fetched", { withTimezone: true }), // staleness / trailing refresh; also "profile last updated"
 	builtAt: timestamp("built_at", { withTimezone: true }), // last full rebuild (catches backfills)
+	// Moderation: null = active. When set, the entity is hidden from the leaderboard and
+	// "recently looked up" (still directly viewable, with an under-review notice) until cleared.
+	suspendedAt: timestamp("suspended_at", { withTimezone: true }),
+	suspendedReason: text("suspended_reason"), // internal note — never shown publicly
 });
 
 /** Per-month commit counts. Past months are immutable; only the current month changes. */
