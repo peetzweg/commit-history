@@ -62,6 +62,12 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 			},
 		],
 		scripts: [
+			// Plausible (privacy-friendly analytics) — self-hosted, with outbound-link tracking.
+			{
+				defer: true,
+				"data-domain": "commit-history.com",
+				src: "https://analytics.drdrip.xyz/js/script.outbound-links.js",
+			},
 			{
 				type: "application/ld+json",
 				children: JSON.stringify({
