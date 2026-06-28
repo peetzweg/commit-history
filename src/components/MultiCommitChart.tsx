@@ -1,5 +1,16 @@
 import { useState } from "react";
+import type { ChartMode } from "#/components/CommitChart";
 import type { CommitPoint } from "#/lib/github";
+
+/** Cumulative value to plot for a point, per the public/private/both selection.
+ *  "both" sums public commits and private contributions. */
+export function chartValue(p: CommitPoint, mode: ChartMode) {
+	return mode === "public"
+		? p.cumulative
+		: mode === "private"
+			? p.restrictedCumulative
+			: p.cumulative + p.restrictedCumulative;
+}
 
 // First color is star-history's brand green; the rest are a distinguishable palette.
 export const SERIES_COLORS = [
@@ -46,19 +57,20 @@ function monthLabel(date: string) {
 export function MultiCommitChart({
 	series,
 	mode,
+	chartMode = "public",
 }: {
 	series: ChartSeries[];
 	mode: TimelineMode;
+	chartMode?: ChartMode;
 }) {
 	const [hoverFrac, setHoverFrac] = useState<number | null>(null);
 	if (series.length === 0 || series.every((s) => s.points.length === 0)) {
 		return null;
 	}
 
-	const yMax = Math.max(
-		1,
-		...series.flatMap((s) => s.points.map((p) => p.cumulative)),
-	);
+	const cval = (p: CommitPoint) => chartValue(p, chartMode);
+
+	const yMax = Math.max(1, ...series.flatMap((s) => s.points.map(cval)));
 	const y = (v: number) => PAD.top + innerH - (v / yMax) * innerH;
 	const baseline = PAD.top + innerH;
 
@@ -84,7 +96,7 @@ export function MultiCommitChart({
 		return s.points
 			.map(
 				(p, i) =>
-					`${i === 0 ? "M" : "L"}${xOf(s, i).toFixed(1)},${y(p.cumulative).toFixed(1)}`,
+					`${i === 0 ? "M" : "L"}${xOf(s, i).toFixed(1)},${y(cval(p)).toFixed(1)}`,
 			)
 			.join(" ");
 	}
@@ -254,7 +266,7 @@ export function MultiCommitChart({
 						if (!hp) return null;
 						const p = s.points[hp.i];
 						const px = xOf(s, hp.i);
-						const py = y(p.cumulative);
+						const py = y(cval(p));
 						return (
 							<g key={s.login}>
 								<circle
@@ -272,7 +284,7 @@ export function MultiCommitChart({
 									fill={s.color}
 									fontWeight={600}
 								>
-									{p.cumulative.toLocaleString()}
+									{cval(p).toLocaleString()}
 								</text>
 							</g>
 						);

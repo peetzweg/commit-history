@@ -364,7 +364,16 @@ function ComparisonView({
 	allLogins: string[];
 }) {
 	const [mode, setMode] = useState<TimelineMode>("date");
+	const [chartMode, setChartMode] = useState<ChartMode>("both");
 	const go = useGoToLogins();
+
+	// Show the public/private/both toggle only when at least one developer exposes
+	// private contributions — otherwise "private"/"both" would be identical to "public".
+	const anyPrivate = results.some(
+		// biome-ignore lint/style/noNonNullAssertion: ok results always have history
+		(r) => r.history!.totalRestricted > 0,
+	);
+	const effectiveChartMode = anyPrivate ? chartMode : "public";
 
 	const series: ChartSeries[] = results.map((r, i) => ({
 		login: r.login,
@@ -372,6 +381,17 @@ function ComparisonView({
 		// biome-ignore lint/style/noNonNullAssertion: ok results always have history
 		points: r.history!.points,
 	}));
+
+	// Legend total reflects the selected mode so the numbers match the lines.
+	const legendTotal = (r: UserResult) =>
+		effectiveChartMode === "public"
+			? // biome-ignore lint/style/noNonNullAssertion: ok results always have history
+				r.history!.total
+			: effectiveChartMode === "private"
+				? // biome-ignore lint/style/noNonNullAssertion: ok results always have history
+					r.history!.totalRestricted
+				: // biome-ignore lint/style/noNonNullAssertion: ok results always have history
+					r.history!.total + r.history!.totalRestricted;
 
 	function removeLogin(login: string) {
 		go(allLogins.filter((l) => l !== login));
@@ -386,7 +406,12 @@ function ComparisonView({
 						Comparing {series.length} developers
 					</p>
 				</div>
-				<TimelineToggle mode={mode} onChange={setMode} />
+				<div className="flex flex-wrap items-center gap-2">
+					{anyPrivate && (
+						<ChartModeToggle mode={chartMode} onChange={setChartMode} />
+					)}
+					<TimelineToggle mode={mode} onChange={setMode} />
+				</div>
 			</header>
 
 			<motion.div
@@ -395,7 +420,11 @@ function ComparisonView({
 				transition={{ duration: 0.5 }}
 				className="mt-6 rounded-xl border border-border p-4"
 			>
-				<MultiCommitChart series={series} mode={mode} />
+				<MultiCommitChart
+					series={series}
+					mode={mode}
+					chartMode={effectiveChartMode}
+				/>
 			</motion.div>
 
 			{mode === "aligned" && (
@@ -426,8 +455,7 @@ function ComparisonView({
 							{r.login}
 						</a>
 						<span className="tabular-nums text-muted-foreground">
-							{/* biome-ignore lint/style/noNonNullAssertion: ok results have history */}
-							{r.history!.total.toLocaleString()}
+							{legendTotal(r).toLocaleString()}
 						</span>
 						<button
 							type="button"
