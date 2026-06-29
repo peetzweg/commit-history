@@ -78,7 +78,7 @@ const GENERIC_POINTS: CommitPoint[] = (() => {
 function PendingUser() {
 	const { user } = Route.useParams();
 	const login = user.split(",")[0];
-	const labels = ["Public commits", "Busiest month", "Since"];
+	const labels = ["Public commits", "Followers", "Busiest month"];
 	return (
 		<main className="mx-auto max-w-4xl px-6 py-12">
 			<Link
@@ -98,11 +98,11 @@ function PendingUser() {
 				</div>
 			</header>
 
-			<div className="mt-8 flex flex-wrap gap-10">
+			<div className="mx-auto mt-8 grid max-w-xl grid-cols-3 gap-x-4 gap-y-5 text-center sm:mx-0 sm:flex sm:max-w-none sm:flex-wrap sm:gap-10 sm:text-left">
 				{labels.map((label) => (
 					<div key={label}>
 						{/* reserve value + hint heights; they animate in once data arrives */}
-						<div className="h-8" />
+						<div className="h-7" />
 						<div className="text-xs uppercase tracking-wide text-muted-foreground">
 							{label}
 						</div>
