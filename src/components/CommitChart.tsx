@@ -1,14 +1,23 @@
 import { useState } from "react";
 import { ChartLegend } from "#/components/ChartLegend";
 import type { CommitPoint } from "#/lib/github";
+import { useIsMobile } from "#/lib/useIsMobile";
 
-// Fixed viewBox; the <svg> scales to its container via width:100%. No DOM measurement, so this
-// renders identically on the server (and can be reused verbatim for the /$user.svg embed).
+// Fixed viewBox; the <svg> scales to its container via width:100%. Because labels are sized in
+// viewBox units, they shrink with the container — so on a phone we swap to a layout with larger
+// fonts and roomier padding (the desktop fonts are also nudged up a touch, since folks screenshot
+// these to share). The /$user.svg embed renders its own SVG (lib/chart-svg.ts) and is unaffected.
 const W = 880;
 const H = 420;
-const PAD = { top: 48, right: 24, bottom: 36, left: 60 };
-const innerW = W - PAD.left - PAD.right;
-const innerH = H - PAD.top - PAD.bottom;
+
+const DESKTOP = {
+	pad: { top: 48, right: 24, bottom: 36, left: 60 },
+	font: { title: 24, axis: 16, readout: 16, legend: 16 },
+};
+const MOBILE = {
+	pad: { top: 56, right: 16, bottom: 50, left: 88 },
+	font: { title: 32, axis: 26, readout: 24, legend: 24 },
+};
 
 // star-history's brand green.
 const ACCENT = "#16a34a";
@@ -37,6 +46,10 @@ export function CommitChart({
 	label?: string;
 }) {
 	const [hover, setHover] = useState<number | null>(null);
+	const isMobile = useIsMobile();
+	const { pad: PAD, font: FONT } = isMobile ? MOBILE : DESKTOP;
+	const innerW = W - PAD.left - PAD.right;
+	const innerH = H - PAD.top - PAD.bottom;
 	if (points.length === 0) return null;
 
 	// Cumulative value to plot, and the month's delta — per the selected mode.
@@ -130,7 +143,7 @@ export function CommitChart({
 			<text
 				x={PAD.left}
 				y={28}
-				fontSize={22}
+				fontSize={FONT.title}
 				fontWeight={400}
 				fill="currentColor"
 			>
@@ -154,7 +167,7 @@ export function CommitChart({
 						textAnchor="end"
 						dominantBaseline="middle"
 						fill="#6b7280"
-						fontSize={14}
+						fontSize={FONT.axis}
 					>
 						{compact(v)}
 					</text>
@@ -169,7 +182,7 @@ export function CommitChart({
 					y={H - 10}
 					textAnchor="middle"
 					fill="#6b7280"
-					fontSize={14}
+					fontSize={FONT.axis}
 				>
 					{t.year}
 				</text>
@@ -203,6 +216,7 @@ export function CommitChart({
 					entries={[{ label, color: ACCENT }]}
 					x={PAD.left + 14}
 					y={PAD.top + 6}
+					font={FONT.legend}
 				/>
 			)}
 
@@ -230,7 +244,7 @@ export function CommitChart({
 						y={PAD.top - 8}
 						textAnchor="middle"
 						fill="currentColor"
-						fontSize={15}
+						fontSize={FONT.readout}
 					>
 						{monthLabel(hp.date)}: {cval(hp).toLocaleString()} total
 						{dval(hp) ? ` (+${dval(hp)})` : ""}

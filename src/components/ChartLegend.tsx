@@ -8,29 +8,39 @@ export interface LegendEntry {
 	color: string;
 }
 
-const FONT = 15;
-const ROW_H = 25;
-const PAD_X = 13;
-const PAD_Y = 11;
-const SWATCH = 13;
-const GAP = 10;
+// Geometry is expressed relative to the font size (the defaults below are tuned for a 15px
+// label) so the whole box scales when the chart grows its labels on mobile.
+const BASE_FONT = 15;
+const ROW_H = 25 / BASE_FONT;
+const PAD_X = 13 / BASE_FONT;
+const PAD_Y = 11 / BASE_FONT;
+const SWATCH = 13 / BASE_FONT;
+const GAP = 10 / BASE_FONT;
 // The xkcd font's metrics aren't available at render time (SSR, fixed viewBox, no DOM measure),
 // so the box width is approximated from each label's character count.
-const CHAR_W = 8.4;
+const CHAR_W = 8.4 / BASE_FONT;
 
 export function ChartLegend({
 	entries,
 	x,
 	y,
+	font = BASE_FONT,
 }: {
 	entries: LegendEntry[];
 	x: number;
 	y: number;
+	/** Label font size in viewBox units; the box scales with it. */
+	font?: number;
 }) {
 	if (entries.length === 0) return null;
+	const rowH = ROW_H * font;
+	const padX = PAD_X * font;
+	const padY = PAD_Y * font;
+	const swatch = SWATCH * font;
+	const gap = GAP * font;
 	const longest = Math.max(...entries.map((e) => e.label.length));
-	const boxW = PAD_X * 2 + SWATCH + GAP + longest * CHAR_W;
-	const boxH = PAD_Y * 2 + entries.length * ROW_H - (ROW_H - FONT);
+	const boxW = padX * 2 + swatch + gap + longest * CHAR_W * font;
+	const boxH = padY * 2 + entries.length * rowH - (rowH - font);
 
 	return (
 		<g>
@@ -46,22 +56,22 @@ export function ChartLegend({
 				filter="url(#xkcdify)"
 			/>
 			{entries.map((e, i) => {
-				const rowTop = y + PAD_Y + i * ROW_H;
+				const rowTop = y + padY + i * rowH;
 				return (
 					<g key={e.label}>
 						<rect
-							x={x + PAD_X}
+							x={x + padX}
 							y={rowTop}
-							width={SWATCH}
-							height={SWATCH}
+							width={swatch}
+							height={swatch}
 							rx={3}
 							fill={e.color}
 							filter="url(#xkcdify)"
 						/>
 						<text
-							x={x + PAD_X + SWATCH + GAP}
-							y={rowTop + SWATCH - 1}
-							fontSize={FONT}
+							x={x + padX + swatch + gap}
+							y={rowTop + swatch - 1}
+							fontSize={font}
 							fill="currentColor"
 						>
 							{e.label}
