@@ -111,7 +111,7 @@ function PendingUser() {
 				))}
 			</div>
 
-			<div className="-mx-6 mt-3 pt-[18px] pb-[6px] sm:mx-0 sm:rounded-xl sm:border sm:border-border sm:p-4">
+			<div className="-mx-4 mt-3 pt-5 pb-1.5 sm:mx-0 sm:rounded-xl sm:border sm:border-border sm:p-4">
 				<div className="pointer-events-none opacity-40 blur-[6px]">
 					<CommitChart points={GENERIC_POINTS} mode="public" />
 				</div>
@@ -312,7 +312,7 @@ function ProfilePanel({
 				</div>
 			</header>
 
-			<div className="mx-auto mt-6 grid max-w-xl grid-cols-3 gap-x-4 gap-y-5 text-center">
+			<div className="mx-auto mt-6 grid max-w-xl grid-cols-3 gap-x-4 gap-y-5 text-center sm:mx-0 sm:flex sm:max-w-none sm:flex-wrap sm:gap-10 sm:text-left">
 				<Stat label="Public commits" value={total.toLocaleString()} />
 				{hasPrivate && (
 					<Stat
@@ -320,6 +320,7 @@ function ProfilePanel({
 						value={totalRestricted.toLocaleString()}
 					/>
 				)}
+				<Stat label="Followers" value={user.followers.toLocaleString()} />
 				<Stat
 					label="Busiest month"
 					value={busiest ? monthYear(busiest.date) : "—"}
@@ -329,7 +330,6 @@ function ProfilePanel({
 							: undefined
 					}
 				/>
-				<Stat label="Followers" value={user.followers.toLocaleString()} />
 			</div>
 		</div>
 	);
@@ -364,7 +364,7 @@ function SingleView({
 				initial={{ opacity: 0, filter: "blur(8px)" }}
 				animate={{ opacity: 1, filter: "blur(0px)" }}
 				transition={{ duration: 0.5 }}
-				className="-mx-6 mt-3 pt-[18px] pb-[6px] sm:mx-0 sm:rounded-xl sm:border sm:border-border sm:p-4"
+				className="-mx-4 mt-3 pt-5 pb-1.5 sm:mx-0 sm:rounded-xl sm:border sm:border-border sm:p-4"
 			>
 				<CommitChart
 					points={points}
@@ -448,7 +448,7 @@ function ComparisonView({
 				initial={{ opacity: 0, filter: "blur(8px)" }}
 				animate={{ opacity: 1, filter: "blur(0px)" }}
 				transition={{ duration: 0.5 }}
-				className="-mx-6 mt-6 pt-[18px] pb-[6px] sm:mx-0 sm:rounded-xl sm:border sm:border-border sm:p-4"
+				className="-mx-4 mt-6 pt-5 pb-1.5 sm:mx-0 sm:rounded-xl sm:border sm:border-border sm:p-4"
 			>
 				<MultiCommitChart
 					series={series}
