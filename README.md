@@ -27,7 +27,34 @@ Type a username, get their entire coding career as a curve. It's a little hypnot
 - **⚔️ Compare anyone** — throw in comma-separated names (`/torvalds,gaearon,antfu`) and race their trajectories on one chart. Flip to **Aligned** mode to line everyone up at "month zero" regardless of when they joined.
 - **🏆 Leaderboard** — an all-time ranking of everyone who's been looked up, sortable by public commits, private contributions, total activity, or **followers**.
 - **🔒 Public & private** — for users who expose private contributions, see the hidden half of their activity too (kept separate, never silently summed).
+- **🖼️ Embed it anywhere** — a live SVG chart for your own README (see below).
 - **✏️ Hand-drawn charm** — an xkcd-style sketch aesthetic, a deliberate homage to the original.
+
+## 🖼️ Embed in your GitHub profile
+
+Drop a live, auto-updating chart into your profile page or any markdown file. This snippet centers the chart, follows the viewer's GitHub theme (light/dark), and links back to your full history:
+
+```html
+<div align="center">
+  <a href="https://commit-history.com/YOUR_USERNAME">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://commit-history.com/embed/YOUR_USERNAME?theme=dark" />
+      <img alt="YOUR_USERNAME's commit history" src="https://commit-history.com/embed/YOUR_USERNAME" />
+    </picture>
+  </a>
+</div>
+```
+
+Here's [Linus Torvalds](https://commit-history.com/torvalds):
+
+<div align="center">
+  <a href="https://commit-history.com/torvalds">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://commit-history.com/embed/torvalds?theme=dark" />
+      <img alt="Linus Torvalds' commit history" src="https://commit-history.com/embed/torvalds" />
+    </picture>
+  </a>
+</div>
 
 ## 🚀 Quick start
 

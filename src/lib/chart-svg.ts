@@ -24,11 +24,26 @@ interface ThemeColors {
 	fg: string;
 	muted: string;
 	grid: string;
+	border: string;
 }
 
+// `bg` / `border` are matched to GitHub's own README surface colors so the embed
+// reads as a deliberate card (not a floating chart) on both light and dark profiles.
 const THEMES: Record<Theme, ThemeColors> = {
-	light: { bg: "#ffffff", fg: "#363636", muted: "#6b7280", grid: "#e5e7eb" },
-	dark: { bg: "#0d1117", fg: "#c9d1d9", muted: "#8b949e", grid: "#30363d" },
+	light: {
+		bg: "#ffffff",
+		fg: "#363636",
+		muted: "#6b7280",
+		grid: "#e5e7eb",
+		border: "#d0d7de",
+	},
+	dark: {
+		bg: "#0d1117",
+		fg: "#c9d1d9",
+		muted: "#8b949e",
+		grid: "#30363d",
+		border: "#30363d",
+	},
 };
 
 function compact(n: number) {
@@ -63,7 +78,7 @@ function shell(theme: Theme, body: string) {
 <feDisplacementMap scale="4" xChannelSelector="R" yChannelSelector="G" in="SourceGraphic" in2="noise"/>
 </filter>
 </defs>
-<rect width="${W}" height="${H}" fill="${c.bg}"/>
+<rect x="0.5" y="0.5" width="${W - 1}" height="${H - 1}" rx="12" fill="${c.bg}" stroke="${c.border}"/>
 ${body}
 </svg>`;
 }
@@ -73,13 +88,20 @@ export function renderChartSvg(
 	theme: Theme = "light",
 ): string {
 	const c = THEMES[theme];
-	const { points, total, user } = history;
+	const { points, total, totalRestricted, user } = history;
 	if (points.length === 0) {
 		return renderMessageSvg(`${user.login} has no public commits`, theme);
 	}
 
+	// Default to "both": public commits + private contributions, summed per month —
+	// the same series the main chart shows. For users who don't expose private
+	// activity, `restrictedCumulative` is 0, so this is identical to public.
+	const value = (p: (typeof points)[number]) =>
+		p.cumulative + p.restrictedCumulative;
+	const grandTotal = total + totalRestricted;
+
 	const n = points.length;
-	const max = Math.max(...points.map((p) => p.cumulative), 1);
+	const max = Math.max(...points.map(value), 1);
 	const x = (i: number) =>
 		PAD.left + (n === 1 ? innerW / 2 : (i / (n - 1)) * innerW);
 	const y = (v: number) => PAD.top + innerH - (v / max) * innerH;
@@ -88,7 +110,7 @@ export function renderChartSvg(
 	const line = points
 		.map(
 			(p, i) =>
-				`${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(p.cumulative).toFixed(1)}`,
+				`${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(value(p)).toFixed(1)}`,
 		)
 		.join(" ");
 	const area = `${line} L${x(n - 1).toFixed(1)},${baseline} L${x(0).toFixed(1)},${baseline} Z`;
@@ -115,7 +137,7 @@ export function renderChartSvg(
 	const dots = points
 		.map((p, i) =>
 			i % dotEvery === 0 || i === n - 1
-				? `<circle cx="${x(i).toFixed(1)}" cy="${y(p.cumulative).toFixed(1)}" r="2.5" fill="${ACCENT}"/>`
+				? `<circle cx="${x(i).toFixed(1)}" cy="${y(value(p)).toFixed(1)}" r="2.5" fill="${ACCENT}"/>`
 				: "",
 		)
 		.join("");
@@ -124,7 +146,7 @@ export function renderChartSvg(
 
 	const body = `
 <text x="${PAD.left}" y="30" font-size="22" fill="${c.fg}">${title}</text>
-<text x="${W - PAD.right}" y="30" text-anchor="end" font-size="15" fill="${c.muted}">${total.toLocaleString()} commits</text>
+<text x="${W - PAD.right}" y="30" text-anchor="end" font-size="15" fill="${c.muted}">${grandTotal.toLocaleString()} commits</text>
 ${gridY}
 ${labelsX}
 <g filter="url(#xkcdify)">

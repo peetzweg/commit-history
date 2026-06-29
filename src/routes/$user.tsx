@@ -380,7 +380,92 @@ function SingleView({
 				</p>
 				<AddUser currentLogins={otherLogins} label="Compare with…" />
 			</div>
+
+			<EmbedSnippet login={user.login} />
 		</>
+	);
+}
+
+// ── Embed: a live SVG chart for READMEs ───────────────────────────────────────
+
+const SITE = "https://commit-history.com";
+
+/** The exact markup a user pastes into a README: a centered `<picture>` that
+ *  follows GitHub's light/dark mode, wrapping a link back to the user's
+ *  commit-history.com page. `align="center"` is the one alignment attribute
+ *  GitHub's markdown sanitizer keeps, so it centers on a profile. */
+function embedSnippet(login: string): string {
+	const page = `${SITE}/${login}`;
+	const img = `${SITE}/embed/${login}`;
+	const alt = `${login}'s commit history`;
+	return `<div align="center">
+  <a href="${page}">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="${img}?theme=dark" />
+      <img alt="${alt}" src="${img}" />
+    </picture>
+  </a>
+</div>`;
+}
+
+function EmbedSnippet({ login }: { login: string }) {
+	const [copied, setCopied] = useState(false);
+	const snippet = embedSnippet(login);
+
+	async function copy() {
+		try {
+			await navigator.clipboard.writeText(snippet);
+			setCopied(true);
+			setTimeout(() => setCopied(false), 1500);
+		} catch {
+			/* clipboard unavailable */
+		}
+	}
+
+	return (
+		<section className="mt-16 border-t border-border pt-12">
+			<h2 className="text-sm font-semibold">Embed in your GitHub profile</h2>
+			<p className="mt-1 text-xs text-muted-foreground">
+				A live chart that updates over time — drop it into your GitHub profile
+				page or any project README. It’s centered and switches between light and
+				dark to match the viewer’s GitHub theme.
+			</p>
+
+			{/* A static screenshot of the embed on a real profile — we deliberately
+			    don't render a live per-user preview here, to avoid a second chart
+			    render (and embed request) on every page visit. */}
+			<figure className="mt-4">
+				<a
+					href="https://github.com/peetzweg"
+					target="_blank"
+					rel="noreferrer"
+					className="block overflow-hidden rounded-xl border border-border"
+				>
+					<img
+						src="/embed-example.png"
+						alt="A commit-history chart embedded in a GitHub profile README"
+						className="w-full"
+						loading="lazy"
+					/>
+				</a>
+				<figcaption className="mt-2 text-xs text-muted-foreground">
+					How it looks on a GitHub profile.
+				</figcaption>
+			</figure>
+
+			<div className="group relative mt-3">
+				<pre className="overflow-x-auto rounded-md border bg-muted py-2.5 pl-3 pr-20 text-xs leading-relaxed">
+					<code>{snippet}</code>
+				</pre>
+				<button
+					type="button"
+					onClick={copy}
+					className="absolute right-2 top-2 rounded-md border bg-background/80 px-2.5 py-1 text-xs font-medium text-muted-foreground backdrop-blur transition-colors hover:bg-background hover:text-foreground"
+				>
+					{copied ? "Copied!" : "Copy"}
+				</button>
+			</div>
+		</section>
 	);
 }
 
