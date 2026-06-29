@@ -1,7 +1,7 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import {
 	getLeaderboard,
 	getRecentLookups,
@@ -124,6 +124,48 @@ function RecentSection({
 	);
 }
 
+/**
+ * A single hardcoded sponsor row, shown in the slot after rank 5.
+ *
+ * Same visual treatment as the (parked) DB-driven sponsorship system on `feat/sponsorships`,
+ * but with no database — the creative is hardcoded for now. Uses the sponsor's own favicon and
+ * page title, and links out with rel="sponsored nofollow".
+ */
+function SponsorRow() {
+	return (
+		<motion.li
+			layout
+			initial={{ opacity: 0 }}
+			animate={{ opacity: 1 }}
+			exit={{ opacity: 0 }}
+			transition={{ type: "spring", stiffness: 600, damping: 40 }}
+			className="border-border border-b bg-muted/40"
+		>
+			<a
+				href="https://rebates.ai/"
+				target="_blank"
+				rel="sponsored nofollow noopener"
+				className="flex w-full items-center gap-3 py-2.5 text-left hover:bg-muted"
+			>
+				<span className="flex w-6 items-center justify-end text-[10px] uppercase tracking-wide text-muted-foreground">
+					Ad
+				</span>
+				<img
+					src="https://rebates.ai/brand/rebates-bandit.svg"
+					alt="Rebates"
+					className="h-8 w-8 rounded-full border border-border object-cover"
+				/>
+				<span className="flex-1 truncate font-medium">
+					Rebates - The ads in your terminal pay you
+				</span>
+				<span className="text-right text-xs text-muted-foreground">
+					Sponsored
+				</span>
+			</a>
+		</motion.li>
+	);
+}
+
 const LB_VALUE: Record<LeaderMode, (u: LeaderEntry) => number> = {
 	public: (u) => u.totalCommits,
 	private: (u) => u.totalRestricted,
@@ -197,55 +239,58 @@ function Leaderboard({
 			<ol className="mt-4">
 				<AnimatePresence initial={false} mode="popLayout">
 					{rows.map((u, i) => (
-						<motion.li
-							key={u.login}
-							layout
-							initial={{ opacity: 0 }}
-							animate={{ opacity: 1 }}
-							exit={{ opacity: 0 }}
-							transition={{ type: "spring", stiffness: 600, damping: 40 }}
-							className="border-border border-b"
-						>
-							<button
-								type="button"
-								onClick={() => onPick(u.login)}
-								className="flex w-full items-center gap-3 py-2.5 text-left hover:bg-muted"
+						<Fragment key={u.login}>
+							<motion.li
+								layout
+								initial={{ opacity: 0 }}
+								animate={{ opacity: 1 }}
+								exit={{ opacity: 0 }}
+								transition={{ type: "spring", stiffness: 600, damping: 40 }}
+								className="border-border border-b"
 							>
-								<span className="flex w-6 items-center justify-end text-sm tabular-nums text-muted-foreground">
-									{i === 0 ? (
-										<img
-											src="/crown.svg"
-											alt="1st place"
-											className="h-4 w-auto"
-										/>
-									) : (
-										i + 1
-									)}
-								</span>
-								<img
-									src={u.avatarUrl ?? ""}
-									alt=""
-									className="h-8 w-8 rounded-full border border-border"
-								/>
-								<span className="flex-1 truncate font-medium">{u.login}</span>
-								<span className="text-right">
-									<span className="block font-semibold tabular-nums">
-										{value(u).toLocaleString()}
+								<button
+									type="button"
+									onClick={() => onPick(u.login)}
+									className="flex w-full items-center gap-3 py-2.5 text-left hover:bg-muted"
+								>
+									<span className="flex w-6 items-center justify-end text-sm tabular-nums text-muted-foreground">
+										{i === 0 ? (
+											<img
+												src="/crown.svg"
+												alt="1st place"
+												className="h-4 w-auto"
+											/>
+										) : (
+											i + 1
+										)}
 									</span>
-									<span className="block text-xs text-muted-foreground tabular-nums">
-										{mode === "private"
-											? "private"
-											: mode === "public"
-												? "commits"
-												: mode === "followers"
-													? "followers"
-													: u.totalRestricted > 0
-														? `${u.totalCommits.toLocaleString()} commits · ${u.totalRestricted.toLocaleString()} private`
-														: `${u.totalCommits.toLocaleString()} commits`}
+									<img
+										src={u.avatarUrl ?? ""}
+										alt=""
+										className="h-8 w-8 rounded-full border border-border"
+									/>
+									<span className="flex-1 truncate font-medium">{u.login}</span>
+									<span className="text-right">
+										<span className="block font-semibold tabular-nums">
+											{value(u).toLocaleString()}
+										</span>
+										<span className="block text-xs text-muted-foreground tabular-nums">
+											{mode === "private"
+												? "private"
+												: mode === "public"
+													? "commits"
+													: mode === "followers"
+														? "followers"
+														: u.totalRestricted > 0
+															? `${u.totalCommits.toLocaleString()} commits · ${u.totalRestricted.toLocaleString()} private`
+															: `${u.totalCommits.toLocaleString()} commits`}
+										</span>
 									</span>
-								</span>
-							</button>
-						</motion.li>
+								</button>
+							</motion.li>
+							{/* Sponsor sits in the slot after rank 5 (only once there's more below). */}
+							{i === 4 && rows.length > 5 && <SponsorRow />}
+						</Fragment>
 					))}
 				</AnimatePresence>
 			</ol>
