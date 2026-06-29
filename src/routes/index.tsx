@@ -6,7 +6,7 @@ import {
 	getLeaderboard,
 	getRecentLookups,
 	getStartPageData,
-	LEADERBOARD_PAGE_SIZE,
+	LEADERBOARD_PAGE_STOPS,
 	type LeaderEntry,
 	type LeaderMode,
 	type RecentEntry,
@@ -188,17 +188,29 @@ function Leaderboard({
 		queryKey: ["leaderboard", mode],
 		queryFn: ({ pageParam }) =>
 			getLeaderboard({
-				data: { mode, offset: pageParam, limit: LEADERBOARD_PAGE_SIZE },
+				data: { mode, offset: pageParam.offset, limit: pageParam.limit },
 			}),
-		initialPageParam: 0,
-		getNextPageParam: (lastPage, allPages) =>
-			lastPage.length < LEADERBOARD_PAGE_SIZE
-				? undefined
-				: allPages.reduce((n, p) => n + p.length, 0),
+		initialPageParam: { offset: 0, limit: LEADERBOARD_PAGE_STOPS[0] as number },
+		// Reveal rows in widening chunks up to the final stop (the 250 cap). Stop early if the
+		// DB returns a short page (table exhausted) or we've reached the last stop.
+		getNextPageParam: (_lastPage, allPages) => {
+			const loaded = allPages.reduce((n, p) => n + p.length, 0);
+			const expected = LEADERBOARD_PAGE_STOPS[allPages.length - 1];
+			if (expected !== undefined && loaded < expected) return undefined;
+			const nextStop = LEADERBOARD_PAGE_STOPS[allPages.length];
+			if (nextStop === undefined) return undefined;
+			return { offset: loaded, limit: nextStop - loaded };
+		},
 		// Seed page 1 of the default (Public) mode from the SSR loader — no flash.
 		initialData:
-			mode === "public" ? { pages: [initialPage], pageParams: [0] } : undefined,
-		refetchInterval: 10_000,
+			mode === "public"
+				? {
+						pages: [initialPage],
+						pageParams: [{ offset: 0, limit: LEADERBOARD_PAGE_STOPS[0] }],
+					}
+				: undefined,
+		// No background polling: the board changes slowly. It refetches on mount (navigating
+		// back shows new entries immediately) and on window focus, but never while idle.
 	});
 
 	const rows = query.data?.pages.flat() ?? [];
