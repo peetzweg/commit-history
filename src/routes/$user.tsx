@@ -111,7 +111,7 @@ function PendingUser() {
 				))}
 			</div>
 
-			<div className="-mx-3 mt-3 py-3 sm:mx-0 sm:rounded-xl sm:border sm:border-border sm:p-4">
+			<div className="-mx-6 mt-3 pt-[18px] pb-[6px] sm:mx-0 sm:rounded-xl sm:border sm:border-border sm:p-4">
 				<div className="pointer-events-none opacity-40 blur-[6px]">
 					<CommitChart points={GENERIC_POINTS} mode="public" />
 				</div>
@@ -245,7 +245,7 @@ function Stat({
 				initial={{ opacity: 0, y: -4 }}
 				animate={{ opacity: 1, y: 0 }}
 				transition={{ duration: 0.35 }}
-				className="text-2xl font-semibold tabular-nums"
+				className="text-xl font-semibold tabular-nums"
 			>
 				{value}
 			</motion.div>
@@ -312,7 +312,7 @@ function ProfilePanel({
 				</div>
 			</header>
 
-			<div className="mt-6 flex flex-wrap gap-10">
+			<div className="mx-auto mt-6 grid max-w-xl grid-cols-3 gap-x-4 gap-y-5 text-center">
 				<Stat label="Public commits" value={total.toLocaleString()} />
 				{hasPrivate && (
 					<Stat
@@ -364,7 +364,7 @@ function SingleView({
 				initial={{ opacity: 0, filter: "blur(8px)" }}
 				animate={{ opacity: 1, filter: "blur(0px)" }}
 				transition={{ duration: 0.5 }}
-				className="-mx-3 mt-3 py-3 sm:mx-0 sm:rounded-xl sm:border sm:border-border sm:p-4"
+				className="-mx-6 mt-3 pt-[18px] pb-[6px] sm:mx-0 sm:rounded-xl sm:border sm:border-border sm:p-4"
 			>
 				<CommitChart
 					points={points}
@@ -373,7 +373,7 @@ function SingleView({
 				/>
 			</motion.div>
 
-			<div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+			<div className="mt-2 flex flex-wrap items-center justify-between gap-3 sm:mt-4">
 				<p className="text-xs text-muted-foreground">
 					Cumulative commits attributed by GitHub since {since} — the same
 					dataset as the contribution graph.
@@ -448,7 +448,7 @@ function ComparisonView({
 				initial={{ opacity: 0, filter: "blur(8px)" }}
 				animate={{ opacity: 1, filter: "blur(0px)" }}
 				transition={{ duration: 0.5 }}
-				className="-mx-3 mt-6 py-3 sm:mx-0 sm:rounded-xl sm:border sm:border-border sm:p-4"
+				className="-mx-6 mt-6 pt-[18px] pb-[6px] sm:mx-0 sm:rounded-xl sm:border sm:border-border sm:p-4"
 			>
 				<MultiCommitChart
 					series={series}
