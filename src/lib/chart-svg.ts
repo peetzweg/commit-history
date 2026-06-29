@@ -24,26 +24,13 @@ interface ThemeColors {
 	fg: string;
 	muted: string;
 	grid: string;
-	border: string;
 }
 
-// `bg` / `border` are matched to GitHub's own README surface colors so the embed
-// reads as a deliberate card (not a floating chart) on both light and dark profiles.
+// `bg` is matched to GitHub's own README surface color so the embed blends in
+// (no border/card) on both light and dark profiles.
 const THEMES: Record<Theme, ThemeColors> = {
-	light: {
-		bg: "#ffffff",
-		fg: "#363636",
-		muted: "#6b7280",
-		grid: "#e5e7eb",
-		border: "#d0d7de",
-	},
-	dark: {
-		bg: "#0d1117",
-		fg: "#c9d1d9",
-		muted: "#8b949e",
-		grid: "#30363d",
-		border: "#30363d",
-	},
+	light: { bg: "#ffffff", fg: "#363636", muted: "#6b7280", grid: "#e5e7eb" },
+	dark: { bg: "#0d1117", fg: "#c9d1d9", muted: "#8b949e", grid: "#30363d" },
 };
 
 function compact(n: number) {
@@ -78,7 +65,7 @@ function shell(theme: Theme, body: string) {
 <feDisplacementMap scale="4" xChannelSelector="R" yChannelSelector="G" in="SourceGraphic" in2="noise"/>
 </filter>
 </defs>
-<rect x="0.5" y="0.5" width="${W - 1}" height="${H - 1}" rx="12" fill="${c.bg}" stroke="${c.border}"/>
+<rect width="${W}" height="${H}" fill="${c.bg}"/>
 ${body}
 </svg>`;
 }
