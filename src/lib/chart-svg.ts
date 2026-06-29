@@ -98,7 +98,6 @@ export function renderChartSvg(
 	// activity, `restrictedCumulative` is 0, so this is identical to public.
 	const value = (p: (typeof points)[number]) =>
 		p.cumulative + p.restrictedCumulative;
-	const hasPrivate = totalRestricted > 0;
 	const grandTotal = total + totalRestricted;
 
 	const n = points.length;
@@ -147,7 +146,7 @@ export function renderChartSvg(
 
 	const body = `
 <text x="${PAD.left}" y="30" font-size="22" fill="${c.fg}">${title}</text>
-<text x="${W - PAD.right}" y="30" text-anchor="end" font-size="15" fill="${c.muted}">${grandTotal.toLocaleString()} ${hasPrivate ? "contributions" : "commits"}</text>
+<text x="${W - PAD.right}" y="30" text-anchor="end" font-size="15" fill="${c.muted}">${grandTotal.toLocaleString()} commits</text>
 ${gridY}
 ${labelsX}
 <g filter="url(#xkcdify)">
