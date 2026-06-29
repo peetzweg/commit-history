@@ -167,6 +167,58 @@ function SponsorRow() {
 	);
 }
 
+/**
+ * A single hardcoded self-promo row, asking readers to support the author.
+ *
+ * Pure markup — no database, no ads — pointing at the author's GitHub and Ko-fi.
+ * Sprinkled through the leaderboard (after slots 50 and 100, and once at the end).
+ */
+function SelfPromoRow() {
+	return (
+		<motion.li
+			layout
+			initial={{ opacity: 0 }}
+			animate={{ opacity: 1 }}
+			exit={{ opacity: 0 }}
+			transition={{ type: "spring", stiffness: 600, damping: 40 }}
+			className="border-border border-b border-dashed bg-muted/40"
+		>
+			<div className="flex w-full flex-wrap items-center gap-x-3 gap-y-2 py-2.5">
+				<span className="flex w-6 shrink-0 items-center justify-center text-base">
+					☕
+				</span>
+				<img
+					src="https://github.com/peetzweg.png"
+					alt="peetzweg"
+					className="h-8 w-8 shrink-0 rounded-full border border-border"
+				/>
+				<p className="min-w-0 flex-1 text-sm text-muted-foreground">
+					Do you like this page?
+					<br />
+					Consider supporting me,{" "}
+					<a
+						href="https://github.com/peetzweg"
+						target="_blank"
+						rel="noreferrer"
+						className="font-medium text-foreground hover:underline"
+					>
+						peetzweg
+					</a>
+					.
+				</p>
+				<a
+					href="https://ko-fi.com/peetzweg"
+					target="_blank"
+					rel="noreferrer"
+					className="btn-secondary shrink-0 text-xs"
+				>
+					Buy me a coffee →
+				</a>
+			</div>
+		</motion.li>
+	);
+}
+
 const LB_VALUE: Record<LeaderMode, (u: LeaderEntry) => number> = {
 	public: (u) => u.totalCommits,
 	private: (u) => u.totalRestricted,
@@ -303,9 +355,17 @@ function Leaderboard({
 							</motion.li>
 							{/* Sponsor sits in the slot after rank 5 (only once there's more below). */}
 							{i === 4 && rows.length > 5 && <SponsorRow />}
+							{/* Self-promo after slots 10, 50 and 100 (only once there's more below). */}
+							{i === 9 && rows.length > 10 && <SelfPromoRow />}
+							{i === 49 && rows.length > 50 && <SelfPromoRow />}
+							{i === 99 && rows.length > 100 && <SelfPromoRow />}
 						</Fragment>
 					))}
 				</AnimatePresence>
+				{/* Self-promo once the whole leaderboard has finished loading. */}
+				{!hasNextPage && !isFetchingNextPage && rows.length > 0 && (
+					<SelfPromoRow />
+				)}
 			</ol>
 			<div ref={sentinel} className="h-px" />
 			{isFetchingNextPage && (
