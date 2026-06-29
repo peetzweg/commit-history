@@ -395,34 +395,27 @@ const SITE = "https://commit-history.com";
 // preview <img> — is tree-shaken out and never requested in production.
 const EMBED_ENABLED = import.meta.env.VITE_FEATURE_EMBED === "true";
 
-type EmbedTheme = "auto" | "light" | "dark";
-
-/** The exact markup a user pastes into a README. "auto" emits a `<picture>` that
- *  follows GitHub's light/dark mode; light/dark emit plain Markdown. Every variant
- *  wraps the image in a link back to the user's commit-history.com page. */
-function embedSnippet(login: string, theme: EmbedTheme): string {
+/** The exact markup a user pastes into a README: a centered `<picture>` that
+ *  follows GitHub's light/dark mode, wrapping a link back to the user's
+ *  commit-history.com page. `align="center"` is the one alignment attribute
+ *  GitHub's markdown sanitizer keeps, so it centers on a profile. */
+function embedSnippet(login: string): string {
 	const page = `${SITE}/${login}`;
 	const img = `${SITE}/embed/${login}`;
 	const alt = `${login}'s commit history`;
-	if (theme === "auto") {
-		return `<a href="${page}">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="${img}?theme=dark" />
-    <img alt="${alt}" src="${img}" />
-  </picture>
-</a>`;
-	}
-	const src = theme === "dark" ? `${img}?theme=dark` : img;
-	return `[![${alt}](${src})](${page})`;
+	return `<div align="center">
+  <a href="${page}">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="${img}?theme=dark" />
+      <img alt="${alt}" src="${img}" />
+    </picture>
+  </a>
+</div>`;
 }
 
 function EmbedSnippet({ login }: { login: string }) {
-	const [theme, setTheme] = useState<EmbedTheme>("auto");
 	const [copied, setCopied] = useState(false);
-	const snippet = embedSnippet(login, theme);
-	// "auto" has no single preview image; show the light card (the default GitHub renders).
-	const previewSrc =
-		theme === "dark" ? `/embed/${login}?theme=dark` : `/embed/${login}`;
+	const snippet = embedSnippet(login);
 
 	async function copy() {
 		try {
@@ -435,31 +428,30 @@ function EmbedSnippet({ login }: { login: string }) {
 	}
 
 	return (
-		<section className="mt-12">
-			<div className="flex flex-wrap items-center justify-between gap-3">
-				<div>
-					<h2 className="text-sm font-semibold">
-						Embed in your GitHub profile
-					</h2>
-					<p className="mt-1 text-xs text-muted-foreground">
-						A live chart that updates over time — drop it into your GitHub
-						profile page or any project README.
-					</p>
-				</div>
-				<EmbedThemeToggle theme={theme} onChange={setTheme} />
-			</div>
+		<section className="mt-16 border-t border-border pt-12">
+			<h2 className="text-sm font-semibold">Embed in your GitHub profile</h2>
+			<p className="mt-1 text-xs text-muted-foreground">
+				A live chart that updates over time — drop it into your GitHub profile
+				page or any project README. It’s centered and switches between light and
+				dark to match the viewer’s GitHub theme.
+			</p>
 
-			<a
-				href={`/${login}`}
-				className="mt-4 block overflow-hidden rounded-xl border border-border"
-			>
-				<img
-					src={previewSrc}
-					alt={`${login}'s commit history`}
-					className="w-full"
-					loading="lazy"
-				/>
-			</a>
+			{/* A static screenshot of the embed on a real profile — we deliberately
+			    don't render a live per-user preview here, to avoid a second chart
+			    render (and embed request) on every page visit. */}
+			<figure className="mt-4">
+				<div className="overflow-hidden rounded-xl border border-border">
+					<img
+						src="/embed-example.png"
+						alt="A commit-history chart embedded in a GitHub profile README"
+						className="w-full"
+						loading="lazy"
+					/>
+				</div>
+				<figcaption className="mt-2 text-xs text-muted-foreground">
+					How it looks on a GitHub profile.
+				</figcaption>
+			</figure>
 
 			<div className="group relative mt-3">
 				<pre className="overflow-x-auto rounded-md border bg-muted py-2.5 pl-3 pr-20 text-xs leading-relaxed">
@@ -473,46 +465,7 @@ function EmbedSnippet({ login }: { login: string }) {
 					{copied ? "Copied!" : "Copy"}
 				</button>
 			</div>
-			{theme === "auto" && (
-				<p className="mt-2 text-xs text-muted-foreground">
-					Auto switches between light and dark to match the viewer’s GitHub
-					theme.
-				</p>
-			)}
 		</section>
-	);
-}
-
-const EMBED_THEME_LABELS: Record<EmbedTheme, string> = {
-	auto: "Auto",
-	light: "Light",
-	dark: "Dark",
-};
-
-function EmbedThemeToggle({
-	theme,
-	onChange,
-}: {
-	theme: EmbedTheme;
-	onChange: (t: EmbedTheme) => void;
-}) {
-	return (
-		<div className="inline-flex overflow-hidden rounded-md border text-sm">
-			{(["auto", "light", "dark"] as const).map((t) => (
-				<button
-					key={t}
-					type="button"
-					onClick={() => onChange(t)}
-					className={
-						theme === t
-							? "bg-foreground px-3 py-1.5 text-background"
-							: "px-3 py-1.5 text-muted-foreground hover:bg-muted"
-					}
-				>
-					{EMBED_THEME_LABELS[t]}
-				</button>
-			))}
-		</div>
 	);
 }
 

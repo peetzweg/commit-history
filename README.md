@@ -32,20 +32,29 @@ Type a username, get their entire coding career as a curve. It's a little hypnot
 
 ## 🖼️ Embed in your GitHub profile
 
-Drop a live, auto-updating chart into your profile page or any markdown file. This `<picture>` snippet follows the viewer's GitHub theme and links back to your full history:
+Drop a live, auto-updating chart into your profile page or any markdown file. This snippet centers the chart, follows the viewer's GitHub theme (light/dark), and links back to your full history:
 
 ```html
-<a href="https://commit-history.com/YOUR_USERNAME">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://commit-history.com/embed/YOUR_USERNAME?theme=dark" />
-    <img alt="YOUR_USERNAME's commit history" src="https://commit-history.com/embed/YOUR_USERNAME" />
-  </picture>
-</a>
+<div align="center">
+  <a href="https://commit-history.com/YOUR_USERNAME">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://commit-history.com/embed/YOUR_USERNAME?theme=dark" />
+      <img alt="YOUR_USERNAME's commit history" src="https://commit-history.com/embed/YOUR_USERNAME" />
+    </picture>
+  </a>
+</div>
 ```
 
-Prefer plain Markdown? `[![commit history](https://commit-history.com/embed/YOUR_USERNAME)](https://commit-history.com/YOUR_USERNAME)` works too (append `?theme=dark` for dark mode). Here's [Linus Torvalds](https://commit-history.com/torvalds):
+Here's [Linus Torvalds](https://commit-history.com/torvalds):
 
-[![Linus Torvalds' commit history](https://commit-history.com/embed/torvalds)](https://commit-history.com/torvalds)
+<div align="center">
+  <a href="https://commit-history.com/torvalds">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://commit-history.com/embed/torvalds?theme=dark" />
+      <img alt="Linus Torvalds' commit history" src="https://commit-history.com/embed/torvalds" />
+    </picture>
+  </a>
+</div>
 
 ## 🚀 Quick start
 
