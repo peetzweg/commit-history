@@ -126,12 +126,13 @@ function RecentSection({
 }
 
 /**
- * A single hardcoded self-promo row, shown in the 4th slot after the top 3.
+ * A single hardcoded sponsor row, shown in the slot after rank 5.
  *
- * Placeholder until the DB-driven sponsorship system lands (see the `feat/sponsorships` branch).
- * For now it's pure markup — no database, no ads — pointing at the author's GitHub and Ko-fi.
+ * Same visual treatment as the (parked) DB-driven sponsorship system on `feat/sponsorships`,
+ * but with no database — the creative is hardcoded for now. Uses the sponsor's own favicon and
+ * page title, and links out with rel="sponsored nofollow".
  */
-function SelfPromoRow() {
+function SponsorRow() {
 	return (
 		<motion.li
 			layout
@@ -139,40 +140,29 @@ function SelfPromoRow() {
 			animate={{ opacity: 1 }}
 			exit={{ opacity: 0 }}
 			transition={{ type: "spring", stiffness: 600, damping: 40 }}
-			className="border-border border-b border-dashed bg-muted/40"
+			className="border-border border-b bg-muted/40"
 		>
-			<div className="flex w-full flex-wrap items-center gap-x-3 gap-y-2 py-2.5">
-				<span className="flex w-6 shrink-0 items-center justify-center text-base">
-					☕
+			<a
+				href="https://rebates.ai/?utm_source=commit-history.com&utm_medium=leaderboard&utm_campaign=commit-history_sponsorship&utm_content=slot5"
+				target="_blank"
+				rel="sponsored nofollow noopener"
+				className="flex w-full items-center gap-3 py-2.5 text-left hover:bg-muted"
+			>
+				<span className="flex w-6 items-center justify-end text-[10px] uppercase tracking-wide text-muted-foreground">
+					Ad
 				</span>
 				<img
-					src="https://github.com/peetzweg.png"
-					alt="peetzweg"
-					className="h-8 w-8 shrink-0 rounded-full border border-border"
+					src="https://rebates.ai/brand/rebates-bandit.svg"
+					alt="Rebates"
+					className="h-8 w-8 rounded-full border border-border object-cover"
 				/>
-				<p className="min-w-0 flex-1 text-sm text-muted-foreground">
-					Do you like this page?
-					<br />
-					Consider supporting me,{" "}
-					<a
-						href="https://github.com/peetzweg"
-						target="_blank"
-						rel="noreferrer"
-						className="font-medium text-foreground hover:underline"
-					>
-						peetzweg
-					</a>
-					.
-				</p>
-				<a
-					href="https://ko-fi.com/peetzweg"
-					target="_blank"
-					rel="noreferrer"
-					className="btn-secondary shrink-0 text-xs"
-				>
-					Buy me a coffee →
-				</a>
-			</div>
+				<span className="flex-1 truncate font-medium">
+					Rebates - The ads in your terminal pay you
+				</span>
+				<span className="text-right text-xs text-muted-foreground">
+					Sponsored
+				</span>
+			</a>
 		</motion.li>
 	);
 }
@@ -299,8 +289,8 @@ function Leaderboard({
 									</span>
 								</button>
 							</motion.li>
-							{/* Self-promo sits in the 4th slot, after the top 3 (only once there's more below). */}
-							{i === 2 && rows.length > 3 && <SelfPromoRow />}
+							{/* Sponsor sits in the slot after rank 5 (only once there's more below). */}
+							{i === 4 && rows.length > 5 && <SponsorRow />}
 						</Fragment>
 					))}
 				</AnimatePresence>
