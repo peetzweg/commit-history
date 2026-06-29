@@ -142,7 +142,7 @@ function SponsorRow() {
 			className="border-border border-b bg-muted/40"
 		>
 			<a
-				href="https://rebates.ai/"
+				href="https://rebates.ai/?utm_source=commit-history.com&utm_medium=leaderboard&utm_campaign=commit-history_sponsorship&utm_content=slot5"
 				target="_blank"
 				rel="sponsored nofollow noopener"
 				className="flex w-full items-center gap-3 py-2.5 text-left hover:bg-muted"
