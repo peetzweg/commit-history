@@ -62,7 +62,7 @@ function Home() {
 						onChange={(e) => setLogin(e.target.value)}
 						placeholder="peetzweg"
 						aria-label="GitHub username"
-						className="min-w-0 flex-1 bg-transparent p-2 pl-1 outline-none"
+						className="min-w-0 flex-1 bg-transparent p-2 pl-1 outline-none placeholder:text-muted-foreground/60"
 					/>
 				</div>
 				<button type="submit" className="btn-primary">
