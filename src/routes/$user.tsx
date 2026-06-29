@@ -111,7 +111,7 @@ function PendingUser() {
 				))}
 			</div>
 
-			<div className="mt-3 sm:rounded-xl sm:border sm:border-border sm:p-4">
+			<div className="-mx-3 mt-3 py-3 sm:mx-0 sm:rounded-xl sm:border sm:border-border sm:p-4">
 				<div className="pointer-events-none opacity-40 blur-[6px]">
 					<CommitChart points={GENERIC_POINTS} mode="public" />
 				</div>
@@ -364,7 +364,7 @@ function SingleView({
 				initial={{ opacity: 0, filter: "blur(8px)" }}
 				animate={{ opacity: 1, filter: "blur(0px)" }}
 				transition={{ duration: 0.5 }}
-				className="mt-3 sm:rounded-xl sm:border sm:border-border sm:p-4"
+				className="-mx-3 mt-3 py-3 sm:mx-0 sm:rounded-xl sm:border sm:border-border sm:p-4"
 			>
 				<CommitChart
 					points={points}
@@ -448,7 +448,7 @@ function ComparisonView({
 				initial={{ opacity: 0, filter: "blur(8px)" }}
 				animate={{ opacity: 1, filter: "blur(0px)" }}
 				transition={{ duration: 0.5 }}
-				className="mt-6 sm:rounded-xl sm:border sm:border-border sm:p-4"
+				className="-mx-3 mt-6 py-3 sm:mx-0 sm:rounded-xl sm:border sm:border-border sm:p-4"
 			>
 				<MultiCommitChart
 					series={series}
