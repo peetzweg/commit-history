@@ -14,7 +14,7 @@ export function Header() {
 				<a
 					href="https://www.star-history.com/"
 					target="_blank"
-					rel="noreferrer"
+					rel="noopener"
 					className="header-link hidden text-sm sm:flex"
 					title="Inspired by star-history.com"
 				>
@@ -23,7 +23,7 @@ export function Header() {
 				<a
 					href="https://github.com/peetzweg/commit-history"
 					target="_blank"
-					rel="noreferrer"
+					rel="noopener"
 					className="header-link"
 					title="View source on GitHub"
 					aria-label="View source on GitHub"

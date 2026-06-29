@@ -222,7 +222,7 @@ function SuspendedNotice() {
 				<a
 					href="https://github.com/peetzweg/commit-history/issues"
 					target="_blank"
-					rel="noreferrer"
+					rel="noopener"
 					className="underline hover:text-foreground"
 				>
 					open an issue
@@ -308,7 +308,7 @@ function ProfilePanel({
 					<a
 						href={`https://github.com/${user.login}`}
 						target="_blank"
-						rel="noreferrer"
+						rel="noopener"
 						className="text-sm text-muted-foreground hover:underline"
 					>
 						@{user.login}
@@ -445,7 +445,7 @@ function EmbedSnippet({ login }: { login: string }) {
 				<a
 					href="https://github.com/peetzweg"
 					target="_blank"
-					rel="noreferrer"
+					rel="noopener"
 					className="block overflow-hidden rounded-xl border border-border"
 				>
 					<img
@@ -563,7 +563,7 @@ function ComparisonView({
 						<a
 							href={`https://github.com/${r.login}`}
 							target="_blank"
-							rel="noreferrer"
+							rel="noopener"
 							className="hover:underline"
 						>
 							{r.login}
