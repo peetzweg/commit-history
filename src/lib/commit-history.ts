@@ -68,6 +68,9 @@ export interface UserResult {
 	// True when the entity is suspended (under investigation) — the profile is still shown, but
 	// with an under-review notice. The internal reason is never sent to the client.
 	suspended: boolean;
+	// Position on the public-commits leaderboard (1 = most public commits), among active entities.
+	// Null when there's no DB; suppressed in the UI for suspended profiles (hidden from the board).
+	publicRank: number | null;
 }
 
 export interface LeaderEntry {
@@ -200,6 +203,26 @@ async function suspendedSet(logins: string[]): Promise<Set<string>> {
 }
 
 /**
+ * Public-leaderboard position for a user with `publicCommits` public commits: how many active
+ * entities sit ahead of them, plus one. Same ordering as the "public" leaderboard (`total_commits`
+ * DESC), so the number matches where you'd land on the start page. Ties share a rank — two users
+ * with equal commits both count the same crowd ahead. Null without a DB.
+ */
+async function publicRankFor(publicCommits: number): Promise<number | null> {
+	if (!db) return null;
+	const [row] = await db
+		.select({ ahead: sql<number>`count(*)` })
+		.from(entities)
+		.where(
+			and(
+				isNull(entities.suspendedAt),
+				gt(entities.totalCommits, publicCommits),
+			),
+		);
+	return Number(row?.ahead ?? 0) + 1;
+}
+
+/**
  * Resolve several users' histories in one round-trip, tolerating partial failure so one bad
  * username doesn't sink the whole comparison.
  */
@@ -207,24 +230,39 @@ export const getCommitHistories = createServerFn({ method: "GET" })
 	.validator((logins: string[]) => logins)
 	.handler(async ({ data: logins }): Promise<UserResult[]> => {
 		const token = serverToken();
-		const [results, suspended] = await Promise.all([
-			Promise.all(
-				logins.map(async (login): Promise<UserResult> => {
-					try {
-						const history = await getCachedCommitHistory(login, token);
-						return { login, history, error: null, suspended: false };
-					} catch (e) {
-						return {
-							login,
-							history: null,
-							error: e instanceof Error ? e.message : "Failed to load",
-							suspended: false,
-						};
-					}
-				}),
+		// allSettled (not all): one user's failed GitHub fetch must not reject the whole batch and
+		// blank out the others. suspendedSet is fetched alongside and is best-effort — a DB hiccup
+		// there shouldn't drop already-loaded profiles, so it falls back to "none suspended".
+		const [settled, suspended] = await Promise.all([
+			Promise.allSettled(
+				logins.map((login) => getCachedCommitHistory(login, token)),
 			),
-			suspendedSet(logins),
+			suspendedSet(logins).catch(() => new Set<string>()),
 		]);
-		for (const r of results) r.suspended = suspended.has(r.login.toLowerCase());
-		return results;
+		return Promise.all(
+			settled.map(async (outcome, i): Promise<UserResult> => {
+				const login = logins[i];
+				const isSuspended = suspended.has(login.toLowerCase());
+				if (outcome.status === "rejected") {
+					const e = outcome.reason;
+					return {
+						login,
+						history: null,
+						error: e instanceof Error ? e.message : "Failed to load",
+						suspended: isSuspended,
+						publicRank: null,
+					};
+				}
+				const history = outcome.value;
+				// Rank is supplementary — never let a ranking-query failure drop a loaded profile.
+				const publicRank = await publicRankFor(history.total).catch(() => null);
+				return {
+					login,
+					history,
+					error: null,
+					suspended: isSuspended,
+					publicRank,
+				};
+			}),
+		);
 	});

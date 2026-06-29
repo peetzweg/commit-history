@@ -78,7 +78,12 @@ const GENERIC_POINTS: CommitPoint[] = (() => {
 function PendingUser() {
 	const { user } = Route.useParams();
 	const login = user.split(",")[0];
-	const labels = ["Public commits", "Followers", "Busiest month"];
+	const labels = [
+		"Public rank",
+		"Public commits",
+		"Followers",
+		"Busiest month",
+	];
 	return (
 		<main className="mx-auto max-w-4xl px-6 py-12">
 			<Link
@@ -272,6 +277,8 @@ function ProfilePanel({
 	const { user, points, total, totalRestricted } = result.history!;
 	const hasPrivate = totalRestricted > 0;
 	const since = monthYear(user.createdAt);
+	// Public-leaderboard rank — hidden for suspended profiles, which are off the board entirely.
+	const rank = result.suspended ? null : result.publicRank;
 	// Busiest month by total activity (public + private), so it's meaningful for private-heavy users.
 	const busiest = points.reduce(
 		(best, p) =>
@@ -313,6 +320,9 @@ function ProfilePanel({
 			</header>
 
 			<div className="mx-auto mt-6 grid max-w-xl grid-cols-3 gap-x-4 gap-y-5 text-center sm:mx-0 sm:flex sm:max-w-none sm:flex-wrap sm:gap-10 sm:text-left">
+				{rank !== null && (
+					<Stat label="Public rank" value={`#${rank.toLocaleString()}`} />
+				)}
 				<Stat label="Public commits" value={total.toLocaleString()} />
 				{hasPrivate && (
 					<Stat
