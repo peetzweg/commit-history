@@ -355,8 +355,8 @@ function Leaderboard({
 							</motion.li>
 							{/* Sponsor sits in the slot after rank 5 (only once there's more below). */}
 							{i === 4 && rows.length > 5 && <SponsorRow />}
-							{/* Self-promo after slots 15, 50 and 100 (only once there's more below). */}
-							{i === 14 && rows.length > 15 && <SelfPromoRow />}
+							{/* Self-promo after slots 10, 50 and 100 (only once there's more below). */}
+							{i === 9 && rows.length > 10 && <SelfPromoRow />}
 							{i === 49 && rows.length > 50 && <SelfPromoRow />}
 							{i === 99 && rows.length > 100 && <SelfPromoRow />}
 						</Fragment>
