@@ -78,7 +78,7 @@ const GENERIC_POINTS: CommitPoint[] = (() => {
 function PendingUser() {
 	const { user } = Route.useParams();
 	const login = user.split(",")[0];
-	const labels = ["Public commits", "Busiest month", "Since"];
+	const labels = ["Public commits", "Followers", "Busiest month"];
 	return (
 		<main className="mx-auto max-w-4xl px-6 py-12">
 			<Link
@@ -98,11 +98,11 @@ function PendingUser() {
 				</div>
 			</header>
 
-			<div className="mt-8 flex flex-wrap gap-10">
+			<div className="mx-auto mt-8 grid max-w-xl grid-cols-3 gap-x-4 gap-y-5 text-center sm:mx-0 sm:flex sm:max-w-none sm:flex-wrap sm:gap-10 sm:text-left">
 				{labels.map((label) => (
 					<div key={label}>
 						{/* reserve value + hint heights; they animate in once data arrives */}
-						<div className="h-8" />
+						<div className="h-7" />
 						<div className="text-xs uppercase tracking-wide text-muted-foreground">
 							{label}
 						</div>
@@ -111,7 +111,7 @@ function PendingUser() {
 				))}
 			</div>
 
-			<div className="mt-3 rounded-xl border border-border p-4">
+			<div className="-mx-4 mt-3 pt-5 pb-1.5 sm:mx-0 sm:rounded-xl sm:border sm:border-border sm:p-4">
 				<div className="pointer-events-none opacity-40 blur-[6px]">
 					<CommitChart points={GENERIC_POINTS} mode="public" />
 				</div>
@@ -245,7 +245,7 @@ function Stat({
 				initial={{ opacity: 0, y: -4 }}
 				animate={{ opacity: 1, y: 0 }}
 				transition={{ duration: 0.35 }}
-				className="text-2xl font-semibold tabular-nums"
+				className="text-xl font-semibold tabular-nums"
 			>
 				{value}
 			</motion.div>
@@ -312,7 +312,7 @@ function ProfilePanel({
 				</div>
 			</header>
 
-			<div className="mt-6 flex flex-wrap gap-10">
+			<div className="mx-auto mt-6 grid max-w-xl grid-cols-3 gap-x-4 gap-y-5 text-center sm:mx-0 sm:flex sm:max-w-none sm:flex-wrap sm:gap-10 sm:text-left">
 				<Stat label="Public commits" value={total.toLocaleString()} />
 				{hasPrivate && (
 					<Stat
@@ -320,6 +320,7 @@ function ProfilePanel({
 						value={totalRestricted.toLocaleString()}
 					/>
 				)}
+				<Stat label="Followers" value={user.followers.toLocaleString()} />
 				<Stat
 					label="Busiest month"
 					value={busiest ? monthYear(busiest.date) : "—"}
@@ -329,7 +330,6 @@ function ProfilePanel({
 							: undefined
 					}
 				/>
-				<Stat label="Followers" value={user.followers.toLocaleString()} />
 			</div>
 		</div>
 	);
@@ -364,7 +364,7 @@ function SingleView({
 				initial={{ opacity: 0, filter: "blur(8px)" }}
 				animate={{ opacity: 1, filter: "blur(0px)" }}
 				transition={{ duration: 0.5 }}
-				className="mt-3 rounded-xl border border-border p-4"
+				className="-mx-4 mt-3 pt-5 pb-1.5 sm:mx-0 sm:rounded-xl sm:border sm:border-border sm:p-4"
 			>
 				<CommitChart
 					points={points}
@@ -373,12 +373,14 @@ function SingleView({
 				/>
 			</motion.div>
 
-			<div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-				<p className="text-xs text-muted-foreground">
+			<div className="mt-2 flex flex-wrap items-center gap-3 sm:mt-4 sm:justify-between">
+				<p className="w-full text-xs text-muted-foreground sm:w-auto">
 					Cumulative commits attributed by GitHub since {since} — the same
 					dataset as the contribution graph.
 				</p>
-				<AddUser currentLogins={otherLogins} label="Compare with…" />
+				<div className="ml-auto sm:ml-0">
+					<AddUser currentLogins={otherLogins} label="Compare with…" />
+				</div>
 			</div>
 
 			<EmbedSnippet login={user.login} />
@@ -533,7 +535,7 @@ function ComparisonView({
 				initial={{ opacity: 0, filter: "blur(8px)" }}
 				animate={{ opacity: 1, filter: "blur(0px)" }}
 				transition={{ duration: 0.5 }}
-				className="mt-6 rounded-xl border border-border p-4"
+				className="-mx-4 mt-6 pt-5 pb-1.5 sm:mx-0 sm:rounded-xl sm:border sm:border-border sm:p-4"
 			>
 				<MultiCommitChart
 					series={series}

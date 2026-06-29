@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ChartLegend } from "#/components/ChartLegend";
 import type { ChartMode } from "#/components/CommitChart";
 import type { CommitPoint } from "#/lib/github";
+import { useIsMobile } from "#/lib/useIsMobile";
 
 /** Cumulative value to plot for a point, per the public/private/both selection.
  *  "both" sums public commits and private contributions. */
@@ -33,11 +34,18 @@ export interface ChartSeries {
 	points: CommitPoint[];
 }
 
+// Fixed viewBox scaled to container width — see CommitChart for why the layout is responsive.
 const W = 880;
 const H = 420;
-const PAD = { top: 40, right: 24, bottom: 30, left: 60 };
-const innerW = W - PAD.left - PAD.right;
-const innerH = H - PAD.top - PAD.bottom;
+
+const DESKTOP = {
+	pad: { top: 40, right: 24, bottom: 30, left: 60 },
+	font: { axis: 16, readout: 15, legend: 16 },
+};
+const MOBILE = {
+	pad: { top: 46, right: 16, bottom: 44, left: 88 },
+	font: { axis: 26, readout: 22, legend: 24 },
+};
 
 function compact(n: number) {
 	return new Intl.NumberFormat("en-US", { notation: "compact" }).format(n);
@@ -65,6 +73,10 @@ export function MultiCommitChart({
 	chartMode?: ChartMode;
 }) {
 	const [hoverFrac, setHoverFrac] = useState<number | null>(null);
+	const isMobile = useIsMobile();
+	const { pad: PAD, font: FONT } = isMobile ? MOBILE : DESKTOP;
+	const innerW = W - PAD.left - PAD.right;
+	const innerH = H - PAD.top - PAD.bottom;
 	if (series.length === 0 || series.every((s) => s.points.length === 0)) {
 		return null;
 	}
@@ -211,7 +223,7 @@ export function MultiCommitChart({
 						textAnchor="end"
 						dominantBaseline="middle"
 						fill="#6b7280"
-						fontSize={14}
+						fontSize={FONT.axis}
 					>
 						{compact(v)}
 					</text>
@@ -225,7 +237,7 @@ export function MultiCommitChart({
 					y={H - 10}
 					textAnchor="middle"
 					fill="#6b7280"
-					fontSize={14}
+					fontSize={FONT.axis}
 				>
 					{t.label}
 				</text>
@@ -255,6 +267,7 @@ export function MultiCommitChart({
 				entries={series.map((s) => ({ label: s.login, color: s.color }))}
 				x={PAD.left + 14}
 				y={PAD.top + 6}
+				font={FONT.legend}
 			/>
 
 			{/* Hover: vertical guide + a dot and value per series */}
@@ -287,7 +300,7 @@ export function MultiCommitChart({
 								<text
 									x={px + 8}
 									y={py - 6}
-									fontSize={13}
+									fontSize={FONT.readout}
 									fill={s.color}
 									fontWeight={600}
 								>
@@ -302,7 +315,7 @@ export function MultiCommitChart({
 							x={Math.min(Math.max(hoverX, PAD.left + 40), W - PAD.right - 40)}
 							y={PAD.top - 6}
 							textAnchor="middle"
-							fontSize={13}
+							fontSize={FONT.readout}
 							fill="currentColor"
 						>
 							{(() => {
