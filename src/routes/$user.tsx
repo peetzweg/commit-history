@@ -380,7 +380,128 @@ function SingleView({
 				</p>
 				<AddUser currentLogins={otherLogins} label="Compare with…" />
 			</div>
+
+			<EmbedSnippet login={user.login} />
 		</>
+	);
+}
+
+// ── Embed: a live SVG chart for READMEs ───────────────────────────────────────
+
+const SITE = "https://commit-history.com";
+
+type EmbedTheme = "auto" | "light" | "dark";
+
+/** The exact markup a user pastes into a README. "auto" emits a `<picture>` that
+ *  follows GitHub's light/dark mode; light/dark emit plain Markdown. Every variant
+ *  wraps the image in a link back to the user's commit-history.com page. */
+function embedSnippet(login: string, theme: EmbedTheme): string {
+	const page = `${SITE}/${login}`;
+	const img = `${SITE}/embed/${login}`;
+	const alt = `${login}'s commit history`;
+	if (theme === "auto") {
+		return `<a href="${page}">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="${img}?theme=dark" />
+    <img alt="${alt}" src="${img}" />
+  </picture>
+</a>`;
+	}
+	const src = theme === "dark" ? `${img}?theme=dark` : img;
+	return `[![${alt}](${src})](${page})`;
+}
+
+function EmbedSnippet({ login }: { login: string }) {
+	const [theme, setTheme] = useState<EmbedTheme>("auto");
+	const [copied, setCopied] = useState(false);
+	const snippet = embedSnippet(login, theme);
+	// "auto" has no single preview image; show the light card (the default GitHub renders).
+	const previewSrc =
+		theme === "dark" ? `/embed/${login}?theme=dark` : `/embed/${login}`;
+
+	async function copy() {
+		try {
+			await navigator.clipboard.writeText(snippet);
+			setCopied(true);
+			setTimeout(() => setCopied(false), 1500);
+		} catch {
+			/* clipboard unavailable */
+		}
+	}
+
+	return (
+		<section className="mt-12">
+			<div className="flex flex-wrap items-center justify-between gap-3">
+				<div>
+					<h2 className="text-sm font-semibold">Embed in your README</h2>
+					<p className="mt-1 text-xs text-muted-foreground">
+						A live chart that updates over time — drop it into your GitHub
+						profile or any project README.
+					</p>
+				</div>
+				<EmbedThemeToggle theme={theme} onChange={setTheme} />
+			</div>
+
+			<a
+				href={`/${login}`}
+				className="mt-4 block overflow-hidden rounded-xl border border-border"
+			>
+				<img
+					src={previewSrc}
+					alt={`${login}'s commit history`}
+					className="w-full"
+					loading="lazy"
+				/>
+			</a>
+
+			<div className="mt-3 flex items-stretch gap-2">
+				<code className="flex-1 overflow-x-auto whitespace-pre rounded-md border bg-muted px-3 py-2 text-xs leading-relaxed">
+					{snippet}
+				</code>
+				<button type="button" onClick={copy} className="btn-secondary shrink-0">
+					{copied ? "Copied!" : "Copy"}
+				</button>
+			</div>
+			{theme === "auto" && (
+				<p className="mt-2 text-xs text-muted-foreground">
+					Auto switches between light and dark to match the viewer’s GitHub
+					theme.
+				</p>
+			)}
+		</section>
+	);
+}
+
+const EMBED_THEME_LABELS: Record<EmbedTheme, string> = {
+	auto: "Auto",
+	light: "Light",
+	dark: "Dark",
+};
+
+function EmbedThemeToggle({
+	theme,
+	onChange,
+}: {
+	theme: EmbedTheme;
+	onChange: (t: EmbedTheme) => void;
+}) {
+	return (
+		<div className="inline-flex overflow-hidden rounded-md border text-sm">
+			{(["auto", "light", "dark"] as const).map((t) => (
+				<button
+					key={t}
+					type="button"
+					onClick={() => onChange(t)}
+					className={
+						theme === t
+							? "bg-foreground px-3 py-1.5 text-background"
+							: "px-3 py-1.5 text-muted-foreground hover:bg-muted"
+					}
+				>
+					{EMBED_THEME_LABELS[t]}
+				</button>
+			))}
+		</div>
 	);
 }
 
