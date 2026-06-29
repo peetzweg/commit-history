@@ -373,12 +373,14 @@ function SingleView({
 				/>
 			</motion.div>
 
-			<div className="mt-2 flex flex-wrap items-center justify-between gap-3 sm:mt-4">
-				<p className="text-xs text-muted-foreground">
+			<div className="mt-2 flex flex-wrap items-center gap-3 sm:mt-4 sm:justify-between">
+				<p className="w-full text-xs text-muted-foreground sm:w-auto">
 					Cumulative commits attributed by GitHub since {since} — the same
 					dataset as the contribution graph.
 				</p>
-				<AddUser currentLogins={otherLogins} label="Compare with…" />
+				<div className="ml-auto sm:ml-0">
+					<AddUser currentLogins={otherLogins} label="Compare with…" />
+				</div>
 			</div>
 		</>
 	);
