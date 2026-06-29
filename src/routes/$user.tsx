@@ -381,7 +381,7 @@ function SingleView({
 				<AddUser currentLogins={otherLogins} label="Compare with…" />
 			</div>
 
-			{EMBED_ENABLED && <EmbedSnippet login={user.login} />}
+			<EmbedSnippet login={user.login} />
 		</>
 	);
 }
@@ -389,11 +389,6 @@ function SingleView({
 // ── Embed: a live SVG chart for READMEs ───────────────────────────────────────
 
 const SITE = "https://commit-history.com";
-
-// Dev-only for now. Vite statically replaces `import.meta.env.VITE_FEATURE_EMBED`
-// at build time, so when it's unset the whole EmbedSnippet — including its live
-// preview <img> — is tree-shaken out and never requested in production.
-const EMBED_ENABLED = import.meta.env.VITE_FEATURE_EMBED === "true";
 
 /** The exact markup a user pastes into a README: a centered `<picture>` that
  *  follows GitHub's light/dark mode, wrapping a link back to the user's
@@ -440,14 +435,19 @@ function EmbedSnippet({ login }: { login: string }) {
 			    don't render a live per-user preview here, to avoid a second chart
 			    render (and embed request) on every page visit. */}
 			<figure className="mt-4">
-				<div className="overflow-hidden rounded-xl border border-border">
+				<a
+					href="https://github.com/peetzweg"
+					target="_blank"
+					rel="noreferrer"
+					className="block overflow-hidden rounded-xl border border-border"
+				>
 					<img
 						src="/embed-example.png"
 						alt="A commit-history chart embedded in a GitHub profile README"
 						className="w-full"
 						loading="lazy"
 					/>
-				</div>
+				</a>
 				<figcaption className="mt-2 text-xs text-muted-foreground">
 					How it looks on a GitHub profile.
 				</figcaption>
