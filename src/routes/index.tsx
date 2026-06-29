@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "motion/react";
 import { Fragment, useEffect, useRef, useState } from "react";
 import {
@@ -63,7 +63,6 @@ function Home() {
 						placeholder="peetzweg"
 						aria-label="GitHub username"
 						className="min-w-0 flex-1 bg-transparent p-2 pl-0 outline-none placeholder:text-muted-foreground/60"
-
 					/>
 				</div>
 				<button type="submit" className="btn-primary">
@@ -71,9 +70,9 @@ function Home() {
 				</button>
 			</form>
 
-			{recent.length > 0 && <RecentSection recent={recent} onPick={go} />}
+			{recent.length > 0 && <RecentSection recent={recent} />}
 			{initial.leaderboard.length > 0 && (
-				<Leaderboard initialPage={initial.leaderboard} onPick={go} />
+				<Leaderboard initialPage={initial.leaderboard} />
 			)}
 		</main>
 	);
@@ -87,38 +86,36 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
 	);
 }
 
-function RecentSection({
-	recent,
-	onPick,
-}: {
-	recent: RecentEntry[];
-	onPick: (login: string) => void;
-}) {
+function RecentSection({ recent }: { recent: RecentEntry[] }) {
 	return (
 		<section className="mt-14">
 			<SectionHeading>Recently looked up</SectionHeading>
 			<div className="mt-4 flex flex-wrap gap-2">
 				<AnimatePresence initial={false} mode="popLayout">
 					{recent.map((u) => (
-						<motion.button
+						<motion.div
 							key={u.login}
 							layout
 							initial={{ opacity: 0, scale: 0.8 }}
 							animate={{ opacity: 1, scale: 1 }}
 							exit={{ opacity: 0, scale: 0.8 }}
 							transition={{ type: "spring", stiffness: 500, damping: 32 }}
-							type="button"
-							onClick={() => onPick(u.login)}
-							className="flex items-center gap-2 rounded-full border py-1 pr-3 pl-1 text-sm hover:bg-muted"
-							title={u.name ?? u.login}
 						>
-							<img
-								src={u.avatarUrl ?? ""}
-								alt=""
-								className="h-6 w-6 rounded-full border border-border"
-							/>
-							{u.login}
-						</motion.button>
+							<Link
+								to="/$user"
+								params={{ user: u.login }}
+								preload={false}
+								className="flex items-center gap-2 rounded-full border py-1 pr-3 pl-1 text-sm hover:bg-muted"
+								title={u.name ?? u.login}
+							>
+								<img
+									src={u.avatarUrl ?? ""}
+									alt=""
+									className="h-6 w-6 rounded-full border border-border"
+								/>
+								{u.login}
+							</Link>
+						</motion.div>
 					))}
 				</AnimatePresence>
 			</div>
@@ -227,13 +224,7 @@ const LB_VALUE: Record<LeaderMode, (u: LeaderEntry) => number> = {
 	followers: (u) => u.followers ?? 0,
 };
 
-function Leaderboard({
-	initialPage,
-	onPick,
-}: {
-	initialPage: LeaderEntry[];
-	onPick: (login: string) => void;
-}) {
+function Leaderboard({ initialPage }: { initialPage: LeaderEntry[] }) {
 	const [mode, setMode] = useState<LeaderMode>("public");
 	const value = LB_VALUE[mode];
 
@@ -314,9 +305,10 @@ function Leaderboard({
 								transition={{ type: "spring", stiffness: 600, damping: 40 }}
 								className="border-border border-b"
 							>
-								<button
-									type="button"
-									onClick={() => onPick(u.login)}
+								<Link
+									to="/$user"
+									params={{ user: u.login }}
+									preload={false}
 									className="flex w-full items-center gap-3 py-2.5 text-left hover:bg-muted"
 								>
 									<span className="flex w-6 items-center justify-end text-sm tabular-nums text-muted-foreground">
@@ -352,7 +344,7 @@ function Leaderboard({
 															: `${u.totalCommits.toLocaleString()} commits`}
 										</span>
 									</span>
-								</button>
+								</Link>
 							</motion.li>
 							{/* Sponsor sits in the slot after rank 5 (only once there's more below). */}
 							{i === 4 && rows.length > 5 && <SponsorRow />}
