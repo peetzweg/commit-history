@@ -365,16 +365,11 @@ function SingleView({
 				<ProfilePanel result={result} />
 			</div>
 
-			{hasPrivate && (
-				<div className="mt-8 flex justify-end">
-					<ChartModeToggle mode={mode} onChange={setMode} />
-				</div>
-			)}
 			<motion.div
 				initial={{ opacity: 0, filter: "blur(8px)" }}
 				animate={{ opacity: 1, filter: "blur(0px)" }}
 				transition={{ duration: 0.5 }}
-				className="-mx-4 mt-3 pt-5 pb-1.5 sm:mx-0 sm:rounded-xl sm:border sm:border-border sm:p-4"
+				className="-mx-4 mt-8 pt-5 pb-1.5 sm:mx-0 sm:rounded-xl sm:border sm:border-border sm:p-4"
 			>
 				<CommitChart
 					points={points}
@@ -385,11 +380,11 @@ function SingleView({
 
 			<div className="mt-2 flex flex-wrap items-center gap-3 sm:mt-4 sm:justify-between">
 				<p className="w-full text-xs text-muted-foreground sm:w-auto">
-					Cumulative commits attributed by GitHub since {since} — the same
-					dataset as the contribution graph.
+					Cumulative commits attributed by GitHub since {since}.
 				</p>
-				<div className="ml-auto sm:ml-0">
+				<div className="ml-auto flex flex-col-reverse items-end gap-3 sm:flex-row sm:items-center">
 					<AddUser currentLogins={otherLogins} label="Compare with…" />
+					{hasPrivate && <ChartModeToggle mode={mode} onChange={setMode} />}
 				</div>
 			</div>
 
@@ -526,19 +521,11 @@ function ComparisonView({
 
 	return (
 		<>
-			<header className="mt-6 flex flex-wrap items-end justify-between gap-4">
-				<div>
-					<h1 className="text-2xl font-bold">Commit History</h1>
-					<p className="text-sm text-muted-foreground">
-						Comparing {series.length} developers
-					</p>
-				</div>
-				<div className="flex flex-wrap items-center gap-2">
-					{anyPrivate && (
-						<ChartModeToggle mode={chartMode} onChange={setChartMode} />
-					)}
-					<TimelineToggle mode={mode} onChange={setMode} />
-				</div>
+			<header className="mt-6">
+				<h1 className="text-2xl font-bold">Commit History</h1>
+				<p className="text-sm text-muted-foreground">
+					Comparing {series.length} developers
+				</p>
 			</header>
 
 			<motion.div
@@ -594,7 +581,15 @@ function ComparisonView({
 						</button>
 					</span>
 				))}
-				<AddUser currentLogins={allLogins} label="Add user…" />
+				<div className="ml-auto flex flex-col-reverse items-end gap-3 sm:flex-row sm:items-center">
+					<AddUser currentLogins={allLogins} label="Add user…" />
+					<div className="flex flex-wrap items-center justify-end gap-2">
+						{anyPrivate && (
+							<ChartModeToggle mode={chartMode} onChange={setChartMode} />
+						)}
+						<TimelineToggle mode={mode} onChange={setMode} />
+					</div>
+				</div>
 			</div>
 
 			<section className="mt-12">
@@ -633,8 +628,8 @@ function TimelineToggle({
 					onClick={() => onChange(m)}
 					className={
 						mode === m
-							? "bg-foreground px-3 py-1.5 text-background"
-							: "px-3 py-1.5 text-muted-foreground hover:bg-muted"
+							? "bg-foreground px-3 leading-9 text-background"
+							: "px-3 leading-9 text-muted-foreground hover:bg-muted"
 					}
 				>
 					{m === "date" ? "Date" : "Aligned"}
@@ -666,8 +661,8 @@ function ChartModeToggle({
 					onClick={() => onChange(m)}
 					className={
 						mode === m
-							? "bg-foreground px-3 py-1.5 text-background"
-							: "px-3 py-1.5 text-muted-foreground hover:bg-muted"
+							? "bg-foreground px-3 leading-9 text-background"
+							: "px-3 leading-9 text-muted-foreground hover:bg-muted"
 					}
 				>
 					{MODE_LABELS[m]}
