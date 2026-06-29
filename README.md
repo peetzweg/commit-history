@@ -30,9 +30,9 @@ Type a username, get their entire coding career as a curve. It's a little hypnot
 - **🖼️ Embed it anywhere** — a live SVG chart for your own README (see below).
 - **✏️ Hand-drawn charm** — an xkcd-style sketch aesthetic, a deliberate homage to the original.
 
-## 🖼️ Embed in your README
+## 🖼️ Embed in your GitHub profile
 
-Drop a live, auto-updating chart into any markdown file. This `<picture>` snippet follows the viewer's GitHub theme and links back to your full history:
+Drop a live, auto-updating chart into your profile page or any markdown file. This `<picture>` snippet follows the viewer's GitHub theme and links back to your full history:
 
 ```html
 <a href="https://commit-history.com/YOUR_USERNAME">

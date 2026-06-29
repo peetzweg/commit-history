@@ -381,7 +381,7 @@ function SingleView({
 				<AddUser currentLogins={otherLogins} label="Compare with…" />
 			</div>
 
-			<EmbedSnippet login={user.login} />
+			{EMBED_ENABLED && <EmbedSnippet login={user.login} />}
 		</>
 	);
 }
@@ -389,6 +389,11 @@ function SingleView({
 // ── Embed: a live SVG chart for READMEs ───────────────────────────────────────
 
 const SITE = "https://commit-history.com";
+
+// Dev-only for now. Vite statically replaces `import.meta.env.VITE_FEATURE_EMBED`
+// at build time, so when it's unset the whole EmbedSnippet — including its live
+// preview <img> — is tree-shaken out and never requested in production.
+const EMBED_ENABLED = import.meta.env.VITE_FEATURE_EMBED === "true";
 
 type EmbedTheme = "auto" | "light" | "dark";
 
@@ -433,10 +438,12 @@ function EmbedSnippet({ login }: { login: string }) {
 		<section className="mt-12">
 			<div className="flex flex-wrap items-center justify-between gap-3">
 				<div>
-					<h2 className="text-sm font-semibold">Embed in your README</h2>
+					<h2 className="text-sm font-semibold">
+						Embed in your GitHub profile
+					</h2>
 					<p className="mt-1 text-xs text-muted-foreground">
 						A live chart that updates over time — drop it into your GitHub
-						profile or any project README.
+						profile page or any project README.
 					</p>
 				</div>
 				<EmbedThemeToggle theme={theme} onChange={setTheme} />
@@ -454,11 +461,15 @@ function EmbedSnippet({ login }: { login: string }) {
 				/>
 			</a>
 
-			<div className="mt-3 flex items-stretch gap-2">
-				<code className="flex-1 overflow-x-auto whitespace-pre rounded-md border bg-muted px-3 py-2 text-xs leading-relaxed">
-					{snippet}
-				</code>
-				<button type="button" onClick={copy} className="btn-secondary shrink-0">
+			<div className="group relative mt-3">
+				<pre className="overflow-x-auto rounded-md border bg-muted py-2.5 pl-3 pr-20 text-xs leading-relaxed">
+					<code>{snippet}</code>
+				</pre>
+				<button
+					type="button"
+					onClick={copy}
+					className="absolute right-2 top-2 rounded-md border bg-background/80 px-2.5 py-1 text-xs font-medium text-muted-foreground backdrop-blur transition-colors hover:bg-background hover:text-foreground"
+				>
 					{copied ? "Copied!" : "Copy"}
 				</button>
 			</div>
