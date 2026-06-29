@@ -90,7 +90,15 @@ export interface StartPageData {
 
 export type LeaderMode = "public" | "private" | "both" | "followers";
 
-export const LEADERBOARD_PAGE_SIZE = 20;
+/**
+ * Cumulative row counts revealed at each scroll step. The list is capped at the final value
+ * (250) so scrolling can never dump the whole table; bigger chunks further down mean fewer
+ * requests as you go (25 → +25 → +50 → +100 → +50).
+ */
+export const LEADERBOARD_PAGE_STOPS = [25, 50, 100, 200, 250] as const;
+/** Hard ceiling on how many rows any single mode's leaderboard will serve. */
+export const LEADERBOARD_MAX =
+	LEADERBOARD_PAGE_STOPS[LEADERBOARD_PAGE_STOPS.length - 1];
 const RECENT_LIMIT = 16;
 
 // Ranking is done in SQL per mode so pagination stays consistent as you scroll.
@@ -158,7 +166,7 @@ export const getStartPageData = createServerFn({ method: "GET" }).handler(
 	async (): Promise<StartPageData> => {
 		const [recent, leaderboard] = await Promise.all([
 			queryRecent(RECENT_LIMIT),
-			queryLeaderboard("public", 0, LEADERBOARD_PAGE_SIZE),
+			queryLeaderboard("public", 0, LEADERBOARD_PAGE_STOPS[0]),
 		]);
 		return { recent, leaderboard };
 	},
@@ -167,10 +175,13 @@ export const getStartPageData = createServerFn({ method: "GET" }).handler(
 /** One page of the leaderboard for a given mode — drives infinite scroll. */
 export const getLeaderboard = createServerFn({ method: "GET" })
 	.validator((p: { mode: LeaderMode; offset: number; limit: number }) => p)
-	.handler(
-		({ data }): Promise<LeaderEntry[]> =>
-			queryLeaderboard(data.mode, data.offset, data.limit),
-	);
+	.handler(({ data }): Promise<LeaderEntry[]> => {
+		// Hard cap regardless of client-supplied params: nobody dumps the whole table by
+		// hand-crafting an offset/limit. Clamp so we never read past LEADERBOARD_MAX.
+		const offset = Math.min(Math.max(0, data.offset), LEADERBOARD_MAX);
+		const limit = Math.min(Math.max(0, data.limit), LEADERBOARD_MAX - offset);
+		return queryLeaderboard(data.mode, offset, limit);
+	});
 
 /** Recent lookups — polled for the live "Recently looked up" strip. */
 export const getRecentLookups = createServerFn({ method: "GET" }).handler(
