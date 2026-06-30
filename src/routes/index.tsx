@@ -197,7 +197,7 @@ function SelfPromoRow() {
 					<a
 						href="https://github.com/peetzweg"
 						target="_blank"
-						rel="noreferrer"
+						rel="noopener"
 						className="font-medium text-foreground hover:underline"
 					>
 						peetzweg
@@ -207,7 +207,7 @@ function SelfPromoRow() {
 				<a
 					href="https://ko-fi.com/peetzweg"
 					target="_blank"
-					rel="noreferrer"
+					rel="noopener"
 					className="btn-secondary shrink-0 text-xs"
 				>
 					Buy me a coffee →
