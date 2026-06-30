@@ -92,6 +92,18 @@ bun run suspend --remove <login>           # reactivate
 bun run suspend --list                     # list suspended accounts
 ```
 
+## 🔄 Refreshing profiles
+
+Profile metadata (followers, repos, bio, …) is fetched on lookup and cached. To re-pull it from
+GitHub manually — e.g. someone's follower count is stale — refresh it. Needs `GITHUB_TOKEN` and
+`DATABASE_URL` in `.env`; run with [bun](https://bun.sh) (it auto-loads your local `.env`):
+
+```bash
+bun run refresh <login>   # refresh one account
+bun run refresh           # refresh only un-backfilled rows (followers is null)
+bun run refresh --all     # refresh every user
+```
+
 ## ☁️ Deploy (Netlify)
 
 The app is wired for Netlify via [`@netlify/vite-plugin-tanstack-start`](https://www.npmjs.com/package/@netlify/vite-plugin-tanstack-start) (already in `vite.config.ts`). Settings (also in `netlify.toml`):
