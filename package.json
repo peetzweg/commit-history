@@ -15,6 +15,7 @@
     "lint": "biome lint",
     "check": "biome check",
     "suspend": "bun scripts/suspend.ts",
+    "refresh": "bun scripts/refresh.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio"
