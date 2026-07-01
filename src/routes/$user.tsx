@@ -383,15 +383,15 @@ function SingleView({
 				/>
 			</motion.div>
 
-			<div className="mt-2 flex flex-wrap items-center gap-3 sm:mt-4 sm:justify-between">
-				<p className="w-full text-xs text-muted-foreground sm:w-auto">
-					{chartCaption(hasPrivate ? mode : "public")} attributed by GitHub
-					since {since}.
-				</p>
-				<div className="ml-auto flex flex-col-reverse items-end gap-3 sm:flex-row sm:items-center">
-					<AddUser currentLogins={otherLogins} label="Compare with…" />
-					{hasPrivate && <ChartModeToggle mode={mode} onChange={setMode} />}
-				</div>
+			<p className="mt-2 text-xs text-muted-foreground sm:mt-4">
+				{chartCaption(hasPrivate ? mode : "public")} attributed by GitHub since{" "}
+				{since}.
+			</p>
+
+			{/* Graph actions get their own row below the figure caption. */}
+			<div className="mt-3 flex flex-col-reverse items-end gap-3 sm:flex-row sm:items-center sm:justify-end">
+				<AddUser currentLogins={otherLogins} label="Compare with…" />
+				{hasPrivate && <ChartModeToggle mode={mode} onChange={setMode} />}
 			</div>
 
 			<EmbedSnippet login={user.login} />
