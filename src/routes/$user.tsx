@@ -521,12 +521,11 @@ function ComparisonView({
 
 	return (
 		<>
-			<header className="mt-6">
-				<h1 className="text-2xl font-bold">Commit History</h1>
-				<p className="text-sm text-muted-foreground">
-					Comparing {series.length} developers
-				</p>
-			</header>
+			{/* The graph heading now lives inside the chart SVG (hand-drawn, dynamic),
+			    matching the single-user view — so here we keep just the comparison caption. */}
+			<p className="mt-6 text-sm text-muted-foreground">
+				Comparing {series.length} developers
+			</p>
 
 			<motion.div
 				initial={{ opacity: 0, filter: "blur(8px)" }}

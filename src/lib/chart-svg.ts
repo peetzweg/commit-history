@@ -141,7 +141,7 @@ ${labelsX}
 <path d="${line}" fill="none" stroke="${ACCENT}" stroke-width="2.5" stroke-linecap="round"/>
 ${dots}
 </g>
-<text x="${W - PAD.right}" y="${H - 8}" text-anchor="end" font-size="12" fill="${c.muted}">commit-history.com</text>`;
+<text x="${PAD.left}" y="${H - 8}" font-size="13" fill="${c.muted}"><tspan font-size="15">📈</tspan> commit-history.com</text>`;
 
 	return shell(theme, body);
 }

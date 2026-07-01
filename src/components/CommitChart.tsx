@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ChartAttribution } from "#/components/ChartAttribution";
 import { ChartLegend } from "#/components/ChartLegend";
 import type { CommitPoint } from "#/lib/github";
 import { useIsMobile } from "#/lib/useIsMobile";
@@ -10,13 +11,15 @@ import { useIsMobile } from "#/lib/useIsMobile";
 const W = 880;
 const H = 420;
 
+// Bottom padding leaves two stacked rows under the plot: the x-axis year labels, then the
+// "commit-history.com" credit line at the very bottom (matching MultiCommitChart).
 const DESKTOP = {
-	pad: { top: 48, right: 24, bottom: 36, left: 60 },
-	font: { title: 24, axis: 16, readout: 16, legend: 16 },
+	pad: { top: 48, right: 24, bottom: 54, left: 60 },
+	font: { title: 24, axis: 16, readout: 16, legend: 16, footer: 13 },
 };
 const MOBILE = {
-	pad: { top: 56, right: 16, bottom: 50, left: 88 },
-	font: { title: 32, axis: 26, readout: 24, legend: 24 },
+	pad: { top: 56, right: 16, bottom: 72, left: 88 },
+	font: { title: 32, axis: 26, readout: 24, legend: 24, footer: 20 },
 };
 
 // star-history's brand green.
@@ -35,15 +38,24 @@ function monthLabel(date: string) {
 
 export type ChartMode = "public" | "private" | "both";
 
+/** Hand-drawn graph heading for the metric on show. The switch point as we add data
+ *  types (pull requests, issues, reviews, repositories …) — each gets its own title here. */
+export function chartTitle(mode: ChartMode): string {
+	return mode === "private" ? "Private Contributions" : "Commit History";
+}
+
 export function CommitChart({
 	points,
 	mode = "both",
 	label,
+	title = chartTitle(mode),
 }: {
 	points: CommitPoint[];
 	mode?: ChartMode;
 	/** Username shown in the in-chart legend (omit to hide the legend). */
 	label?: string;
+	/** Hand-drawn heading; defaults to the metric's title (see chartTitle). */
+	title?: string;
 }) {
 	const [hover, setHover] = useState<number | null>(null);
 	const isMobile = useIsMobile();
@@ -139,7 +151,7 @@ export function CommitChart({
 				</filter>
 			</defs>
 
-			{/* Title — hand-drawn, like "Star History" */}
+			{/* Title — hand-drawn, like "Star History"; reflects the metric on show */}
 			<text
 				x={PAD.left}
 				y={28}
@@ -147,7 +159,7 @@ export function CommitChart({
 				fontWeight={400}
 				fill="currentColor"
 			>
-				Commit History
+				{title}
 			</text>
 
 			{/* Y gridlines + labels */}
@@ -174,12 +186,12 @@ export function CommitChart({
 				</g>
 			))}
 
-			{/* X year labels */}
+			{/* X year labels — sit just below the plot, above the credit line */}
 			{xTicks.map((t) => (
 				<text
 					key={t.year}
 					x={x(t.i)}
-					y={H - 10}
+					y={baseline + FONT.axis + 10}
 					textAnchor="middle"
 					fill="#6b7280"
 					fontSize={FONT.axis}
@@ -251,6 +263,8 @@ export function CommitChart({
 					</text>
 				</g>
 			)}
+
+			<ChartAttribution x={PAD.left} y={H - 8} font={FONT.footer} />
 		</svg>
 	);
 }
