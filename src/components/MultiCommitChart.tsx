@@ -15,6 +15,15 @@ export function chartValue(p: CommitPoint, mode: ChartMode) {
 			: p.cumulative + p.restrictedCumulative;
 }
 
+/** Commits added in this point's own month (the non-cumulative delta), per selection. */
+export function chartDelta(p: CommitPoint, mode: ChartMode) {
+	return mode === "public"
+		? p.commits
+		: mode === "private"
+			? p.restricted
+			: p.commits + p.restricted;
+}
+
 // First color is star-history's brand green; the rest are a distinguishable palette.
 export const SERIES_COLORS = [
 	"#16a34a",
@@ -101,6 +110,7 @@ export function MultiCommitChart({
 	}
 
 	const cval = (p: CommitPoint) => chartValue(p, chartMode);
+	const dcval = (p: CommitPoint) => chartDelta(p, chartMode);
 
 	const yMax = Math.max(1, ...series.flatMap((s) => s.points.map(cval)));
 	const y = (v: number) => PAD.top + innerH - (v / yMax) * innerH;
@@ -339,11 +349,14 @@ export function MultiCommitChart({
 							.map((s) => {
 								const hp = hoverPoint(s);
 								if (!hp) return null;
-								return {
-									label: s.login,
-									value: cval(s.points[hp.i]).toLocaleString(),
-									color: s.color,
-								};
+								const p = s.points[hp.i];
+								const delta = dcval(p);
+								// Total, with the month's own additions in brackets behind it.
+								const value =
+									delta > 0
+										? `${cval(p).toLocaleString()} (+${delta.toLocaleString()})`
+										: cval(p).toLocaleString();
+								return { label: s.login, value, color: s.color };
 							})
 							.filter((r): r is NonNullable<typeof r> => r != null);
 						const title =
