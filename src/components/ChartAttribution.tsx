@@ -28,16 +28,22 @@ export function ChartAttribution({
 	/** Font size in viewBox units, so it scales with the chart's mobile/desktop layout. */
 	font: number;
 }) {
-	const crownH = font * 1.5;
+	// Small crown, snug to the wordmark, its vertical centre lined up with the text's.
+	const crownH = font * 0.78;
 	const crownW = crownH * CROWN_ASPECT;
-	const gap = font * 0.3;
+	const gap = font * 0.22;
+	// Estimated text width only positions the whole lockup near the right edge; the crown→text
+	// gap is fixed because the text is left-anchored right after the crown (so an imperfect
+	// estimate never opens a gap between them).
 	const textW = TEXT.length * CHAR_W * font;
 	const startX = x - textW - gap - crownW;
+	// The lowercase wordmark's visual centre sits ~0.25em above its baseline.
+	const crownY = y - font * 0.25 - crownH / 2;
 	return (
 		<g>
 			<svg
 				x={startX}
-				y={y - crownH * 0.82}
+				y={crownY}
 				width={crownW}
 				height={crownH}
 				viewBox={CROWN_VIEWBOX}
@@ -47,7 +53,13 @@ export function ChartAttribution({
 					<path fill={CROWN_FILL} d={CROWN_PATH} />
 				</g>
 			</svg>
-			<text x={x} y={y} textAnchor="end" fill="#6b7280" fontSize={font}>
+			<text
+				x={startX + crownW + gap}
+				y={y}
+				textAnchor="start"
+				fill="#6b7280"
+				fontSize={font}
+			>
 				{TEXT}
 			</text>
 		</g>

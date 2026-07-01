@@ -1,9 +1,11 @@
 // The hand-drawn crown mark from public/crown.svg, split into reusable pieces so both the React
 // charts (components/ChartAttribution) and the standalone embed string (lib/chart-svg) draw the
 // exact same logo. Regenerate from public/crown.svg if that file changes.
-export const CROWN_VIEWBOX = "0 0 120.40394347271194 105.37149780751838";
-// width / height of the source viewBox — used to keep the mark's aspect ratio when scaling.
-export const CROWN_ASPECT = 1.1426614025422062;
+// viewBox trimmed to the crown path's tight bounding box (the source has ~3% dead margin on
+// each side), so the mark fills its box and the credit's gap/alignment stay exact.
+export const CROWN_VIEWBOX = "2.78 3.27 114.25 97.73";
+// width / height of the tight viewBox — used to keep the mark's aspect ratio when scaling.
+export const CROWN_ASPECT = 1.1690371431494935;
 export const CROWN_TRANSFORM =
 	"translate(16.098877955592798 94.5984006018798) rotate(0 44.103093780763174 -41.91265169812061)";
 export const CROWN_FILL = "#ffd43b";
