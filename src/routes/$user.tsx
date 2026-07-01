@@ -70,6 +70,10 @@ const GENERIC_POINTS: CommitPoint[] = (() => {
 			cumulative,
 			restricted: 0,
 			restrictedCumulative: 0,
+			issues: 0,
+			pullRequests: 0,
+			reviews: 0,
+			repos: 0,
 		});
 	}
 	return pts;
