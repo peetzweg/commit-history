@@ -9,6 +9,12 @@
  *
  * We deliberately use `totalCommitContributions` (commits-only, same definition as the green
  * contribution graph) rather than the contribution calendar, which mixes in issues/PRs/reviews.
+ *
+ * Alongside commits we also collect the other **public** contribution-type scalars the same
+ * collection exposes — issues opened, PRs opened, PR reviews, repositories created — at the same
+ * monthly resolution. These are stored but NOT plotted on the commit graph; they power per-type
+ * breakdowns and change indicators (follow-up issues). `restrictedContributionsCount` remains a
+ * separate, opaque all-types count that GitHub does not break down by type.
  */
 
 const GITHUB_GRAPHQL = "https://api.github.com/graphql";
@@ -54,12 +60,24 @@ export interface CommitPoint {
 	restricted: number;
 	/** Running total of private contributions. */
 	restrictedCumulative: number;
+	/** Public issues opened in that month. */
+	issues: number;
+	/** Public pull requests opened in that month. */
+	pullRequests: number;
+	/** Public pull-request reviews in that month. */
+	reviews: number;
+	/** Public repositories created in that month. */
+	repos: number;
 }
 
 /** Per-month counts as fetched from GitHub, before accumulation. */
 export interface MonthlyCount {
 	commits: number;
 	restricted: number;
+	issues: number;
+	pullRequests: number;
+	reviews: number;
+	repos: number;
 }
 
 export interface CommitHistory {
@@ -69,6 +87,32 @@ export interface CommitHistory {
 	total: number;
 	/** Lifetime private contributions (0 unless the user exposes them). */
 	totalRestricted: number;
+	/** Lifetime public issues opened. */
+	totalIssues: number;
+	/** Lifetime public pull requests opened. */
+	totalPullRequests: number;
+	/** Lifetime public pull-request reviews. */
+	totalReviews: number;
+	/** Lifetime public repositories created. */
+	totalRepos: number;
+}
+
+/** Sum the additional public contribution-type counts across a series of points. */
+export function sumContributionTypes(points: CommitPoint[]): {
+	totalIssues: number;
+	totalPullRequests: number;
+	totalReviews: number;
+	totalRepos: number;
+} {
+	return points.reduce(
+		(acc, p) => ({
+			totalIssues: acc.totalIssues + p.issues,
+			totalPullRequests: acc.totalPullRequests + p.pullRequests,
+			totalReviews: acc.totalReviews + p.reviews,
+			totalRepos: acc.totalRepos + p.repos,
+		}),
+		{ totalIssues: 0, totalPullRequests: 0, totalReviews: 0, totalRepos: 0 },
+	);
 }
 
 export class GitHubError extends Error {
@@ -238,7 +282,7 @@ export async function fetchMonthlyCommits(
 			const aliases = batch
 				.map(
 					(w, i) =>
-						`w${i}: contributionsCollection(from: "${w.from}", to: "${w.to}") { totalCommitContributions restrictedContributionsCount }`,
+						`w${i}: contributionsCollection(from: "${w.from}", to: "${w.to}") { totalCommitContributions restrictedContributionsCount totalIssueContributions totalPullRequestContributions totalPullRequestReviewContributions totalRepositoryContributions }`,
 				)
 				.join("\n");
 			return graphql<{
@@ -247,6 +291,10 @@ export async function fetchMonthlyCommits(
 					{
 						totalCommitContributions: number;
 						restrictedContributionsCount: number;
+						totalIssueContributions: number;
+						totalPullRequestContributions: number;
+						totalPullRequestReviewContributions: number;
+						totalRepositoryContributions: number;
 					}
 				>;
 			}>(token, `query { user(login: "${login}") { ${aliases} } }`);
@@ -254,10 +302,17 @@ export async function fetchMonthlyCommits(
 	);
 
 	return results.flatMap((res, b) =>
-		batches[b].map((_, i) => ({
-			commits: res.user[`w${i}`]?.totalCommitContributions ?? 0,
-			restricted: res.user[`w${i}`]?.restrictedContributionsCount ?? 0,
-		})),
+		batches[b].map((_, i) => {
+			const w = res.user[`w${i}`];
+			return {
+				commits: w?.totalCommitContributions ?? 0,
+				restricted: w?.restrictedContributionsCount ?? 0,
+				issues: w?.totalIssueContributions ?? 0,
+				pullRequests: w?.totalPullRequestContributions ?? 0,
+				reviews: w?.totalPullRequestReviewContributions ?? 0,
+				repos: w?.totalRepositoryContributions ?? 0,
+			};
+		}),
 	);
 }
 
@@ -269,8 +324,9 @@ export function buildPoints(
 	let cumulative = 0;
 	let restrictedCumulative = 0;
 	return windows.map((w, i) => {
-		const commits = monthly[i]?.commits ?? 0;
-		const restricted = monthly[i]?.restricted ?? 0;
+		const m = monthly[i];
+		const commits = m?.commits ?? 0;
+		const restricted = m?.restricted ?? 0;
 		cumulative += commits;
 		restrictedCumulative += restricted;
 		return {
@@ -279,6 +335,10 @@ export function buildPoints(
 			cumulative,
 			restricted,
 			restrictedCumulative,
+			issues: m?.issues ?? 0,
+			pullRequests: m?.pullRequests ?? 0,
+			reviews: m?.reviews ?? 0,
+			repos: m?.repos ?? 0,
 		};
 	});
 }
@@ -300,5 +360,6 @@ export async function fetchCommitHistory(
 		points,
 		total: last?.cumulative ?? 0,
 		totalRestricted: last?.restrictedCumulative ?? 0,
+		...sumContributionTypes(points),
 	};
 }

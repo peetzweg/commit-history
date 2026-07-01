@@ -22,6 +22,13 @@ export const entities = pgTable("entities", {
 	createdAt: timestamp("created_at", { withTimezone: true }), // defines the window start
 	totalCommits: integer("total_commits").notNull().default(0), // public commits
 	totalRestricted: integer("total_restricted").notNull().default(0), // private contributions
+	// Additional public contribution-type lifetime totals. Nullable so null = "not yet backfilled
+	// with the new types" (drives the backfill script's default mode), distinct from a real 0 —
+	// same rationale as the profile-metadata columns below.
+	totalIssues: integer("total_issues"), // public issues opened
+	totalPullRequests: integer("total_pull_requests"), // public PRs opened
+	totalReviews: integer("total_reviews"), // public PR reviews
+	totalRepos: integer("total_repos"), // public repositories created
 	// Profile metadata — mutable, refreshed on the trailing-refresh path (see cache.ts). All
 	// nullable so an unknown value (older row, fetch failure) stays distinguishable from a real 0.
 	followers: integer("followers"),
@@ -50,6 +57,12 @@ export const monthlyCommits = pgTable(
 		month: date("month").notNull(), // YYYY-MM-01
 		commits: integer("commits").notNull(), // public commits
 		restricted: integer("restricted").notNull().default(0), // private contributions
+		// Additional public contribution types for the month. Default 0 (a fresh migration leaves
+		// historical rows at 0 until the backfill script or a full rebuild fills real values).
+		issues: integer("issues").notNull().default(0), // public issues opened
+		pullRequests: integer("pull_requests").notNull().default(0), // public PRs opened
+		reviews: integer("reviews").notNull().default(0), // public PR reviews
+		repos: integer("repos").notNull().default(0), // public repositories created
 	},
 	(t) => [primaryKey({ columns: [t.entityId, t.month] })],
 );

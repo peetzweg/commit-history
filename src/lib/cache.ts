@@ -11,6 +11,7 @@ import {
 	type MonthlyCount,
 	monthlyWindows,
 	type Profile,
+	sumContributionTypes,
 } from "#/lib/github";
 
 /**
@@ -56,8 +57,9 @@ function applyTail(
 	let cumulative = head.at(-1)?.cumulative ?? 0;
 	let restrictedCumulative = head.at(-1)?.restrictedCumulative ?? 0;
 	const tailPoints: CommitPoint[] = tailWindows.map((w, i) => {
-		const commits = tail[i]?.commits ?? 0;
-		const restricted = tail[i]?.restricted ?? 0;
+		const m = tail[i];
+		const commits = m?.commits ?? 0;
+		const restricted = m?.restricted ?? 0;
 		cumulative += commits;
 		restrictedCumulative += restricted;
 		return {
@@ -66,6 +68,10 @@ function applyTail(
 			cumulative,
 			restricted,
 			restrictedCumulative,
+			issues: m?.issues ?? 0,
+			pullRequests: m?.pullRequests ?? 0,
+			reviews: m?.reviews ?? 0,
+			repos: m?.repos ?? 0,
 		};
 	});
 	const points = [...head, ...tailPoints];
@@ -75,6 +81,7 @@ function applyTail(
 		points,
 		total: last?.cumulative ?? 0,
 		totalRestricted: last?.restrictedCumulative ?? 0,
+		...sumContributionTypes(points),
 	};
 }
 
@@ -118,10 +125,17 @@ async function getFromDb(
 		.select()
 		.from(monthlyCommits)
 		.where(eq(monthlyCommits.entityId, id));
-	const byMonth = new Map(
+	const byMonth = new Map<string, MonthlyCount>(
 		rows.map((r) => [
 			r.month,
-			{ commits: r.commits, restricted: r.restricted },
+			{
+				commits: r.commits,
+				restricted: r.restricted,
+				issues: r.issues,
+				pullRequests: r.pullRequests,
+				reviews: r.reviews,
+				repos: r.repos,
+			},
 		]),
 	);
 	const profile: Profile = {
@@ -139,9 +153,17 @@ async function getFromDb(
 		publicRepos: row.publicRepos ?? 0,
 	};
 	const windows = monthlyWindows(row.createdAt ?? now, now);
+	const emptyMonth: MonthlyCount = {
+		commits: 0,
+		restricted: 0,
+		issues: 0,
+		pullRequests: 0,
+		reviews: 0,
+		repos: 0,
+	};
 	const points = buildPoints(
 		windows,
-		windows.map((w) => byMonth.get(w.label) ?? { commits: 0, restricted: 0 }),
+		windows.map((w) => byMonth.get(w.label) ?? emptyMonth),
 	);
 	const last = points.at(-1);
 	const cached: CommitHistory = {
@@ -149,6 +171,7 @@ async function getFromDb(
 		points,
 		total: last?.cumulative ?? 0,
 		totalRestricted: last?.restrictedCumulative ?? 0,
+		...sumContributionTypes(points),
 	};
 
 	// Fresh enough → serve untouched.
@@ -191,7 +214,16 @@ async function persist(
 	now: Date,
 	fullRebuild: boolean,
 ) {
-	const { user, points, total, totalRestricted } = history;
+	const {
+		user,
+		points,
+		total,
+		totalRestricted,
+		totalIssues,
+		totalPullRequests,
+		totalReviews,
+		totalRepos,
+	} = history;
 	try {
 		await database
 			.insert(entities)
@@ -205,6 +237,10 @@ async function persist(
 				createdAt: new Date(user.createdAt),
 				totalCommits: total,
 				totalRestricted,
+				totalIssues,
+				totalPullRequests,
+				totalReviews,
+				totalRepos,
 				followers: user.followers,
 				following: user.following,
 				publicRepos: user.publicRepos,
@@ -232,7 +268,18 @@ async function persist(
 					websiteUrl: user.websiteUrl,
 					twitterUsername: user.twitterUsername,
 					lastFetched: now,
-					...(fullRebuild ? { builtAt: now } : {}),
+					// Only stamp builtAt + the per-type lifetime totals on a full rebuild. A trailing
+					// refresh only re-fetches the tail, so its totals would undercount the (possibly
+					// not-yet-backfilled) history — leaving them untouched keeps null = "not backfilled".
+					...(fullRebuild
+						? {
+								builtAt: now,
+								totalIssues,
+								totalPullRequests,
+								totalReviews,
+								totalRepos,
+							}
+						: {}),
 				},
 			});
 
@@ -245,6 +292,10 @@ async function persist(
 						month: p.date,
 						commits: p.commits,
 						restricted: p.restricted,
+						issues: p.issues,
+						pullRequests: p.pullRequests,
+						reviews: p.reviews,
+						repos: p.repos,
 					})),
 				)
 				.onConflictDoUpdate({
@@ -252,6 +303,10 @@ async function persist(
 					set: {
 						commits: sql`excluded.commits`,
 						restricted: sql`excluded.restricted`,
+						issues: sql`excluded.issues`,
+						pullRequests: sql`excluded.pull_requests`,
+						reviews: sql`excluded.reviews`,
+						repos: sql`excluded.repos`,
 					},
 				});
 		}
