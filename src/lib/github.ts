@@ -90,7 +90,12 @@ export interface MonthWindow {
 	label: string;
 }
 
-/** Generate monthly windows from `start` up to and including the month containing `now`. */
+/**
+ * Generate monthly windows from `start` up to and including the last *completed* month before
+ * `now`. The current, in-progress month is deliberately excluded: it holds only a few days of
+ * data, so plotting it flattens every curve at the end and skews totals/leaderboard. It rolls
+ * back in automatically once the month completes.
+ */
 export function monthlyWindows(start: Date, now: Date): MonthWindow[] {
 	const windows: MonthWindow[] = [];
 	let year = start.getUTCFullYear();
@@ -98,7 +103,8 @@ export function monthlyWindows(start: Date, now: Date): MonthWindow[] {
 	const endYear = now.getUTCFullYear();
 	const endMonth = now.getUTCMonth();
 
-	while (year < endYear || (year === endYear && month <= endMonth)) {
+	// Strict `<` on the current month → stop before it (only completed months are included).
+	while (year < endYear || (year === endYear && month < endMonth)) {
 		const from = new Date(Date.UTC(year, month, 1, 0, 0, 0));
 		// Last instant of this month = day 0 of next month.
 		const to = new Date(Date.UTC(year, month + 1, 0, 23, 59, 59));
