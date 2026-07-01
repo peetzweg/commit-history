@@ -38,8 +38,10 @@ function monthLabel(date: string) {
 
 export type ChartMode = "public" | "private" | "both";
 
-/** Hand-drawn graph heading for the metric on show. The switch point as we add data
- *  types (pull requests, issues, reviews, repositories …) — each gets its own title here. */
+/** Hand-drawn graph heading for the commit metric on show (public / private / all).
+ *  Future data types (pull requests, issues, reviews, repositories …) are a separate
+ *  dataset dimension we don't model yet — they'll bring their own titles, not new
+ *  ChartMode values; this only maps the commit axis that exists today. */
 export function chartTitle(mode: ChartMode): string {
 	return mode === "private"
 		? "Private Contributions"
@@ -130,7 +132,7 @@ export function CommitChart({
 		<svg
 			viewBox={`0 0 ${W} ${H}`}
 			role="img"
-			aria-label="Cumulative commits over time"
+			aria-label={`${title} over time`}
 			className="chart-sketch block h-auto w-full text-foreground"
 			onMouseMove={onMove}
 			onMouseLeave={() => setHover(null)}

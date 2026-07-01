@@ -154,11 +154,19 @@ export function renderChartSvg(
 		)
 		.join("");
 
-	const title = esc(`${user.login}'s commit history`);
+	// The chart sums public commits + private contributions, so the wording follows suit:
+	// "contributions" when the user exposes private activity, plain "commit history" otherwise.
+	const hasPrivate = totalRestricted > 0;
+	const title = esc(
+		hasPrivate
+			? `${user.login}'s contributions`
+			: `${user.login}'s commit history`,
+	);
+	const countUnit = hasPrivate ? "contributions" : "commits";
 
 	const body = `
 <text x="${PAD.left}" y="30" font-size="22" fill="${c.fg}">${title}</text>
-<text x="${W - PAD.right}" y="30" text-anchor="end" font-size="15" fill="${c.muted}">${grandTotal.toLocaleString()} commits</text>
+<text x="${W - PAD.right}" y="30" text-anchor="end" font-size="15" fill="${c.muted}">${grandTotal.toLocaleString()} ${countUnit}</text>
 ${gridY}
 ${labelsX}
 <g filter="url(#xkcdify)">

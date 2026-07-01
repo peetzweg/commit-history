@@ -10,6 +10,7 @@ import {
 	type ChartMode,
 	CommitChart,
 	chartCaption,
+	chartTitle,
 } from "#/components/CommitChart";
 import {
 	type ChartSeries,
@@ -526,8 +527,12 @@ function ComparisonView({
 
 	return (
 		<>
-			{/* The graph heading now lives inside the chart SVG (hand-drawn, dynamic),
-			    matching the single-user view — so here we keep just the comparison caption. */}
+			{/* The graph heading is drawn inside the chart SVG (hand-drawn, dynamic), matching the
+			    single-user view. The SVG title isn't a real heading, so keep an sr-only <h1> for
+			    SEO/screen readers; the visible caption stays below. */}
+			<h1 className="sr-only">
+				{chartTitle(effectiveChartMode)} — comparing {series.length} developers
+			</h1>
 			<p className="mt-6 text-sm text-muted-foreground">
 				Comparing {series.length} developers
 			</p>

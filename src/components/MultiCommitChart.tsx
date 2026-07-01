@@ -225,7 +225,7 @@ export function MultiCommitChart({
 		<svg
 			viewBox={`0 0 ${W} ${H}`}
 			role="img"
-			aria-label="Cumulative commits over time"
+			aria-label={`${title} over time`}
 			className="chart-sketch block h-auto w-full text-foreground"
 			onMouseMove={onMove}
 			onMouseLeave={() => setHover(null)}
