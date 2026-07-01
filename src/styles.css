@@ -5,6 +5,10 @@
 @import 'tailwindcss';
 @plugin '@tailwindcss/typography';
 
+/* Gate hover/focus reveal effects to devices that actually have a hovering
+   pointer (desktop). On touch these selectors can otherwise fire on tap. */
+@custom-variant desktop (@media (hover: hover));
+
 @font-face {
   font-family: 'xkcd';
   src: url('/fonts/xkcd.ttf') format('truetype');
