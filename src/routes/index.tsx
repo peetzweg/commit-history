@@ -219,9 +219,25 @@ function SelfPromoRow() {
 
 const LB_VALUE: Record<LeaderMode, (u: LeaderEntry) => number> = {
 	public: (u) => u.totalCommits,
+	prs: (u) => u.totalPullRequests ?? 0,
+	issues: (u) => u.totalIssues ?? 0,
+	reviews: (u) => u.totalReviews ?? 0,
+	repos: (u) => u.totalRepos ?? 0,
 	private: (u) => u.totalRestricted,
 	both: (u) => u.totalCommits + u.totalRestricted,
 	followers: (u) => u.followers ?? 0,
+};
+
+/** Singular-ish unit shown under each row's number, per mode (`both` renders a combo instead). */
+const LB_UNIT: Record<LeaderMode, string> = {
+	public: "commits",
+	prs: "pull requests",
+	issues: "issues",
+	reviews: "reviews",
+	repos: "repos",
+	private: "private",
+	both: "",
+	followers: "followers",
 };
 
 function Leaderboard({ initialPage }: { initialPage: LeaderEntry[] }) {
@@ -277,14 +293,16 @@ function Leaderboard({ initialPage }: { initialPage: LeaderEntry[] }) {
 		return () => io.disconnect();
 	}, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-	const subtitle =
-		mode === "public"
-			? "Public commits."
-			: mode === "private"
-				? "Private contributions (only users who expose them)."
-				: mode === "followers"
-					? "GitHub followers."
-					: "Total activity — public commits + private contributions.";
+	const subtitle = {
+		public: "Public commits.",
+		prs: "Public pull requests opened.",
+		issues: "Public issues opened.",
+		reviews: "Public pull-request reviews.",
+		repos: "Public repositories created.",
+		private: "Private contributions (only users who expose them).",
+		both: "Total activity — public commits + private contributions.",
+		followers: "GitHub followers.",
+	}[mode];
 
 	return (
 		<section className="mt-14">
@@ -333,15 +351,11 @@ function Leaderboard({ initialPage }: { initialPage: LeaderEntry[] }) {
 											{value(u).toLocaleString()}
 										</span>
 										<span className="block text-xs text-muted-foreground tabular-nums">
-											{mode === "private"
-												? "private"
-												: mode === "public"
-													? "commits"
-													: mode === "followers"
-														? "followers"
-														: u.totalRestricted > 0
-															? `${u.totalCommits.toLocaleString()} commits · ${u.totalRestricted.toLocaleString()} private`
-															: `${u.totalCommits.toLocaleString()} commits`}
+											{mode === "both"
+												? u.totalRestricted > 0
+													? `${u.totalCommits.toLocaleString()} commits · ${u.totalRestricted.toLocaleString()} private`
+													: `${u.totalCommits.toLocaleString()} commits`
+												: LB_UNIT[mode]}
 										</span>
 									</span>
 								</Link>
@@ -371,11 +385,26 @@ function Leaderboard({ initialPage }: { initialPage: LeaderEntry[] }) {
 }
 
 const LB_LABELS: Record<LeaderMode, string> = {
-	public: "Public",
+	public: "Commits",
+	prs: "PRs",
+	issues: "Issues",
+	reviews: "Reviews",
+	repos: "Repos",
 	private: "Private",
 	both: "Both",
 	followers: "Followers",
 };
+
+const LB_MODES = [
+	"public",
+	"prs",
+	"issues",
+	"reviews",
+	"repos",
+	"private",
+	"both",
+	"followers",
+] as const;
 
 function LeaderToggle({
 	mode,
@@ -384,17 +413,19 @@ function LeaderToggle({
 	mode: LeaderMode;
 	onChange: (m: LeaderMode) => void;
 }) {
+	// Too many modes for a full-width segmented control on mobile, so it scrolls horizontally
+	// there (buttons keep their natural width) and sits inline on wider screens.
 	return (
-		<div className="flex w-full overflow-hidden rounded-md border text-xs sm:inline-flex sm:w-auto">
-			{(["public", "private", "both", "followers"] as const).map((m) => (
+		<div className="flex w-full overflow-x-auto rounded-md border text-xs sm:inline-flex sm:w-auto">
+			{LB_MODES.map((m) => (
 				<button
 					key={m}
 					type="button"
 					onClick={() => onChange(m)}
 					className={
 						mode === m
-							? "flex-1 bg-foreground px-3 py-1.5 text-background sm:flex-none"
-							: "flex-1 px-3 py-1.5 text-muted-foreground hover:bg-muted sm:flex-none"
+							? "whitespace-nowrap bg-foreground px-3 py-1.5 text-background"
+							: "whitespace-nowrap px-3 py-1.5 text-muted-foreground hover:bg-muted"
 					}
 				>
 					{LB_LABELS[m]}

@@ -79,6 +79,11 @@ export interface LeaderEntry {
 	avatarUrl: string | null;
 	totalCommits: number;
 	totalRestricted: number;
+	// Nullable: null on rows not yet backfilled with the per-type contribution data.
+	totalIssues: number | null;
+	totalPullRequests: number | null;
+	totalReviews: number | null;
+	totalRepos: number | null;
 	followers: number | null;
 }
 export interface RecentEntry {
@@ -91,7 +96,15 @@ export interface StartPageData {
 	leaderboard: LeaderEntry[];
 }
 
-export type LeaderMode = "public" | "private" | "both" | "followers";
+export type LeaderMode =
+	| "public"
+	| "prs"
+	| "issues"
+	| "reviews"
+	| "repos"
+	| "private"
+	| "both"
+	| "followers";
 
 /**
  * Cumulative row counts revealed at each scroll step. The list is capped at the final value
@@ -111,34 +124,51 @@ async function queryLeaderboard(
 	limit: number,
 ): Promise<LeaderEntry[]> {
 	if (!db) return [];
+	// The column each mode ranks by. `both` is the one that isn't a single column (see below).
+	const rankCol = {
+		public: entities.totalCommits,
+		prs: entities.totalPullRequests,
+		issues: entities.totalIssues,
+		reviews: entities.totalReviews,
+		repos: entities.totalRepos,
+		private: entities.totalRestricted,
+		followers: entities.followers,
+		both: entities.totalCommits, // unused — `both` orders by a sum, handled below
+	}[mode];
+	// NULLS LAST so not-yet-backfilled rows (null type totals / followers) sink to the bottom.
 	const order =
-		mode === "public"
-			? desc(entities.totalCommits)
-			: mode === "private"
-				? desc(entities.totalRestricted)
-				: mode === "followers"
-					? // NULLS LAST so not-yet-backfilled rows sink to the bottom.
-						sql`${entities.followers} desc nulls last`
-					: desc(sql`${entities.totalCommits} + ${entities.totalRestricted}`);
+		mode === "both"
+			? desc(sql`${entities.totalCommits} + ${entities.totalRestricted}`)
+			: sql`${rankCol} desc nulls last`;
 	const cols = {
 		login: entities.login,
 		name: entities.name,
 		avatarUrl: entities.avatarUrl,
 		totalCommits: entities.totalCommits,
 		totalRestricted: entities.totalRestricted,
+		totalIssues: entities.totalIssues,
+		totalPullRequests: entities.totalPullRequests,
+		totalReviews: entities.totalReviews,
+		totalRepos: entities.totalRepos,
 		followers: entities.followers,
 	};
 	const base = db.select(cols).from(entities);
 	// Suspended entities (gamed/under-investigation) are hidden from every mode.
 	const active = isNull(entities.suspendedAt);
-	// Private mode only lists users who expose private contributions; followers mode only those
-	// with a known follower count.
-	const scoped =
-		mode === "private"
-			? base.where(and(active, gt(entities.totalRestricted, 0)))
-			: mode === "followers"
-				? base.where(and(active, gt(entities.followers, 0)))
-				: base.where(active);
+	// The per-type, private and followers boards only list users with a positive count — no point
+	// ranking a wall of zeros, and it naturally excludes not-yet-backfilled (null) rows. `public`
+	// and `both` list everyone active.
+	const positive = {
+		prs: entities.totalPullRequests,
+		issues: entities.totalIssues,
+		reviews: entities.totalReviews,
+		repos: entities.totalRepos,
+		private: entities.totalRestricted,
+		followers: entities.followers,
+	}[mode as "prs" | "issues" | "reviews" | "repos" | "private" | "followers"];
+	const scoped = positive
+		? base.where(and(active, gt(positive, 0)))
+		: base.where(active);
 	return scoped.orderBy(order).limit(limit).offset(offset);
 }
 

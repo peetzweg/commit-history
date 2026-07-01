@@ -1,0 +1,123 @@
+$ bun scripts/backfill-contributions.ts
+7733 entities to backfill (un-backfilled only), top contributors first, ~2500 req/hr
+
+✓ eliask                   1,055,316 commits · 5 issues · 58 PRs · 64 reviews
+✓ Dicklesworthstone        146,389 commits · 83 issues · 74 PRs · 728 reviews
+✓ hackmud-dtr              141,413 commits · 14 issues · 19 PRs · 0 reviews
+✓ rgbkrk                   131,943 commits · 1,894 issues · 7,615 PRs · 2,056 reviews
+✓ wavey0x                  118,365 commits · 41 issues · 253 PRs · 115 reviews
+✓ leodemoura               97,966 commits · 403 issues · 1,452 PRs · 270 reviews
+✓ emmikat                  0 commits · 2 issues · 1 PRs · 0 reviews
+✓ fabpot                   87,763 commits · 1,605 issues · 3,856 PRs · 9,405 reviews
+✓ Niek                     81,125 commits · 262 issues · 156 PRs · 78 reviews
+✓ fabaff                   75,366 commits · 969 issues · 24,080 PRs · 16,925 reviews
+✓ gaearon                  68,597 commits · 1,812 issues · 3,441 PRs · 3,732 reviews
+✓ scotthaleen              72,341 commits · 19 issues · 72 PRs · 7 reviews
+✓ steipete                 60,728 commits · 308 issues · 2,575 PRs · 384 reviews
+✓ peppy                    56,447 commits · 1,749 issues · 8,411 PRs · 12,385 reviews
+✓ mrepol742                53,009 commits · 399 issues · 626 PRs · 43 reviews
+✓ alexcrichton             51,640 commits · 2,662 issues · 11,540 PRs · 6,390 reviews
+✓ andrew                   50,615 commits · 9,975 issues · 2,427 PRs · 1,917 reviews
+✓ awesomekling             49,943 commits · 554 issues · 1,622 PRs · 1,668 reviews
+✓ freekmurze               49,642 commits · 463 issues · 3,772 PRs · 926 reviews
+✓ anishthite               47,369 commits · 313 issues · 57 PRs · 6 reviews
+✓ rich-iannone             47,030 commits · 617 issues · 1,589 PRs · 635 reviews
+✓ NickCao                  46,105 commits · 155 issues · 1,850 PRs · 29,935 reviews
+✓ bgruening                45,628 commits · 1,355 issues · 4,570 PRs · 16,417 reviews
+✓ ai                       45,371 commits · 2,363 issues · 774 PRs · 637 reviews
+✓ natew                    44,259 commits · 1,031 issues · 2,183 PRs · 275 reviews
+✓ JonnyBurger              44,171 commits · 2,056 issues · 4,212 PRs · 580 reviews
+✓ pethers                  43,578 commits · 1,574 issues · 1,132 PRs · 3,949 reviews
+✓ mitchellh                42,748 commits · 1,112 issues · 2,817 PRs · 1,833 reviews
+✗ gavofyork                The socket connection was closed unexpectedly. For more information, pass `verbose: true` in the second argument to fetch()
+✗ SuperSandro2000          The socket connection was closed unexpectedly. For more information, pass `verbose: true` in the second argument to fetch()
+✗ antfu                    The socket connection was closed unexpectedly. For more information, pass `verbose: true` in the second argument to fetch()
+✗ yyx990803                The socket connection was closed unexpectedly. For more information, pass `verbose: true` in the second argument to fetch()
+✗ nerolation               The socket connection was closed unexpectedly. For more information, pass `verbose: true` in the second argument to fetch()
+✓ suzuki-shunsuke          37,067 commits · 2,773 issues · 14,258 PRs · 633 reviews
+✓ mohsen1                  36,586 commits · 5,195 issues · 12,851 PRs · 704 reviews
+✓ czue                     36,306 commits · 120 issues · 3,800 PRs · 1,242 reviews
+✓ torvalds                 35,742 commits · 9 issues · 85 PRs · 29 reviews
+✓ dcramer                  35,295 commits · 1,699 issues · 3,804 PRs · 1,291 reviews
+✓ cburgdorf                35,240 commits · 763 issues · 1,217 PRs · 1,043 reviews
+✓ sindresorhus             35,028 commits · 4,687 issues · 2,066 PRs · 5,244 reviews
+✓ jshawl                   34,871 commits · 2,393 issues · 896 PRs · 150 reviews
+✓ rohanarun                33,808 commits · 2 issues · 53 PRs · 1 reviews
+✓ Rich-Harris              33,689 commits · 2,455 issues · 5,598 PRs · 4,293 reviews
+✓ tj                       33,358 commits · 3,769 issues · 140 PRs · 30 reviews
+✓ mweinelt                 32,783 commits · 1,285 issues · 5,560 PRs · 3,354 reviews
+✓ mattn                    33,191 commits · 912 issues · 3,593 PRs · 613 reviews
+✓ jonschlinkert            33,066 commits · 1,202 issues · 500 PRs · 70 reviews
+✓ keith                    31,511 commits · 1,001 issues · 5,360 PRs · 2,197 reviews
+✗ vinayakkulkarni          The socket connection was closed unexpectedly. For more information, pass `verbose: true` in the second argument to fetch()
+✓ v3rm0n                   30,398 commits · 78 issues · 197 PRs · 409 reviews
+✓ riderx                   30,178 commits · 787 issues · 2,392 PRs · 181 reviews
+✓ chenjiahan               30,021 commits · 363 issues · 13,410 PRs · 9,264 reviews
+✓ k1LoW                    29,654 commits · 99 issues · 4,460 PRs · 635 reviews
+✓ mflatt                   29,473 commits · 38 issues · 440 PRs · 289 reviews
+✓ westonruter              28,556 commits · 2,030 issues · 3,006 PRs · 4,394 reviews
+✓ andrewrk                 28,252 commits · 2,986 issues · 996 PRs · 1,989 reviews
+✓ feross                   28,159 commits · 1,939 issues · 1,289 PRs · 985 reviews
+✓ AnandChowdhary           28,113 commits · 811 issues · 454 PRs · 685 reviews
+✓ remcotolsma              27,985 commits · 957 issues · 230 PRs · 152 reviews
+✓ simonw                   27,862 commits · 7,375 issues · 1,670 PRs · 167 reviews
+✗ chubes4                  The socket connection was closed unexpectedly. For more information, pass `verbose: true` in the second argument to fetch()
+✓ xmatthias                26,943 commits · 300 issues · 1,582 PRs · 6,895 reviews
+✓ JakeWharton              26,637 commits · 2,762 issues · 6,387 PRs · 7,276 reviews
+✓ jdx                      26,506 commits · 707 issues · 6,410 PRs · 1,050 reviews
+✓ kim-em                   26,182 commits · 9,815 issues · 18,381 PRs · 2,547 reviews
+✓ leostera                 25,791 commits · 719 issues · 356 PRs · 188 reviews
+✓ srid                     25,107 commits · 2,961 issues · 4,602 PRs · 802 reviews
+✓ samuelclay               24,966 commits · 613 issues · 308 PRs · 313 reviews
+✓ thetutlage               24,781 commits · 308 issues · 690 PRs · 369 reviews
+✓ josevalim                24,773 commits · 3,210 issues · 2,296 PRs · 10,015 reviews
+✓ wegank                   24,755 commits · 101 issues · 2,636 PRs · 2,406 reviews
+✓ midudev                  24,294 commits · 151 issues · 759 PRs · 1,392 reviews
+✓ hlissner                 24,169 commits · 83 issues · 110 PRs · 1,974 reviews
+✓ nathanclevenger          24,107 commits · 2,363 issues · 604 PRs · 323 reviews
+✓ nikivdev                 24,107 commits · 1,174 issues · 102 PRs · 34 reviews
+✓ conao3                   23,512 commits · 774 issues · 2,662 PRs · 47 reviews
+✓ sophiebits               23,421 commits · 413 issues · 1,075 PRs · 505 reviews
+✓ dktapps                  23,411 commits · 1,514 issues · 1,011 PRs · 1,056 reviews
+✓ mcollina                 23,402 commits · 2,478 issues · 3,994 PRs · 19,996 reviews
+✓ nabinhait                23,410 commits · 496 issues · 2,143 PRs · 3,977 reviews
+✓ mitsuhiko                23,118 commits · 1,062 issues · 2,277 PRs · 1,995 reviews
+✓ paralin                  22,890 commits · 806 issues · 813 PRs · 88 reviews
+✓ greggman                 22,511 commits · 903 issues · 1,180 PRs · 274 reviews
+✓ mrdoob                   22,409 commits · 173 issues · 841 PRs · 602 reviews
+✓ danielroe                22,386 commits · 746 issues · 6,150 PRs · 26,105 reviews
+✓ rmehta                   21,569 commits · 1,408 issues · 998 PRs · 1,015 reviews
+✓ luke-h1                  21,250 commits · 1,105 issues · 4,558 PRs · 480 reviews
+✓ pi0                      20,818 commits · 1,386 issues · 2,535 PRs · 6,380 reviews
+✓ pbek                     20,771 commits · 509 issues · 353 PRs · 326 reviews
+✓ zkochan                  20,492 commits · 767 issues · 3,447 PRs · 2,435 reviews
+✓ steven-tey               20,370 commits · 92 issues · 1,430 PRs · 1,741 reviews
+✓ marcusquinn              20,275 commits · 11,187 issues · 8,818 PRs · 1,488 reviews
+✓ domenkozar               20,263 commits · 1,811 issues · 2,115 PRs · 1,051 reviews
+✓ kentcdodds               20,240 commits · 2,083 issues · 2,818 PRs · 6,018 reviews
+✓ adamdecaf                20,201 commits · 1,173 issues · 2,402 PRs · 1,642 reviews
+✗ seveibar                 The socket connection was closed unexpectedly. For more information, pass `verbose: true` in the second argument to fetch()
+✓ badlogic                 20,145 commits · 1,349 issues · 136 PRs · 54 reviews
+✓ Innei                    20,130 commits · 365 issues · 1,544 PRs · 1,528 reviews
+✓ LefterisJP               19,965 commits · 1,729 issues · 3,727 PRs · 4,812 reviews
+✓ trieloff                 19,946 commits · 1,166 issues · 3,427 PRs · 2,047 reviews
+✓ satya164                 19,379 commits · 349 issues · 1,733 PRs · 2,047 reviews
+✓ mgechev                  19,257 commits · 477 issues · 803 PRs · 2,787 reviews
+✓ jdubois                  19,175 commits · 702 issues · 1,067 PRs · 434 reviews
+✓ abhinavkgrd              18,915 commits · 15 issues · 1,456 PRs · 314 reviews
+✓ DavidMinarsch            18,906 commits · 774 issues · 1,747 PRs · 5,416 reviews
+✓ tmc                      20,062 commits · 692 issues · 822 PRs · 486 reviews
+✗ saghul                   The socket connection was closed unexpectedly. For more information, pass `verbose: true` in the second argument to fetch()
+✗ vincentkoc               The socket connection was closed unexpectedly. For more information, pass `verbose: true` in the second argument to fetch()
+✓ Rugvip                   18,700 commits · 279 issues · 3,146 PRs · 6,504 reviews
+✓ alex                     18,680 commits · 2,236 issues · 7,204 PRs · 8,766 reviews
+✓ mdo                      18,655 commits · 494 issues · 1,788 PRs · 1,899 reviews
+✓ lacker                   18,451 commits · 82 issues · 342 PRs · 118 reviews
+✓ bdero                    18,336 commits · 602 issues · 1,336 PRs · 864 reviews
+✓ kenjis                   18,302 commits · 471 issues · 3,492 PRs · 1,523 reviews
+✗ harlan-zw                The socket connection was closed unexpectedly. For more information, pass `verbose: true` in the second argument to fetch()
+✓ jefftriplett             18,180 commits · 953 issues · 789 PRs · 1,039 reviews
+✗ wighawag                 The socket connection was closed unexpectedly. For more information, pass `verbose: true` in the second argument to fetch()
+✓ antirez                  18,084 commits · 246 issues · 28 PRs · 11 reviews
+✓ duyet                    18,083 commits · 178 issues · 3,198 PRs · 22 reviews
+✓ dzucconi                 17,977 commits · 306 issues · 3,056 PRs · 1,640 reviews
