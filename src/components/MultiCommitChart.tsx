@@ -403,7 +403,7 @@ export function MultiCommitChart({
 				</g>
 			)}
 
-			<ChartAttribution x={PAD.left} y={H - 8} font={FONT.footer} />
+			<ChartAttribution x={W - PAD.right} y={H - 8} font={FONT.footer} />
 		</svg>
 	);
 }

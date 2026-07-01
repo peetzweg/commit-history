@@ -6,7 +6,11 @@ import {
 } from "@tanstack/react-router";
 import { motion } from "motion/react";
 import { useState } from "react";
-import { type ChartMode, CommitChart } from "#/components/CommitChart";
+import {
+	type ChartMode,
+	CommitChart,
+	chartCaption,
+} from "#/components/CommitChart";
 import {
 	type ChartSeries,
 	MultiCommitChart,
@@ -380,7 +384,8 @@ function SingleView({
 
 			<div className="mt-2 flex flex-wrap items-center gap-3 sm:mt-4 sm:justify-between">
 				<p className="w-full text-xs text-muted-foreground sm:w-auto">
-					Cumulative commits attributed by GitHub since {since}.
+					{chartCaption(hasPrivate ? mode : "public")} attributed by GitHub
+					since {since}.
 				</p>
 				<div className="ml-auto flex flex-col-reverse items-end gap-3 sm:flex-row sm:items-center">
 					<AddUser currentLogins={otherLogins} label="Compare with…" />
@@ -641,7 +646,7 @@ function TimelineToggle({
 const MODE_LABELS: Record<ChartMode, string> = {
 	public: "Public",
 	private: "Private",
-	both: "Both",
+	both: "All",
 };
 
 function ChartModeToggle({

@@ -41,7 +41,20 @@ export type ChartMode = "public" | "private" | "both";
 /** Hand-drawn graph heading for the metric on show. The switch point as we add data
  *  types (pull requests, issues, reviews, repositories …) — each gets its own title here. */
 export function chartTitle(mode: ChartMode): string {
-	return mode === "private" ? "Private Contributions" : "Commit History";
+	return mode === "private"
+		? "Private Contributions"
+		: mode === "both"
+			? "All Contributions"
+			: "Commit History";
+}
+
+/** The metric phrase for the "Cumulative … attributed by GitHub since <date>" caption. */
+export function chartCaption(mode: ChartMode): string {
+	return mode === "private"
+		? "Cumulative private contributions"
+		: mode === "both"
+			? "Cumulative private and public contributions"
+			: "Cumulative public commits";
 }
 
 export function CommitChart({
@@ -264,7 +277,7 @@ export function CommitChart({
 				</g>
 			)}
 
-			<ChartAttribution x={PAD.left} y={H - 8} font={FONT.footer} />
+			<ChartAttribution x={W - PAD.right} y={H - 8} font={FONT.footer} />
 		</svg>
 	);
 }

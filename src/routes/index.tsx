@@ -373,7 +373,7 @@ function Leaderboard({ initialPage }: { initialPage: LeaderEntry[] }) {
 const LB_LABELS: Record<LeaderMode, string> = {
 	public: "Public",
 	private: "Private",
-	both: "Both",
+	both: "All",
 	followers: "Followers",
 };
 

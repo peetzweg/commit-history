@@ -1,3 +1,10 @@
+import {
+	CROWN_ASPECT,
+	CROWN_FILL,
+	CROWN_PATH,
+	CROWN_TRANSFORM,
+	CROWN_VIEWBOX,
+} from "#/lib/crown";
 import type { CommitHistory } from "#/lib/github";
 import { xkcdFontDataUrl } from "#/lib/xkcd-font";
 
@@ -48,6 +55,24 @@ function esc(s: string) {
 					: c === '"'
 						? "&quot;"
 						: "&#39;",
+	);
+}
+
+// The bottom-right "👑 commit-history.com" credit — the crown logo (public/crown.svg via
+// lib/crown) scaled into a nested <svg>, with the domain right-aligned to the plot edge.
+// Mirrors the React <ChartAttribution> so the embed and live charts match.
+function credit(color: string): string {
+	const font = 13;
+	const text = "commit-history.com";
+	const crownH = font * 1.5;
+	const crownW = crownH * CROWN_ASPECT;
+	const gap = font * 0.3;
+	const textW = text.length * 0.56 * font;
+	const rightEdge = W - PAD.right;
+	const startX = rightEdge - textW - gap - crownW;
+	return (
+		`<svg x="${startX.toFixed(1)}" y="${(H - 8 - crownH * 0.82).toFixed(1)}" width="${crownW.toFixed(1)}" height="${crownH.toFixed(1)}" viewBox="${CROWN_VIEWBOX}" aria-hidden="true"><g transform="${CROWN_TRANSFORM}"><path fill="${CROWN_FILL}" d="${CROWN_PATH}"/></g></svg>` +
+		`<text x="${rightEdge}" y="${H - 8}" text-anchor="end" font-size="${font}" fill="${color}">${text}</text>`
 	);
 }
 
@@ -141,7 +166,7 @@ ${labelsX}
 <path d="${line}" fill="none" stroke="${ACCENT}" stroke-width="2.5" stroke-linecap="round"/>
 ${dots}
 </g>
-<text x="${PAD.left}" y="${H - 8}" font-size="13" fill="${c.muted}"><tspan font-size="15">📈</tspan> commit-history.com</text>`;
+${credit(c.muted)}`;
 
 	return shell(theme, body);
 }
