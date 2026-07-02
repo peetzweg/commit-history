@@ -307,14 +307,14 @@ function Leaderboard({ initialPage }: { initialPage: LeaderEntry[] }) {
 
 	return (
 		<section className="mt-14">
-			<SectionHeading>All-time leaderboard</SectionHeading>
-			<p className="mt-1 text-xs text-muted-foreground">{subtitle}</p>
 			<SegmentedControl
-				className="mt-3"
+				className="mb-4"
 				options={LB_MODES.map((m) => ({ value: m, label: LB_LABELS[m] }))}
 				value={mode}
 				onChange={setMode}
 			/>
+			<SectionHeading>All-time leaderboard</SectionHeading>
+			<p className="mt-1 text-xs text-muted-foreground">{subtitle}</p>
 			<ol className="mt-4">
 				<AnimatePresence initial={false} mode="popLayout">
 					{rows.map((u, i) => (
