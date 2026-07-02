@@ -6,7 +6,12 @@ import {
 } from "@tanstack/react-router";
 import { motion } from "motion/react";
 import { useState } from "react";
-import { type ChartMode, CommitChart } from "#/components/CommitChart";
+import {
+	type ChartMode,
+	CommitChart,
+	chartCaption,
+	chartTitle,
+} from "#/components/CommitChart";
 import {
 	type ChartSeries,
 	MultiCommitChart,
@@ -378,14 +383,15 @@ function SingleView({
 				/>
 			</motion.div>
 
-			<div className="mt-2 flex flex-wrap items-center gap-3 sm:mt-4 sm:justify-between">
-				<p className="w-full text-xs text-muted-foreground sm:w-auto">
-					Cumulative commits attributed by GitHub since {since}.
-				</p>
-				<div className="ml-auto flex flex-col-reverse items-end gap-3 sm:flex-row sm:items-center">
-					<AddUser currentLogins={otherLogins} label="Compare with…" />
-					{hasPrivate && <ChartModeToggle mode={mode} onChange={setMode} />}
-				</div>
+			<p className="mt-2 text-xs text-muted-foreground sm:mt-4">
+				{chartCaption(hasPrivate ? mode : "public")} attributed by GitHub since{" "}
+				{since}.
+			</p>
+
+			{/* Graph actions get their own row below the figure caption. */}
+			<div className="mt-3 flex flex-col-reverse items-end gap-3 sm:flex-row sm:items-center sm:justify-end">
+				<AddUser currentLogins={otherLogins} label="Compare with…" />
+				{hasPrivate && <ChartModeToggle mode={mode} onChange={setMode} />}
 			</div>
 
 			<EmbedSnippet login={user.login} />
@@ -521,12 +527,15 @@ function ComparisonView({
 
 	return (
 		<>
-			<header className="mt-6">
-				<h1 className="text-2xl font-bold">Commit History</h1>
-				<p className="text-sm text-muted-foreground">
-					Comparing {series.length} developers
-				</p>
-			</header>
+			{/* The graph heading is drawn inside the chart SVG (hand-drawn, dynamic), matching the
+			    single-user view. The SVG title isn't a real heading, so keep an sr-only <h1> for
+			    SEO/screen readers; the visible caption stays below. */}
+			<h1 className="sr-only">
+				{chartTitle(effectiveChartMode)} — comparing {series.length} developers
+			</h1>
+			<p className="mt-6 text-sm text-muted-foreground">
+				Comparing {series.length} developers
+			</p>
 
 			<motion.div
 				initial={{ opacity: 0, filter: "blur(8px)" }}
@@ -642,7 +651,7 @@ function TimelineToggle({
 const MODE_LABELS: Record<ChartMode, string> = {
 	public: "Public",
 	private: "Private",
-	both: "Both",
+	both: "All",
 };
 
 function ChartModeToggle({

@@ -1,3 +1,10 @@
+import {
+	CROWN_ASPECT,
+	CROWN_FILL,
+	CROWN_PATH,
+	CROWN_TRANSFORM,
+	CROWN_VIEWBOX,
+} from "#/lib/crown";
 import type { CommitHistory } from "#/lib/github";
 import { xkcdFontDataUrl } from "#/lib/xkcd-font";
 
@@ -33,6 +40,35 @@ const THEMES: Record<Theme, ThemeColors> = {
 	dark: { bg: "#0d1117", fg: "#c9d1d9", muted: "#8b949e", grid: "#30363d" },
 };
 
+// The data type a chart shows. "all" is the aggregate (public commits + private contributions —
+// what the embed sums today); "commits" is live too, the rest are on the roadmap. Each gets its
+// embed wording here — the single switch point for new types. Per-type ranking on the embed is
+// tracked separately (see the "rank on the embed" issue).
+export type GraphType =
+	| "all"
+	| "commits"
+	| "pullRequests"
+	| "issues"
+	| "reviews"
+	| "repositories";
+
+// The embed is standalone (no profile header like the on-page chart), so `title(login)` always
+// leads with the username; `unit` labels the running total.
+const TYPE_WORDS: Record<
+	GraphType,
+	{ title: (login: string) => string; unit: string }
+> = {
+	all: {
+		title: (l) => `all of ${l}'s GitHub contributions`,
+		unit: "contributions",
+	},
+	commits: { title: (l) => `${l}'s commits`, unit: "commits" },
+	pullRequests: { title: (l) => `${l}'s pull requests`, unit: "pull requests" },
+	issues: { title: (l) => `${l}'s issues`, unit: "issues" },
+	reviews: { title: (l) => `${l}'s reviews`, unit: "reviews" },
+	repositories: { title: (l) => `${l}'s repositories`, unit: "repositories" },
+};
+
 function compact(n: number) {
 	return new Intl.NumberFormat("en-US", { notation: "compact" }).format(n);
 }
@@ -48,6 +84,28 @@ function esc(s: string) {
 					: c === '"'
 						? "&quot;"
 						: "&#39;",
+	);
+}
+
+// The bottom-right crown + "commit-history.com" credit — the crown logo (public/crown.svg via
+// lib/crown) in a nested <svg>, snug to the left of the wordmark near the plot's right edge.
+// Mirrors the React <ChartAttribution> so the embed and live charts match.
+function credit(color: string): string {
+	const font = 13;
+	const text = "commit-history.com";
+	const y = H - 8;
+	// Small crown, snug to the wordmark, vertically centred on it (see <ChartAttribution>).
+	const crownH = font * 0.78;
+	const crownW = crownH * CROWN_ASPECT;
+	const gap = font * 0.22;
+	const textW = text.length * 0.56 * font;
+	const rightEdge = W - PAD.right;
+	const startX = rightEdge - textW - gap - crownW;
+	const crownY = y - font * 0.25 - crownH / 2;
+	// Text left-anchored right after the crown so the gap between them is exact (see ChartAttribution).
+	return (
+		`<svg x="${startX.toFixed(1)}" y="${crownY.toFixed(1)}" width="${crownW.toFixed(1)}" height="${crownH.toFixed(1)}" viewBox="${CROWN_VIEWBOX}" aria-hidden="true"><g transform="${CROWN_TRANSFORM}"><path fill="${CROWN_FILL}" d="${CROWN_PATH}"/></g></svg>` +
+		`<text x="${(startX + crownW + gap).toFixed(1)}" y="${y}" font-size="${font}" fill="${color}">${text}</text>`
 	);
 }
 
@@ -73,6 +131,7 @@ ${body}
 export function renderChartSvg(
 	history: CommitHistory,
 	theme: Theme = "light",
+	type: GraphType = "all",
 ): string {
 	const c = THEMES[theme];
 	const { points, total, totalRestricted, user } = history;
@@ -129,11 +188,13 @@ export function renderChartSvg(
 		)
 		.join("");
 
-	const title = esc(`${user.login}'s commit history`);
+	const words = TYPE_WORDS[type];
+	const title = esc(words.title(user.login));
+	const countUnit = words.unit;
 
 	const body = `
 <text x="${PAD.left}" y="30" font-size="22" fill="${c.fg}">${title}</text>
-<text x="${W - PAD.right}" y="30" text-anchor="end" font-size="15" fill="${c.muted}">${grandTotal.toLocaleString()} commits</text>
+<text x="${W - PAD.right}" y="30" text-anchor="end" font-size="15" fill="${c.muted}">${grandTotal.toLocaleString()} ${countUnit}</text>
 ${gridY}
 ${labelsX}
 <g filter="url(#xkcdify)">
@@ -141,7 +202,7 @@ ${labelsX}
 <path d="${line}" fill="none" stroke="${ACCENT}" stroke-width="2.5" stroke-linecap="round"/>
 ${dots}
 </g>
-<text x="${W - PAD.right}" y="${H - 8}" text-anchor="end" font-size="12" fill="${c.muted}">commit-history.com</text>`;
+${credit(c.muted)}`;
 
 	return shell(theme, body);
 }

@@ -1,7 +1,8 @@
 import { useState } from "react";
+import { ChartAttribution } from "#/components/ChartAttribution";
 import { ChartLegend } from "#/components/ChartLegend";
 import { ChartTooltip } from "#/components/ChartTooltip";
-import type { ChartMode } from "#/components/CommitChart";
+import { type ChartMode, chartTitle } from "#/components/CommitChart";
 import type { CommitPoint } from "#/lib/github";
 import { useIsMobile } from "#/lib/useIsMobile";
 
@@ -45,16 +46,18 @@ export interface ChartSeries {
 }
 
 // Fixed viewBox scaled to container width — see CommitChart for why the layout is responsive.
+// Layout mirrors CommitChart so the single- and multi-user charts read identically: a hand-drawn
+// title up top, year labels and the credit line stacked under the plot.
 const W = 880;
 const H = 420;
 
 const DESKTOP = {
-	pad: { top: 40, right: 24, bottom: 30, left: 60 },
-	font: { axis: 16, readout: 15, legend: 16 },
+	pad: { top: 48, right: 24, bottom: 54, left: 60 },
+	font: { title: 24, axis: 16, readout: 15, legend: 16, footer: 13 },
 };
 const MOBILE = {
-	pad: { top: 46, right: 16, bottom: 44, left: 88 },
-	font: { axis: 26, readout: 22, legend: 24 },
+	pad: { top: 56, right: 16, bottom: 72, left: 88 },
+	font: { title: 32, axis: 26, readout: 22, legend: 24, footer: 20 },
 };
 
 function compact(n: number) {
@@ -94,10 +97,13 @@ export function MultiCommitChart({
 	series,
 	mode,
 	chartMode = "public",
+	title = chartTitle(chartMode),
 }: {
 	series: ChartSeries[];
 	mode: TimelineMode;
 	chartMode?: ChartMode;
+	/** Hand-drawn heading; defaults to the metric's title (see chartTitle). */
+	title?: string;
 }) {
 	const [hover, setHover] = useState<{ frac: number; y: number } | null>(null);
 	const hoverFrac = hover?.frac ?? null;
@@ -219,7 +225,7 @@ export function MultiCommitChart({
 		<svg
 			viewBox={`0 0 ${W} ${H}`}
 			role="img"
-			aria-label="Cumulative commits over time"
+			aria-label={`${title} over time`}
 			className="chart-sketch block h-auto w-full text-foreground"
 			onMouseMove={onMove}
 			onMouseLeave={() => setHover(null)}
@@ -254,6 +260,17 @@ export function MultiCommitChart({
 				</filter>
 			</defs>
 
+			{/* Title — hand-drawn, matching the single-user chart; reflects the metric on show */}
+			<text
+				x={PAD.left}
+				y={28}
+				fontSize={FONT.title}
+				fontWeight={400}
+				fill="currentColor"
+			>
+				{title}
+			</text>
+
 			{yTicks.map((v) => (
 				<g key={v}>
 					<line
@@ -281,7 +298,7 @@ export function MultiCommitChart({
 				<text
 					key={`${t.label}-${t.x.toFixed(0)}`}
 					x={t.x}
-					y={H - 10}
+					y={baseline + FONT.axis + 10}
 					textAnchor="middle"
 					fill="#6b7280"
 					fontSize={FONT.axis}
@@ -359,7 +376,7 @@ export function MultiCommitChart({
 								return { label: s.login, value, color: s.color };
 							})
 							.filter((r): r is NonNullable<typeof r> => r != null);
-						const title =
+						const readoutTitle =
 							mode === "date"
 								? hoverMonth != null
 									? monthLabelFromIndex(hoverMonth)
@@ -369,7 +386,7 @@ export function MultiCommitChart({
 									: "";
 						return (
 							<ChartTooltip
-								title={title}
+								title={readoutTitle}
 								rows={rows}
 								anchorX={hoverX}
 								anchorY={hover.y}
@@ -385,6 +402,8 @@ export function MultiCommitChart({
 					})()}
 				</g>
 			)}
+
+			<ChartAttribution x={W - PAD.right} y={H - 8} font={FONT.footer} />
 		</svg>
 	);
 }
