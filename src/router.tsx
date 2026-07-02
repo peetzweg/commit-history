@@ -1,5 +1,6 @@
 import { createRouter as createTanStackRouter } from "@tanstack/react-router";
 import { setupRouterSsrQueryIntegration } from "@tanstack/react-router-ssr-query";
+import { NotFound } from "#/components/NotFound";
 import { getContext } from "./integrations/tanstack-query/root-provider";
 import { routeTree } from "./routeTree.gen";
 
@@ -10,6 +11,8 @@ export function getRouter() {
 		routeTree,
 		context,
 		scrollRestoration: true,
+		// A plain, on-brand 404 for any unmatched route (replaces TanStack's generic fallback).
+		defaultNotFoundComponent: NotFound,
 		defaultPreload: "intent",
 		// Commit histories change ~monthly, so treat loaded data as fresh for the
 		// whole session: revisiting a user (or a comparison) is instant, no refetch.
