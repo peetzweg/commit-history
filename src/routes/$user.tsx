@@ -72,7 +72,30 @@ function metricOptions(available: ChartMode[]) {
 	return available.map((m) => ({ value: m, label: METRIC_LABEL[m] }));
 }
 
+// Metrics that live in the URL as `?metric=…`. "public" (commits) is the default and is
+// deliberately omitted so the common case keeps a clean URL — only a non-default pick is stored.
+const METRIC_PARAMS: readonly ChartMode[] = [
+	"prs",
+	"issues",
+	"reviews",
+	"repos",
+	"private",
+	"both",
+];
+
+function isMetricParam(v: unknown): v is ChartMode {
+	return typeof v === "string" && (METRIC_PARAMS as string[]).includes(v);
+}
+
+interface UserSearch {
+	/** Selected chart metric; absent = the default (commits). */
+	metric?: ChartMode;
+}
+
 export const Route = createFileRoute("/$user")({
+	// `?metric=` selects the chart contribution type; invalid/absent → default (commits).
+	validateSearch: (search: Record<string, unknown>): UserSearch =>
+		isMetricParam(search.metric) ? { metric: search.metric } : {},
 	loader: ({ params }) =>
 		getCommitHistories({ data: parseLogins(params.user) }),
 	head: ({ params }) => {
@@ -105,6 +128,21 @@ export const Route = createFileRoute("/$user")({
 	pendingComponent: PendingUser,
 	pendingMs: 150,
 });
+
+/**
+ * The chart metric, mirrored to `?metric=` so a view is shareable/linkable. The default (commits)
+ * is stored as an absent param to keep the URL clean; `replace` avoids spamming history on toggle.
+ */
+function useMetric(): [ChartMode, (m: ChartMode) => void] {
+	const { metric } = Route.useSearch();
+	const navigate = Route.useNavigate();
+	const setMetric = (m: ChartMode) =>
+		navigate({
+			search: (prev) => ({ ...prev, metric: m === "public" ? undefined : m }),
+			replace: true,
+		});
+	return [metric ?? "public", setMetric];
+}
 
 // A generic rising curve, blurred behind the loading state — gives the page real shape while
 // the actual data streams in (instead of a shimmering skeleton).
@@ -411,10 +449,10 @@ function SingleView({
 	// biome-ignore lint/style/noNonNullAssertion: ok results always have history
 	const history = result.history!;
 	const { user, points } = history;
-	const [mode, setMode] = useState<ChartMode>("public");
+	const [requested, setMode] = useMetric();
 	const available = availableMetrics([history]);
-	// Fall back to commits if the selected metric isn't available for this user.
-	const effectiveMode = available.includes(mode) ? mode : "public";
+	// Fall back to commits if the requested metric isn't available for this user.
+	const effectiveMode = available.includes(requested) ? requested : "public";
 	const since = monthYear(user.createdAt);
 
 	return (
@@ -548,15 +586,15 @@ function ComparisonView({
 	allLogins: string[];
 }) {
 	const [mode, setMode] = useState<TimelineMode>("date");
-	const [chartMode, setChartMode] = useState<ChartMode>("public");
+	const [requested, setChartMode] = useMetric();
 	const go = useGoToLogins();
 
 	// biome-ignore lint/style/noNonNullAssertion: ok results always have history
 	const histories = results.map((r) => r.history!);
 	// A metric is offered only when at least one developer has data for it.
 	const available = availableMetrics(histories);
-	const effectiveChartMode = available.includes(chartMode)
-		? chartMode
+	const effectiveChartMode = available.includes(requested)
+		? requested
 		: "public";
 
 	const series: ChartSeries[] = results.map((r, i) => ({

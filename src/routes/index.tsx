@@ -244,6 +244,10 @@ const LB_UNIT: Record<LeaderMode, string> = {
 function Leaderboard({ initialPage }: { initialPage: LeaderEntry[] }) {
 	const [mode, setMode] = useState<LeaderMode>("public");
 	const value = LB_VALUE[mode];
+	// Carry the selected metric into the profile links so a click keeps the current view. Commits is
+	// the profile default (clean URL, no param), and followers has no chart, so both omit it.
+	const linkMetric =
+		mode === "public" || mode === "followers" ? undefined : mode;
 
 	const query = useInfiniteQuery({
 		queryKey: ["leaderboard", mode],
@@ -330,6 +334,7 @@ function Leaderboard({ initialPage }: { initialPage: LeaderEntry[] }) {
 								<Link
 									to="/$user"
 									params={{ user: u.login }}
+									search={{ metric: linkMetric }}
 									preload={false}
 									className="flex w-full items-center gap-3 py-2.5 text-left hover:bg-muted"
 								>
