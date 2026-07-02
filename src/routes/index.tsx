@@ -463,7 +463,7 @@ const LB_LABELS: Record<LeaderMode, string> = {
 	reviews: "Reviews",
 	repos: "Repos",
 	private: "Private",
-	both: "Both",
+	both: "All",
 	followers: "Followers",
 };
 
