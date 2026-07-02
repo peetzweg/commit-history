@@ -115,7 +115,7 @@ function RecentSection({ recent }: { recent: RecentEntry[] }) {
 	return (
 		<section className="mt-14">
 			<SectionHeading>Recently looked up</SectionHeading>
-			<div className="mt-4 flex flex-wrap gap-2">
+			<div className="group/chips mt-4 flex flex-wrap gap-2">
 				<AnimatePresence initial={false} mode="popLayout">
 					{recent.map((u) => (
 						<motion.div
@@ -125,21 +125,43 @@ function RecentSection({ recent }: { recent: RecentEntry[] }) {
 							animate={{ opacity: 1, scale: 1 }}
 							exit={{ opacity: 0, scale: 0.8 }}
 							transition={{ type: "spring", stiffness: 500, damping: 32 }}
+							// Lift the whole chip above its neighbours while its name is
+							// revealed, so the overflowing pill isn't painted under the next one.
+							className="relative desktop:has-[a:hover]:z-10 desktop:has-[a:focus-within]:z-10"
 						>
-							<Link
-								to="/$user"
-								params={{ user: u.login }}
-								preload={false}
-								className="flex items-center gap-2 rounded-full border py-1 pr-3 pl-1 text-sm hover:bg-muted"
-								title={u.name ?? u.login}
-							>
-								<img
-									src={u.avatarUrl ?? ""}
-									alt=""
-									className="h-6 w-6 rounded-full border border-border"
-								/>
-								{u.login}
-							</Link>
+							{/* Sizer holds the collapsed footprint so the row layout never
+							    reflows on hover (which would wrap the chip and cause a
+							    hover→collapse→hover flicker). The real chip is absolutely
+							    positioned on top and free to grow rightward over its neighbour. */}
+							<div className="relative transition duration-200 desktop:group-has-[a:hover]/chips:opacity-60 desktop:group-has-[a:hover]/chips:blur-[2px] desktop:group-has-[a:focus-within]/chips:opacity-60 desktop:group-has-[a:focus-within]/chips:blur-[2px] desktop:has-[a:hover]:opacity-100! desktop:has-[a:hover]:blur-none! desktop:has-[a:focus-within]:opacity-100! desktop:has-[a:focus-within]:blur-none!">
+								<span
+									aria-hidden
+									className="pointer-events-none invisible flex items-center gap-2 rounded-full border py-1 pr-3 pl-1 text-sm"
+								>
+									<span className="h-6 w-6 rounded-full border border-border" />
+									{u.login}
+								</span>
+								<Link
+									to="/$user"
+									params={{ user: u.login }}
+									preload={false}
+									className="group absolute inset-y-0 left-0 flex w-max items-center gap-2 rounded-full border bg-background py-1 pr-3 pl-1 text-sm hover:bg-muted"
+								>
+									<img
+										src={u.avatarUrl ?? ""}
+										alt=""
+										className="h-6 w-6 rounded-full border border-border"
+									/>
+									<span className="inline-flex items-center">
+										{u.login}
+										{u.name && (
+											<span className="max-w-0 overflow-hidden whitespace-nowrap text-muted-foreground opacity-0 transition-all duration-200 desktop:group-hover:ml-1 desktop:group-hover:max-w-40 desktop:group-hover:opacity-100 desktop:group-focus-within:ml-1 desktop:group-focus-within:max-w-40 desktop:group-focus-within:opacity-100">
+												{u.name}
+											</span>
+										)}
+									</span>
+								</Link>
+							</div>
 						</motion.div>
 					))}
 				</AnimatePresence>
@@ -370,7 +392,7 @@ function Leaderboard({ initialPage }: { initialPage: LeaderEntry[] }) {
 									params={{ user: u.login }}
 									search={{ metric: linkMetric }}
 									preload={false}
-									className="flex w-full items-center gap-3 py-2.5 text-left hover:bg-muted"
+									className="group flex w-full items-center gap-3 py-2.5 text-left hover:bg-muted"
 								>
 									<span className="flex w-6 items-center justify-end text-sm tabular-nums text-muted-foreground">
 										{i === 0 ? (
@@ -388,7 +410,14 @@ function Leaderboard({ initialPage }: { initialPage: LeaderEntry[] }) {
 										alt=""
 										className="h-8 w-8 rounded-full border border-border"
 									/>
-									<span className="flex-1 truncate font-medium">{u.login}</span>
+									<span className="flex-1 truncate font-medium">
+										{u.login}
+										{u.name && (
+											<span className="ml-2 font-normal text-muted-foreground opacity-0 transition-opacity duration-200 desktop:group-hover:opacity-100 desktop:group-focus-within:opacity-100">
+												{u.name}
+											</span>
+										)}
+									</span>
 									<span className="text-right">
 										<span className="block font-semibold tabular-nums">
 											{value(u).toLocaleString()}

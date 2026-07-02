@@ -1,6 +1,11 @@
 import { useState } from "react";
 import { ChartLegend } from "#/components/ChartLegend";
-import { type ChartMode, cumulativeSeries } from "#/components/CommitChart";
+import { ChartTooltip } from "#/components/ChartTooltip";
+import {
+	type ChartMode,
+	cumulativeSeries,
+	metricDelta,
+} from "#/components/CommitChart";
 import type { CommitPoint } from "#/lib/github";
 import { useIsMobile } from "#/lib/useIsMobile";
 
@@ -53,6 +58,23 @@ function monthLabel(date: string) {
 	});
 }
 
+// Inverse of monthIndex: build a first-of-month date string for a month index.
+function monthLabelFromIndex(mi: number) {
+	const year = Math.floor(mi / 12);
+	const month = (mi % 12) + 1;
+	return monthLabel(`${year}-${String(month).padStart(2, "0")}-01`);
+}
+
+// Human label for an aligned-timeline step (months since each series' own start).
+function alignedStepLabel(i: number) {
+	if (i <= 0) return "Start";
+	const years = Math.floor(i / 12);
+	const months = i % 12;
+	if (years === 0) return `${months} mo`;
+	if (months === 0) return `${years}y`;
+	return `${years}y ${months}mo`;
+}
+
 export function MultiCommitChart({
 	series,
 	mode,
@@ -62,7 +84,8 @@ export function MultiCommitChart({
 	mode: TimelineMode;
 	chartMode?: ChartMode;
 }) {
-	const [hoverFrac, setHoverFrac] = useState<number | null>(null);
+	const [hover, setHover] = useState<{ frac: number; y: number } | null>(null);
+	const hoverFrac = hover?.frac ?? null;
 	const isMobile = useIsMobile();
 	const { pad: PAD, font: FONT } = isMobile ? MOBILE : DESKTOP;
 	const innerW = W - PAD.left - PAD.right;
@@ -71,8 +94,10 @@ export function MultiCommitChart({
 		return null;
 	}
 
-	// Cumulative series per line, for the selected metric (indexed the same as `series`).
+	// Cumulative series per line for the selected metric (indexed the same as `series`); the plotted
+	// value is the running total, the readout also shows the month's own delta.
 	const seriesCum = series.map((s) => cumulativeSeries(s.points, chartMode));
+	const dval = (p: CommitPoint) => metricDelta(p, chartMode);
 
 	const yMax = Math.max(1, ...seriesCum.flat());
 	const y = (v: number) => PAD.top + innerH - (v / yMax) * innerH;
@@ -133,20 +158,38 @@ export function MultiCommitChart({
 
 	function onMove(e: React.MouseEvent<SVGSVGElement>) {
 		const rect = e.currentTarget.getBoundingClientRect();
-		setHoverFrac(
-			Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)),
-		);
+		// Convert the pointer to viewBox units, then to a fraction of the *plot*
+		// area (not the full width) — otherwise the guide line drifts left of the
+		// cursor by the left padding.
+		const svgX = ((e.clientX - rect.left) / rect.width) * W;
+		const svgY = ((e.clientY - rect.top) / rect.height) * H;
+		setHover({
+			frac: Math.max(0, Math.min(1, (svgX - PAD.left) / innerW)),
+			y: svgY,
+		});
 	}
 
 	// Resolve hover to a point per series.
 	const hoverX = hoverFrac == null ? null : PAD.left + hoverFrac * innerW;
+	// The month (date mode) / step index (aligned mode) under the cursor, independent
+	// of any single series — so the readout's header reflects where the mouse is, not
+	// whichever series happens to be closest.
+	const hoverMonth =
+		hoverFrac == null ? null : Math.round(t0 + hoverFrac * (t1 - t0));
+	const hoverStep =
+		hoverFrac == null ? null : Math.round(hoverFrac * (maxLen - 1));
 	function hoverPoint(s: ChartSeries): { i: number } | null {
 		if (hoverFrac == null) return null;
 		if (mode === "aligned") {
-			const i = Math.round(hoverFrac * (maxLen - 1));
+			const i = hoverStep as number;
 			return i < s.points.length ? { i } : null;
 		}
-		const mi = t0 + hoverFrac * (t1 - t0);
+		// Only report this series where its line actually exists: skip months before
+		// it started or after it ended. Within range, snap to the nearest point.
+		const mi = hoverMonth as number;
+		const start = monthIndex(s.points[0].date);
+		const end = monthIndex(s.points[s.points.length - 1].date);
+		if (mi < start || mi > end) return null;
 		let best = 0;
 		let bestD = Infinity;
 		s.points.forEach((p, i) => {
@@ -166,7 +209,7 @@ export function MultiCommitChart({
 			aria-label="Cumulative commits over time"
 			className="chart-sketch block h-auto w-full text-foreground"
 			onMouseMove={onMove}
-			onMouseLeave={() => setHoverFrac(null)}
+			onMouseLeave={() => setHover(null)}
 		>
 			<defs>
 				{single && (
@@ -261,8 +304,8 @@ export function MultiCommitChart({
 				font={FONT.legend}
 			/>
 
-			{/* Hover: vertical guide + a dot and value per series */}
-			{hoverX != null && (
+			{/* Hover: vertical guide + a dot per series + one floating readout box */}
+			{hoverX != null && hover != null && (
 				<g>
 					<line
 						x1={hoverX}
@@ -275,45 +318,57 @@ export function MultiCommitChart({
 					{series.map((s, si) => {
 						const hp = hoverPoint(s);
 						if (!hp) return null;
-						const px = xOf(s, hp.i);
-						const py = y(seriesCum[si][hp.i]);
 						return (
-							<g key={s.login}>
-								<circle
-									cx={px}
-									cy={py}
-									r={4}
-									fill={s.color}
-									stroke="#fff"
-									strokeWidth={1.5}
-								/>
-								<text
-									x={px + 8}
-									y={py - 6}
-									fontSize={FONT.readout}
-									fill={s.color}
-									fontWeight={600}
-								>
-									{seriesCum[si][hp.i].toLocaleString()}
-								</text>
-							</g>
+							<circle
+								key={s.login}
+								cx={xOf(s, hp.i)}
+								cy={y(seriesCum[si][hp.i])}
+								r={4}
+								fill={s.color}
+								stroke="#fff"
+								strokeWidth={1.5}
+							/>
 						);
 					})}
-					{/* x label for the hovered position (date mode shows the month) */}
-					{mode === "date" && series[0] && (
-						<text
-							x={Math.min(Math.max(hoverX, PAD.left + 40), W - PAD.right - 40)}
-							y={PAD.top - 6}
-							textAnchor="middle"
-							fontSize={FONT.readout}
-							fill="currentColor"
-						>
-							{(() => {
-								const hp = hoverPoint(series[0]);
-								return hp ? monthLabel(series[0].points[hp.i].date) : "";
-							})()}
-						</text>
-					)}
+					{(() => {
+						const rows = series
+							.map((s, si) => {
+								const hp = hoverPoint(s);
+								if (!hp) return null;
+								const total = seriesCum[si][hp.i];
+								const delta = dval(s.points[hp.i]);
+								// Total, with the month's own additions in brackets behind it.
+								const value =
+									delta > 0
+										? `${total.toLocaleString()} (+${delta.toLocaleString()})`
+										: total.toLocaleString();
+								return { label: s.login, value, color: s.color };
+							})
+							.filter((r): r is NonNullable<typeof r> => r != null);
+						const title =
+							mode === "date"
+								? hoverMonth != null
+									? monthLabelFromIndex(hoverMonth)
+									: ""
+								: hoverStep != null
+									? alignedStepLabel(hoverStep)
+									: "";
+						return (
+							<ChartTooltip
+								title={title}
+								rows={rows}
+								anchorX={hoverX}
+								anchorY={hover.y}
+								bounds={{
+									left: PAD.left,
+									right: W - PAD.right,
+									top: PAD.top,
+									bottom: baseline,
+								}}
+								font={FONT.readout}
+							/>
+						);
+					})()}
 				</g>
 			)}
 		</svg>
