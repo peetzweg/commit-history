@@ -1,18 +1,8 @@
 import { useState } from "react";
 import { ChartLegend } from "#/components/ChartLegend";
-import type { ChartMode } from "#/components/CommitChart";
+import { type ChartMode, cumulativeSeries } from "#/components/CommitChart";
 import type { CommitPoint } from "#/lib/github";
 import { useIsMobile } from "#/lib/useIsMobile";
-
-/** Cumulative value to plot for a point, per the public/private/both selection.
- *  "both" sums public commits and private contributions. */
-export function chartValue(p: CommitPoint, mode: ChartMode) {
-	return mode === "public"
-		? p.cumulative
-		: mode === "private"
-			? p.restrictedCumulative
-			: p.cumulative + p.restrictedCumulative;
-}
 
 // First color is star-history's brand green; the rest are a distinguishable palette.
 export const SERIES_COLORS = [
@@ -81,9 +71,10 @@ export function MultiCommitChart({
 		return null;
 	}
 
-	const cval = (p: CommitPoint) => chartValue(p, chartMode);
+	// Cumulative series per line, for the selected metric (indexed the same as `series`).
+	const seriesCum = series.map((s) => cumulativeSeries(s.points, chartMode));
 
-	const yMax = Math.max(1, ...series.flatMap((s) => s.points.map(cval)));
+	const yMax = Math.max(1, ...seriesCum.flat());
 	const y = (v: number) => PAD.top + innerH - (v / yMax) * innerH;
 	const baseline = PAD.top + innerH;
 
@@ -105,11 +96,11 @@ export function MultiCommitChart({
 
 	const single = series.length === 1;
 
-	function buildLine(s: ChartSeries) {
+	function buildLine(s: ChartSeries, si: number) {
 		return s.points
 			.map(
-				(p, i) =>
-					`${i === 0 ? "M" : "L"}${xOf(s, i).toFixed(1)},${y(cval(p)).toFixed(1)}`,
+				(_, i) =>
+					`${i === 0 ? "M" : "L"}${xOf(s, i).toFixed(1)},${y(seriesCum[si][i]).toFixed(1)}`,
 			)
 			.join(" ");
 	}
@@ -246,14 +237,14 @@ export function MultiCommitChart({
 			<g filter="url(#xkcdify)">
 				{single && (
 					<path
-						d={`${buildLine(series[0])} L${xOf(series[0], series[0].points.length - 1).toFixed(1)},${baseline} L${xOf(series[0], 0).toFixed(1)},${baseline} Z`}
+						d={`${buildLine(series[0], 0)} L${xOf(series[0], series[0].points.length - 1).toFixed(1)},${baseline} L${xOf(series[0], 0).toFixed(1)},${baseline} Z`}
 						fill="url(#fill0)"
 					/>
 				)}
-				{series.map((s) => (
+				{series.map((s, si) => (
 					<path
 						key={s.login}
-						d={buildLine(s)}
+						d={buildLine(s, si)}
 						fill="none"
 						stroke={s.color}
 						strokeWidth={2.5}
@@ -281,12 +272,11 @@ export function MultiCommitChart({
 						stroke="#9ca3af"
 						strokeWidth={1}
 					/>
-					{series.map((s) => {
+					{series.map((s, si) => {
 						const hp = hoverPoint(s);
 						if (!hp) return null;
-						const p = s.points[hp.i];
 						const px = xOf(s, hp.i);
-						const py = y(cval(p));
+						const py = y(seriesCum[si][hp.i]);
 						return (
 							<g key={s.login}>
 								<circle
@@ -304,7 +294,7 @@ export function MultiCommitChart({
 									fill={s.color}
 									fontWeight={600}
 								>
-									{cval(p).toLocaleString()}
+									{seriesCum[si][hp.i].toLocaleString()}
 								</text>
 							</g>
 						);

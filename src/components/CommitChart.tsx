@@ -33,7 +33,50 @@ function monthLabel(date: string) {
 	});
 }
 
-export type ChartMode = "public" | "private" | "both";
+export type ChartMode =
+	| "public"
+	| "private"
+	| "both"
+	| "prs"
+	| "issues"
+	| "reviews"
+	| "repos";
+
+/** The month's raw count for the selected metric. */
+export function metricDelta(p: CommitPoint, mode: ChartMode): number {
+	switch (mode) {
+		case "public":
+			return p.commits;
+		case "private":
+			return p.restricted;
+		case "both":
+			return p.commits + p.restricted;
+		case "prs":
+			return p.pullRequests;
+		case "issues":
+			return p.issues;
+		case "reviews":
+			return p.reviews;
+		case "repos":
+			return p.repos;
+	}
+}
+
+/**
+ * Running cumulative series for the selected metric. For commits/private/both this reproduces the
+ * precomputed `cumulative`/`restrictedCumulative`; the other types have no stored cumulative, so we
+ * accumulate their per-month counts here.
+ */
+export function cumulativeSeries(
+	points: CommitPoint[],
+	mode: ChartMode,
+): number[] {
+	let sum = 0;
+	return points.map((p) => {
+		sum += metricDelta(p, mode);
+		return sum;
+	});
+}
 
 export function CommitChart({
 	points,
@@ -52,23 +95,12 @@ export function CommitChart({
 	const innerH = H - PAD.top - PAD.bottom;
 	if (points.length === 0) return null;
 
-	// Cumulative value to plot, and the month's delta — per the selected mode.
-	// "both" is the per-month sum of public commits + private contributions.
-	const cval = (p: CommitPoint) =>
-		mode === "public"
-			? p.cumulative
-			: mode === "private"
-				? p.restrictedCumulative
-				: p.cumulative + p.restrictedCumulative;
-	const dval = (p: CommitPoint) =>
-		mode === "public"
-			? p.commits
-			: mode === "private"
-				? p.restricted
-				: p.commits + p.restricted;
+	// Cumulative value to plot (per point, by index) and the month's delta, for the selected metric.
+	const cum = cumulativeSeries(points, mode);
+	const dval = (p: CommitPoint) => metricDelta(p, mode);
 
 	const n = points.length;
-	const max = Math.max(...points.map(cval), 1);
+	const max = Math.max(...cum, 1);
 	const x = (i: number) =>
 		PAD.left + (n === 1 ? innerW / 2 : (i / (n - 1)) * innerW);
 	const y = (v: number) => PAD.top + innerH - (v / max) * innerH;
@@ -76,8 +108,8 @@ export function CommitChart({
 
 	const line = points
 		.map(
-			(p, i) =>
-				`${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(cval(p)).toFixed(1)}`,
+			(_, i) =>
+				`${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(cum[i]).toFixed(1)}`,
 		)
 		.join(" ");
 	const area = `${line} L${x(n - 1).toFixed(1)},${baseline} L${x(0).toFixed(1)},${baseline} Z`;
@@ -100,6 +132,7 @@ export function CommitChart({
 
 	const hp = hover != null ? points[hover] : null;
 	const hx = hover != null ? x(hover) : 0;
+	const hcum = hover != null ? cum[hover] : 0;
 
 	return (
 		<svg
@@ -203,7 +236,7 @@ export function CommitChart({
 						<circle
 							key={p.date}
 							cx={x(i)}
-							cy={y(cval(p))}
+							cy={y(cum[i])}
 							r={2.5}
 							fill={ACCENT}
 						/>
@@ -233,7 +266,7 @@ export function CommitChart({
 					/>
 					<circle
 						cx={hx}
-						cy={y(cval(hp))}
+						cy={y(hcum)}
 						r={4.5}
 						fill={ACCENT}
 						stroke="#fff"
@@ -246,7 +279,7 @@ export function CommitChart({
 						fill="currentColor"
 						fontSize={FONT.readout}
 					>
-						{monthLabel(hp.date)}: {cval(hp).toLocaleString()} total
+						{monthLabel(hp.date)}: {hcum.toLocaleString()} total
 						{dval(hp) ? ` (+${dval(hp)})` : ""}
 					</text>
 				</g>

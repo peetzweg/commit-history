@@ -13,14 +13,89 @@ import {
 	SERIES_COLORS,
 	type TimelineMode,
 } from "#/components/MultiCommitChart";
+import { SegmentedControl } from "#/components/SegmentedControl";
 import {
 	getCommitHistories,
 	parseLogins,
 	type UserResult,
 } from "#/lib/commit-history";
-import type { CommitPoint } from "#/lib/github";
+import type { CommitHistory, CommitPoint } from "#/lib/github";
+
+// ── Chart metrics ─────────────────────────────────────────────────────────────
+
+const METRIC_LABEL: Record<ChartMode, string> = {
+	public: "Commits",
+	prs: "PRs",
+	issues: "Issues",
+	reviews: "Reviews",
+	repos: "Repos",
+	private: "Private",
+	both: "Both",
+};
+
+/** Noun for the "Cumulative … " caption under a chart. */
+const METRIC_NOUN: Record<ChartMode, string> = {
+	public: "commits",
+	prs: "pull requests",
+	issues: "issues",
+	reviews: "pull-request reviews",
+	repos: "repositories created",
+	private: "private contributions",
+	both: "contributions (commits + private)",
+};
+
+const METRIC_TOTAL: Record<ChartMode, (h: CommitHistory) => number> = {
+	public: (h) => h.total,
+	prs: (h) => h.totalPullRequests,
+	issues: (h) => h.totalIssues,
+	reviews: (h) => h.totalReviews,
+	repos: (h) => h.totalRepos,
+	private: (h) => h.totalRestricted,
+	both: (h) => h.total + h.totalRestricted,
+};
+
+/**
+ * Which metrics are worth offering for these histories: commits always, the public types only when
+ * at least one developer has any, and private/both only when someone exposes private contributions
+ * (else they'd duplicate the commits line).
+ */
+function availableMetrics(histories: CommitHistory[]): ChartMode[] {
+	const any = (m: ChartMode) => histories.some((h) => METRIC_TOTAL[m](h) > 0);
+	const list: ChartMode[] = ["public"];
+	for (const m of ["prs", "issues", "reviews", "repos"] as const)
+		if (any(m)) list.push(m);
+	if (any("private")) list.push("private", "both");
+	return list;
+}
+
+function metricOptions(available: ChartMode[]) {
+	return available.map((m) => ({ value: m, label: METRIC_LABEL[m] }));
+}
+
+// Metrics that live in the URL as `?metric=…`. "public" (commits) is the default and is
+// deliberately omitted so the common case keeps a clean URL — only a non-default pick is stored.
+const METRIC_PARAMS: readonly ChartMode[] = [
+	"prs",
+	"issues",
+	"reviews",
+	"repos",
+	"private",
+	"both",
+];
+
+function isMetricParam(v: unknown): v is ChartMode {
+	return typeof v === "string" && (METRIC_PARAMS as string[]).includes(v);
+}
+
+interface UserSearch {
+	/** Selected chart metric; absent = the default (commits). */
+	metric?: ChartMode;
+}
 
 export const Route = createFileRoute("/$user")({
+	// `?metric=` selects the chart contribution type; invalid/absent → default (commits).
+	validateSearch: (search: Record<string, unknown>): UserSearch =>
+		isMetricParam(search.metric) ? { metric: search.metric } : {},
 	loader: ({ params }) =>
 		getCommitHistories({ data: parseLogins(params.user) }),
 	head: ({ params }) => {
@@ -53,6 +128,23 @@ export const Route = createFileRoute("/$user")({
 	pendingComponent: PendingUser,
 	pendingMs: 150,
 });
+
+/**
+ * The chart metric, mirrored to `?metric=` so a view is shareable/linkable. The default (commits)
+ * is stored as an absent param to keep the URL clean; `replace` avoids spamming history on toggle.
+ */
+function useMetric(): [ChartMode, (m: ChartMode) => void] {
+	const { metric } = Route.useSearch();
+	const navigate = Route.useNavigate();
+	const setMetric = (m: ChartMode) =>
+		navigate({
+			search: (prev) => ({ ...prev, metric: m === "public" ? undefined : m }),
+			replace: true,
+			// It's the same page with a different series — don't scroll to top like a fresh load.
+			resetScroll: false,
+		});
+	return [metric ?? "public", setMetric];
+}
 
 // A generic rising curve, blurred behind the loading state — gives the page real shape while
 // the actual data streams in (instead of a shimmering skeleton).
@@ -155,9 +247,15 @@ function timeAgo(date: string) {
 /** Navigate to the route for a given set of logins (single = detailed view, many = comparison). */
 function useGoToLogins() {
 	const navigate = useNavigate();
+	// Keep the selected metric when adding/removing people so the compare view stays in the same view.
+	const { metric } = Route.useSearch();
 	return (logins: string[]) => {
 		if (logins.length > 0) {
-			navigate({ to: "/$user", params: { user: logins.join(",") } });
+			navigate({
+				to: "/$user",
+				params: { user: logins.join(",") },
+				search: { metric },
+			});
 		}
 	};
 }
@@ -357,9 +455,12 @@ function SingleView({
 	otherLogins: string[];
 }) {
 	// biome-ignore lint/style/noNonNullAssertion: ok results always have history
-	const { user, points, totalRestricted } = result.history!;
-	const hasPrivate = totalRestricted > 0;
-	const [mode, setMode] = useState<ChartMode>("both");
+	const history = result.history!;
+	const { user, points } = history;
+	const [requested, setMode] = useMetric();
+	const available = availableMetrics([history]);
+	// Fall back to commits if the requested metric isn't available for this user.
+	const effectiveMode = available.includes(requested) ? requested : "public";
 	const since = monthYear(user.createdAt);
 
 	return (
@@ -375,22 +476,25 @@ function SingleView({
 				transition={{ duration: 0.5 }}
 				className="-mx-4 mt-8 pt-5 pb-1.5 sm:mx-0 sm:rounded-xl sm:border sm:border-border sm:p-4"
 			>
-				<CommitChart
-					points={points}
-					mode={hasPrivate ? mode : "public"}
-					label={user.login}
-				/>
+				<CommitChart points={points} mode={effectiveMode} label={user.login} />
 			</motion.div>
 
 			<div className="mt-2 flex flex-wrap items-center gap-3 sm:mt-4 sm:justify-between">
 				<p className="w-full text-xs text-muted-foreground sm:w-auto">
-					Cumulative commits attributed by GitHub since {since}.
+					Cumulative {METRIC_NOUN[effectiveMode]} attributed by GitHub since{" "}
+					{since}.
 				</p>
-				<div className="ml-auto flex flex-col-reverse items-end gap-3 sm:flex-row sm:items-center">
-					<AddUser currentLogins={otherLogins} label="Compare with…" />
-					{hasPrivate && <ChartModeToggle mode={mode} onChange={setMode} />}
-				</div>
+				<AddUser currentLogins={otherLogins} label="Compare with…" />
 			</div>
+
+			{available.length > 1 && (
+				<SegmentedControl
+					className="mt-3"
+					options={metricOptions(available)}
+					value={effectiveMode}
+					onChange={setMode}
+				/>
+			)}
 
 			<EmbedSnippet login={user.login} />
 		</>
@@ -490,16 +594,16 @@ function ComparisonView({
 	allLogins: string[];
 }) {
 	const [mode, setMode] = useState<TimelineMode>("date");
-	const [chartMode, setChartMode] = useState<ChartMode>("both");
+	const [requested, setChartMode] = useMetric();
 	const go = useGoToLogins();
 
-	// Show the public/private/both toggle only when at least one developer exposes
-	// private contributions — otherwise "private"/"both" would be identical to "public".
-	const anyPrivate = results.some(
-		// biome-ignore lint/style/noNonNullAssertion: ok results always have history
-		(r) => r.history!.totalRestricted > 0,
-	);
-	const effectiveChartMode = anyPrivate ? chartMode : "public";
+	// biome-ignore lint/style/noNonNullAssertion: ok results always have history
+	const histories = results.map((r) => r.history!);
+	// A metric is offered only when at least one developer has data for it.
+	const available = availableMetrics(histories);
+	const effectiveChartMode = available.includes(requested)
+		? requested
+		: "public";
 
 	const series: ChartSeries[] = results.map((r, i) => ({
 		login: r.login,
@@ -508,16 +612,10 @@ function ComparisonView({
 		points: r.history!.points,
 	}));
 
-	// Legend total reflects the selected mode so the numbers match the lines.
+	// Legend total reflects the selected metric so the numbers match the lines.
 	const legendTotal = (r: UserResult) =>
-		effectiveChartMode === "public"
-			? // biome-ignore lint/style/noNonNullAssertion: ok results always have history
-				r.history!.total
-			: effectiveChartMode === "private"
-				? // biome-ignore lint/style/noNonNullAssertion: ok results always have history
-					r.history!.totalRestricted
-				: // biome-ignore lint/style/noNonNullAssertion: ok results always have history
-					r.history!.total + r.history!.totalRestricted;
+		// biome-ignore lint/style/noNonNullAssertion: ok results always have history
+		METRIC_TOTAL[effectiveChartMode](r.history!);
 
 	function removeLogin(login: string) {
 		go(allLogins.filter((l) => l !== login));
@@ -545,11 +643,23 @@ function ComparisonView({
 				/>
 			</motion.div>
 
+			<p className="mt-2 text-xs text-muted-foreground sm:mt-4">
+				Cumulative {METRIC_NOUN[effectiveChartMode]}.
+			</p>
 			{mode === "aligned" && (
-				<p className="mt-3 text-xs text-muted-foreground">
+				<p className="mt-1 text-xs text-muted-foreground">
 					Aligned: each line starts at its account’s first month, so you compare
 					trajectories regardless of when each person joined GitHub.
 				</p>
+			)}
+
+			{available.length > 1 && (
+				<SegmentedControl
+					className="mt-3"
+					options={metricOptions(available)}
+					value={effectiveChartMode}
+					onChange={setChartMode}
+				/>
 			)}
 
 			<div className="mt-6 flex flex-wrap items-center gap-3">
@@ -587,12 +697,7 @@ function ComparisonView({
 				))}
 				<div className="ml-auto flex flex-col-reverse items-end gap-3 sm:flex-row sm:items-center">
 					<AddUser currentLogins={allLogins} label="Add user…" />
-					<div className="flex flex-wrap items-center justify-end gap-2">
-						{anyPrivate && (
-							<ChartModeToggle mode={chartMode} onChange={setChartMode} />
-						)}
-						<TimelineToggle mode={mode} onChange={setMode} />
-					</div>
+					<TimelineToggle mode={mode} onChange={setMode} />
 				</div>
 			</div>
 
@@ -637,39 +742,6 @@ function TimelineToggle({
 					}
 				>
 					{m === "date" ? "Date" : "Aligned"}
-				</button>
-			))}
-		</div>
-	);
-}
-
-const MODE_LABELS: Record<ChartMode, string> = {
-	public: "Public",
-	private: "Private",
-	both: "Both",
-};
-
-function ChartModeToggle({
-	mode,
-	onChange,
-}: {
-	mode: ChartMode;
-	onChange: (m: ChartMode) => void;
-}) {
-	return (
-		<div className="inline-flex overflow-hidden rounded-md border text-sm">
-			{(["public", "private", "both"] as const).map((m) => (
-				<button
-					key={m}
-					type="button"
-					onClick={() => onChange(m)}
-					className={
-						mode === m
-							? "bg-foreground px-3 leading-9 text-background"
-							: "px-3 leading-9 text-muted-foreground hover:bg-muted"
-					}
-				>
-					{MODE_LABELS[m]}
 				</button>
 			))}
 		</div>

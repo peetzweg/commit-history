@@ -2,6 +2,7 @@ import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "motion/react";
 import { Fragment, useEffect, useRef, useState } from "react";
+import { SegmentedControl } from "#/components/SegmentedControl";
 import {
 	getLeaderboard,
 	getRecentLookups,
@@ -12,7 +13,31 @@ import {
 	type RecentEntry,
 } from "#/lib/commit-history";
 
+// Leaderboard metrics that live in the URL as `?metric=…`. "public" (commits) is the default and
+// is omitted so the common case stays a clean, copy-pasteable URL.
+const LB_METRIC_PARAMS: readonly LeaderMode[] = [
+	"prs",
+	"issues",
+	"reviews",
+	"repos",
+	"private",
+	"both",
+	"followers",
+];
+
+function isLeaderMetricParam(v: unknown): v is LeaderMode {
+	return typeof v === "string" && (LB_METRIC_PARAMS as string[]).includes(v);
+}
+
+interface HomeSearch {
+	/** Selected leaderboard metric; absent = the default (commits). */
+	metric?: LeaderMode;
+}
+
 export const Route = createFileRoute("/")({
+	// `?metric=` selects the leaderboard type so a view can be shared; invalid/absent → commits.
+	validateSearch: (search: Record<string, unknown>): HomeSearch =>
+		isLeaderMetricParam(search.metric) ? { metric: search.metric } : {},
 	head: () => ({
 		links: [{ rel: "canonical", href: "https://commit-history.com/" }],
 	}),
@@ -219,14 +244,44 @@ function SelfPromoRow() {
 
 const LB_VALUE: Record<LeaderMode, (u: LeaderEntry) => number> = {
 	public: (u) => u.totalCommits,
+	prs: (u) => u.totalPullRequests ?? 0,
+	issues: (u) => u.totalIssues ?? 0,
+	reviews: (u) => u.totalReviews ?? 0,
+	repos: (u) => u.totalRepos ?? 0,
 	private: (u) => u.totalRestricted,
 	both: (u) => u.totalCommits + u.totalRestricted,
 	followers: (u) => u.followers ?? 0,
 };
 
+/** Singular-ish unit shown under each row's number, per mode (`both` renders a combo instead). */
+const LB_UNIT: Record<LeaderMode, string> = {
+	public: "commits",
+	prs: "pull requests",
+	issues: "issues",
+	reviews: "reviews",
+	repos: "repos",
+	private: "private",
+	both: "",
+	followers: "followers",
+};
+
 function Leaderboard({ initialPage }: { initialPage: LeaderEntry[] }) {
-	const [mode, setMode] = useState<LeaderMode>("public");
+	// Mirror the selected metric to `?metric=` so the current view is copy-pasteable/shareable.
+	// Commits is the default and stays param-free; `replace`+no scroll keeps switching in place.
+	const { metric } = Route.useSearch();
+	const navigate = Route.useNavigate();
+	const mode = metric ?? "public";
+	const setMode = (m: LeaderMode) =>
+		navigate({
+			search: { metric: m === "public" ? undefined : m },
+			replace: true,
+			resetScroll: false,
+		});
 	const value = LB_VALUE[mode];
+	// Carry the selected metric into the profile links so a click keeps the current view. Commits is
+	// the profile default (clean URL, no param), and followers has no chart, so both omit it.
+	const linkMetric =
+		mode === "public" || mode === "followers" ? undefined : mode;
 
 	const query = useInfiniteQuery({
 		queryKey: ["leaderboard", mode],
@@ -277,21 +332,26 @@ function Leaderboard({ initialPage }: { initialPage: LeaderEntry[] }) {
 		return () => io.disconnect();
 	}, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-	const subtitle =
-		mode === "public"
-			? "Public commits."
-			: mode === "private"
-				? "Private contributions (only users who expose them)."
-				: mode === "followers"
-					? "GitHub followers."
-					: "Total activity — public commits + private contributions.";
+	const subtitle = {
+		public: "Public commits.",
+		prs: "Public pull requests opened.",
+		issues: "Public issues opened.",
+		reviews: "Public pull-request reviews.",
+		repos: "Public repositories created.",
+		private: "Private contributions (only users who expose them).",
+		both: "Total activity — public commits + private contributions.",
+		followers: "GitHub followers.",
+	}[mode];
 
 	return (
 		<section className="mt-14">
-			<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-				<SectionHeading>All-time leaderboard</SectionHeading>
-				<LeaderToggle mode={mode} onChange={setMode} />
-			</div>
+			<SegmentedControl
+				className="mb-4"
+				options={LB_MODES.map((m) => ({ value: m, label: LB_LABELS[m] }))}
+				value={mode}
+				onChange={setMode}
+			/>
+			<SectionHeading>All-time leaderboard</SectionHeading>
 			<p className="mt-1 text-xs text-muted-foreground">{subtitle}</p>
 			<ol className="mt-4">
 				<AnimatePresence initial={false} mode="popLayout">
@@ -308,6 +368,7 @@ function Leaderboard({ initialPage }: { initialPage: LeaderEntry[] }) {
 								<Link
 									to="/$user"
 									params={{ user: u.login }}
+									search={{ metric: linkMetric }}
 									preload={false}
 									className="flex w-full items-center gap-3 py-2.5 text-left hover:bg-muted"
 								>
@@ -333,15 +394,11 @@ function Leaderboard({ initialPage }: { initialPage: LeaderEntry[] }) {
 											{value(u).toLocaleString()}
 										</span>
 										<span className="block text-xs text-muted-foreground tabular-nums">
-											{mode === "private"
-												? "private"
-												: mode === "public"
-													? "commits"
-													: mode === "followers"
-														? "followers"
-														: u.totalRestricted > 0
-															? `${u.totalCommits.toLocaleString()} commits · ${u.totalRestricted.toLocaleString()} private`
-															: `${u.totalCommits.toLocaleString()} commits`}
+											{mode === "both"
+												? u.totalRestricted > 0
+													? `${u.totalCommits.toLocaleString()} commits · ${u.totalRestricted.toLocaleString()} private`
+													: `${u.totalCommits.toLocaleString()} commits`
+												: LB_UNIT[mode]}
 										</span>
 									</span>
 								</Link>
@@ -371,35 +428,23 @@ function Leaderboard({ initialPage }: { initialPage: LeaderEntry[] }) {
 }
 
 const LB_LABELS: Record<LeaderMode, string> = {
-	public: "Public",
+	public: "Commits",
+	prs: "PRs",
+	issues: "Issues",
+	reviews: "Reviews",
+	repos: "Repos",
 	private: "Private",
 	both: "Both",
 	followers: "Followers",
 };
 
-function LeaderToggle({
-	mode,
-	onChange,
-}: {
-	mode: LeaderMode;
-	onChange: (m: LeaderMode) => void;
-}) {
-	return (
-		<div className="flex w-full overflow-hidden rounded-md border text-xs sm:inline-flex sm:w-auto">
-			{(["public", "private", "both", "followers"] as const).map((m) => (
-				<button
-					key={m}
-					type="button"
-					onClick={() => onChange(m)}
-					className={
-						mode === m
-							? "flex-1 bg-foreground px-3 py-1.5 text-background sm:flex-none"
-							: "flex-1 px-3 py-1.5 text-muted-foreground hover:bg-muted sm:flex-none"
-					}
-				>
-					{LB_LABELS[m]}
-				</button>
-			))}
-		</div>
-	);
-}
+const LB_MODES = [
+	"public",
+	"prs",
+	"issues",
+	"reviews",
+	"repos",
+	"private",
+	"both",
+	"followers",
+] as const;

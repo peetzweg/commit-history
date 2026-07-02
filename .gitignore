@@ -17,3 +17,6 @@ todos.json
 
 # Local DB backups — never commit
 backups/
+
+# Script runtime logs (e.g. `bun run backfill > backfill.log`)
+*.log
