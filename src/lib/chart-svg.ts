@@ -40,22 +40,33 @@ const THEMES: Record<Theme, ThemeColors> = {
 	dark: { bg: "#0d1117", fg: "#c9d1d9", muted: "#8b949e", grid: "#30363d" },
 };
 
-// The data type a chart shows. Only commits exist today; the rest are on the roadmap and each
-// gets its own embed headline noun + count unit here (the single switch point for new types).
-// Ranking these per type on the embed is tracked separately (see the "rank on the embed" issue).
+// The data type a chart shows. "all" is the aggregate (public commits + private contributions —
+// what the embed sums today); "commits" is live too, the rest are on the roadmap. Each gets its
+// embed wording here — the single switch point for new types. Per-type ranking on the embed is
+// tracked separately (see the "rank on the embed" issue).
 export type GraphType =
+	| "all"
 	| "commits"
 	| "pullRequests"
 	| "issues"
 	| "reviews"
 	| "repositories";
 
-const TYPE_WORDS: Record<GraphType, { history: string; unit: string }> = {
-	commits: { history: "commit history", unit: "commits" },
-	pullRequests: { history: "pull request history", unit: "pull requests" },
-	issues: { history: "issue history", unit: "issues" },
-	reviews: { history: "review history", unit: "reviews" },
-	repositories: { history: "repository history", unit: "repositories" },
+// The embed is standalone (no profile header like the on-page chart), so `title(login)` always
+// leads with the username; `unit` labels the running total.
+const TYPE_WORDS: Record<
+	GraphType,
+	{ title: (login: string) => string; unit: string }
+> = {
+	all: {
+		title: (l) => `all of ${l}'s GitHub contributions`,
+		unit: "contributions",
+	},
+	commits: { title: (l) => `${l}'s commits`, unit: "commits" },
+	pullRequests: { title: (l) => `${l}'s pull requests`, unit: "pull requests" },
+	issues: { title: (l) => `${l}'s issues`, unit: "issues" },
+	reviews: { title: (l) => `${l}'s reviews`, unit: "reviews" },
+	repositories: { title: (l) => `${l}'s repositories`, unit: "repositories" },
 };
 
 function compact(n: number) {
@@ -120,7 +131,7 @@ ${body}
 export function renderChartSvg(
 	history: CommitHistory,
 	theme: Theme = "light",
-	type: GraphType = "commits",
+	type: GraphType = "all",
 ): string {
 	const c = THEMES[theme];
 	const { points, total, totalRestricted, user } = history;
@@ -177,10 +188,8 @@ export function renderChartSvg(
 		)
 		.join("");
 
-	// The embed is standalone (no profile header like the on-page chart), so its headline always
-	// leads with the username and names the data type: "torvalds's commit history".
 	const words = TYPE_WORDS[type];
-	const title = esc(`${user.login}'s ${words.history}`);
+	const title = esc(words.title(user.login));
 	const countUnit = words.unit;
 
 	const body = `
