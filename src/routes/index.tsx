@@ -2,6 +2,7 @@ import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "motion/react";
 import { Fragment, useEffect, useRef, useState } from "react";
+import { SegmentedControl } from "#/components/SegmentedControl";
 import {
 	getLeaderboard,
 	getRecentLookups,
@@ -306,11 +307,14 @@ function Leaderboard({ initialPage }: { initialPage: LeaderEntry[] }) {
 
 	return (
 		<section className="mt-14">
-			<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-				<SectionHeading>All-time leaderboard</SectionHeading>
-				<LeaderToggle mode={mode} onChange={setMode} />
-			</div>
+			<SectionHeading>All-time leaderboard</SectionHeading>
 			<p className="mt-1 text-xs text-muted-foreground">{subtitle}</p>
+			<SegmentedControl
+				className="mt-3"
+				options={LB_MODES.map((m) => ({ value: m, label: LB_LABELS[m] }))}
+				value={mode}
+				onChange={setMode}
+			/>
 			<ol className="mt-4">
 				<AnimatePresence initial={false} mode="popLayout">
 					{rows.map((u, i) => (
@@ -405,32 +409,3 @@ const LB_MODES = [
 	"both",
 	"followers",
 ] as const;
-
-function LeaderToggle({
-	mode,
-	onChange,
-}: {
-	mode: LeaderMode;
-	onChange: (m: LeaderMode) => void;
-}) {
-	// Too many modes for a full-width segmented control on mobile, so it scrolls horizontally
-	// there (buttons keep their natural width) and sits inline on wider screens.
-	return (
-		<div className="flex w-full overflow-x-auto rounded-md border text-xs sm:inline-flex sm:w-auto">
-			{LB_MODES.map((m) => (
-				<button
-					key={m}
-					type="button"
-					onClick={() => onChange(m)}
-					className={
-						mode === m
-							? "whitespace-nowrap bg-foreground px-3 py-1.5 text-background"
-							: "whitespace-nowrap px-3 py-1.5 text-muted-foreground hover:bg-muted"
-					}
-				>
-					{LB_LABELS[m]}
-				</button>
-			))}
-		</div>
-	);
-}
