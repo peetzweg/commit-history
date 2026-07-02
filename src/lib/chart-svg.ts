@@ -40,6 +40,24 @@ const THEMES: Record<Theme, ThemeColors> = {
 	dark: { bg: "#0d1117", fg: "#c9d1d9", muted: "#8b949e", grid: "#30363d" },
 };
 
+// The data type a chart shows. Only commits exist today; the rest are on the roadmap and each
+// gets its own embed headline noun + count unit here (the single switch point for new types).
+// Ranking these per type on the embed is tracked separately (see the "rank on the embed" issue).
+export type GraphType =
+	| "commits"
+	| "pullRequests"
+	| "issues"
+	| "reviews"
+	| "repositories";
+
+const TYPE_WORDS: Record<GraphType, { history: string; unit: string }> = {
+	commits: { history: "commit history", unit: "commits" },
+	pullRequests: { history: "pull request history", unit: "pull requests" },
+	issues: { history: "issue history", unit: "issues" },
+	reviews: { history: "review history", unit: "reviews" },
+	repositories: { history: "repository history", unit: "repositories" },
+};
+
 function compact(n: number) {
 	return new Intl.NumberFormat("en-US", { notation: "compact" }).format(n);
 }
@@ -102,6 +120,7 @@ ${body}
 export function renderChartSvg(
 	history: CommitHistory,
 	theme: Theme = "light",
+	type: GraphType = "commits",
 ): string {
 	const c = THEMES[theme];
 	const { points, total, totalRestricted, user } = history;
@@ -158,15 +177,11 @@ export function renderChartSvg(
 		)
 		.join("");
 
-	// The chart sums public commits + private contributions, so the wording follows suit:
-	// "contributions" when the user exposes private activity, plain "commit history" otherwise.
-	const hasPrivate = totalRestricted > 0;
-	const title = esc(
-		hasPrivate
-			? `${user.login}'s contributions`
-			: `${user.login}'s commit history`,
-	);
-	const countUnit = hasPrivate ? "contributions" : "commits";
+	// The embed is standalone (no profile header like the on-page chart), so its headline always
+	// leads with the username and names the data type: "torvalds's commit history".
+	const words = TYPE_WORDS[type];
+	const title = esc(`${user.login}'s ${words.history}`);
+	const countUnit = words.unit;
 
 	const body = `
 <text x="${PAD.left}" y="30" font-size="22" fill="${c.fg}">${title}</text>
