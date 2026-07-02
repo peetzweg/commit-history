@@ -1,7 +1,7 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "motion/react";
-import { Fragment, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
 	getLeaderboard,
 	getRecentLookups,
@@ -152,9 +152,10 @@ function RecentSection({ recent }: { recent: RecentEntry[] }) {
  * but with no database — the creative is hardcoded for now. Uses the sponsor's own favicon and
  * page title, and links out with rel="sponsored nofollow".
  */
-function SponsorRow() {
+function SponsorRow({ ref }: { ref?: React.Ref<HTMLLIElement> }) {
 	return (
 		<motion.li
+			ref={ref}
 			layout
 			initial={{ opacity: 0 }}
 			animate={{ opacity: 1 }}
@@ -193,9 +194,10 @@ function SponsorRow() {
  * Pure markup — no database, no ads — pointing at the author's GitHub and Ko-fi.
  * Sprinkled through the leaderboard (after slots 50 and 100, and once at the end).
  */
-function SelfPromoRow() {
+function SelfPromoRow({ ref }: { ref?: React.Ref<HTMLLIElement> }) {
 	return (
 		<motion.li
+			ref={ref}
 			layout
 			initial={{ opacity: 0 }}
 			animate={{ opacity: 1 }}
@@ -317,9 +319,13 @@ function Leaderboard({ initialPage }: { initialPage: LeaderEntry[] }) {
 			<p className="mt-1 text-xs text-muted-foreground">{subtitle}</p>
 			<ol className="mt-4">
 				<AnimatePresence initial={false} mode="popLayout">
-					{rows.map((u, i) => (
-						<Fragment key={u.login}>
+					{/* Flattened into one keyed list rather than Fragment-wrapped pairs: popLayout
+					    attaches a ref to each direct child to measure it, and a Fragment can't hold a
+					    ref (React warns). The interleaved ad/promo rows are keyed motion.li too. */}
+					{rows.flatMap((u, i) => {
+						const items = [
 							<motion.li
+								key={u.login}
 								layout
 								initial={{ opacity: 0 }}
 								animate={{ opacity: 1 }}
@@ -374,15 +380,20 @@ function Leaderboard({ initialPage }: { initialPage: LeaderEntry[] }) {
 										</span>
 									</span>
 								</Link>
-							</motion.li>
-							{/* Sponsor sits in the slot after rank 5 (only once there's more below). */}
-							{i === 4 && rows.length > 5 && <SponsorRow />}
-							{/* Self-promo after slots 10, 50 and 100 (only once there's more below). */}
-							{i === 9 && rows.length > 10 && <SelfPromoRow />}
-							{i === 49 && rows.length > 50 && <SelfPromoRow />}
-							{i === 99 && rows.length > 100 && <SelfPromoRow />}
-						</Fragment>
-					))}
+							</motion.li>,
+						];
+						// Sponsor sits in the slot after rank 5 (only once there's more below).
+						if (i === 4 && rows.length > 5)
+							items.push(<SponsorRow key="sponsor" />);
+						// Self-promo after slots 10, 50 and 100 (only once there's more below).
+						if (i === 9 && rows.length > 10)
+							items.push(<SelfPromoRow key="promo-10" />);
+						if (i === 49 && rows.length > 50)
+							items.push(<SelfPromoRow key="promo-50" />);
+						if (i === 99 && rows.length > 100)
+							items.push(<SelfPromoRow key="promo-100" />);
+						return items;
+					})}
 				</AnimatePresence>
 				{/* Self-promo once the whole leaderboard has finished loading. */}
 				{!hasNextPage && !isFetchingNextPage && rows.length > 0 && (
