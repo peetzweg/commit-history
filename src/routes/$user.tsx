@@ -35,7 +35,7 @@ const METRIC_LABEL: Record<ChartMode, string> = {
 	reviews: "Reviews",
 	repos: "Repos",
 	private: "Private",
-	both: "All",
+	total: "Total",
 };
 
 const METRIC_TOTAL: Record<ChartMode, (h: CommitHistory) => number> = {
@@ -45,20 +45,33 @@ const METRIC_TOTAL: Record<ChartMode, (h: CommitHistory) => number> = {
 	reviews: (h) => h.totalReviews,
 	repos: (h) => h.totalRepos,
 	private: (h) => h.totalRestricted,
-	both: (h) => h.total + h.totalRestricted,
+	// Every contribution type summed (disjoint buckets — no double-counting).
+	total: (h) =>
+		h.total +
+		h.totalIssues +
+		h.totalPullRequests +
+		h.totalReviews +
+		h.totalRepos +
+		h.totalRestricted,
 };
 
 /**
- * Which metrics are worth offering for these histories: commits always, the public types only when
- * at least one developer has any, and private/both only when someone exposes private contributions
- * (else they'd duplicate the commits line).
+ * Which metrics are worth offering for these histories: commits always; each public type and
+ * private only when at least one developer has any; and "total" only when there's something beyond
+ * commits to add up (else it would just duplicate the commits line).
  */
 function availableMetrics(histories: CommitHistory[]): ChartMode[] {
 	const any = (m: ChartMode) => histories.some((h) => METRIC_TOTAL[m](h) > 0);
 	const list: ChartMode[] = ["public"];
 	for (const m of ["prs", "issues", "reviews", "repos"] as const)
 		if (any(m)) list.push(m);
-	if (any("private")) list.push("private", "both");
+	if (any("private")) list.push("private");
+	if (
+		["prs", "issues", "reviews", "repos", "private"].some((m) =>
+			any(m as ChartMode),
+		)
+	)
+		list.push("total");
 	return list;
 }
 
@@ -74,7 +87,7 @@ const METRIC_PARAMS: readonly ChartMode[] = [
 	"reviews",
 	"repos",
 	"private",
-	"both",
+	"total",
 ];
 
 function isMetricParam(v: unknown): v is ChartMode {

@@ -103,7 +103,7 @@ export type LeaderMode =
 	| "reviews"
 	| "repos"
 	| "private"
-	| "both"
+	| "total"
 	| "followers";
 
 /**
@@ -124,7 +124,7 @@ async function queryLeaderboard(
 	limit: number,
 ): Promise<LeaderEntry[]> {
 	if (!db) return [];
-	// The column each mode ranks by. `both` is the one that isn't a single column (see below).
+	// The column each mode ranks by. `total` is the one that isn't a single column (see below).
 	const rankCol = {
 		public: entities.totalCommits,
 		prs: entities.totalPullRequests,
@@ -133,12 +133,17 @@ async function queryLeaderboard(
 		repos: entities.totalRepos,
 		private: entities.totalRestricted,
 		followers: entities.followers,
-		both: entities.totalCommits, // unused — `both` orders by a sum, handled below
+		total: entities.totalCommits, // unused — `total` orders by a sum, handled below
 	}[mode];
+	// `total` = every contribution type summed. The per-type columns are nullable (null until a
+	// row is backfilled), so COALESCE them to 0 — else the whole sum would be NULL and the row
+	// would sink regardless of its commits. (totalCommits/totalRestricted are NOT NULL.)
 	// NULLS LAST so not-yet-backfilled rows (null type totals / followers) sink to the bottom.
 	const order =
-		mode === "both"
-			? desc(sql`${entities.totalCommits} + ${entities.totalRestricted}`)
+		mode === "total"
+			? desc(
+					sql`${entities.totalCommits} + coalesce(${entities.totalIssues}, 0) + coalesce(${entities.totalPullRequests}, 0) + coalesce(${entities.totalReviews}, 0) + coalesce(${entities.totalRepos}, 0) + ${entities.totalRestricted}`,
+				)
 			: sql`${rankCol} desc nulls last`;
 	const cols = {
 		login: entities.login,

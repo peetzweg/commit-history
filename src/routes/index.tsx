@@ -21,7 +21,7 @@ const LB_METRIC_PARAMS: readonly LeaderMode[] = [
 	"reviews",
 	"repos",
 	"private",
-	"both",
+	"total",
 	"followers",
 ];
 
@@ -271,11 +271,18 @@ const LB_VALUE: Record<LeaderMode, (u: LeaderEntry) => number> = {
 	reviews: (u) => u.totalReviews ?? 0,
 	repos: (u) => u.totalRepos ?? 0,
 	private: (u) => u.totalRestricted,
-	both: (u) => u.totalCommits + u.totalRestricted,
+	// Every contribution type summed (null type totals coalesced to 0 until backfilled).
+	total: (u) =>
+		u.totalCommits +
+		(u.totalIssues ?? 0) +
+		(u.totalPullRequests ?? 0) +
+		(u.totalReviews ?? 0) +
+		(u.totalRepos ?? 0) +
+		u.totalRestricted,
 	followers: (u) => u.followers ?? 0,
 };
 
-/** Singular-ish unit shown under each row's number, per mode (`both` renders a combo instead). */
+/** Singular-ish unit shown under each row's number, per mode. */
 const LB_UNIT: Record<LeaderMode, string> = {
 	public: "commits",
 	prs: "pull requests",
@@ -283,7 +290,7 @@ const LB_UNIT: Record<LeaderMode, string> = {
 	reviews: "reviews",
 	repos: "repos",
 	private: "private",
-	both: "",
+	total: "contributions",
 	followers: "followers",
 };
 
@@ -361,7 +368,8 @@ function Leaderboard({ initialPage }: { initialPage: LeaderEntry[] }) {
 		reviews: "Public pull-request reviews.",
 		repos: "Public repositories created.",
 		private: "Private contributions (only users who expose them).",
-		both: "Total activity — public commits + private contributions.",
+		total:
+			"Every contribution type — commits, PRs, issues, reviews, repos, plus private.",
 		followers: "GitHub followers.",
 	}[mode];
 
@@ -423,11 +431,7 @@ function Leaderboard({ initialPage }: { initialPage: LeaderEntry[] }) {
 											{value(u).toLocaleString()}
 										</span>
 										<span className="block text-xs text-muted-foreground tabular-nums">
-											{mode === "both"
-												? u.totalRestricted > 0
-													? `${u.totalCommits.toLocaleString()} commits · ${u.totalRestricted.toLocaleString()} private`
-													: `${u.totalCommits.toLocaleString()} commits`
-												: LB_UNIT[mode]}
+											{LB_UNIT[mode]}
 										</span>
 									</span>
 								</Link>
@@ -463,7 +467,7 @@ const LB_LABELS: Record<LeaderMode, string> = {
 	reviews: "Reviews",
 	repos: "Repos",
 	private: "Private",
-	both: "All",
+	total: "Total",
 	followers: "Followers",
 };
 
@@ -474,6 +478,6 @@ const LB_MODES = [
 	"reviews",
 	"repos",
 	"private",
-	"both",
+	"total",
 	"followers",
 ] as const;

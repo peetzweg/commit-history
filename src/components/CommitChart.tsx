@@ -39,7 +39,7 @@ function monthLabel(date: string) {
 export type ChartMode =
 	| "public"
 	| "private"
-	| "both"
+	| "total"
 	| "prs"
 	| "issues"
 	| "reviews"
@@ -50,8 +50,8 @@ export function chartTitle(mode: ChartMode): string {
 	switch (mode) {
 		case "private":
 			return "Private Contributions";
-		case "both":
-			return "All Contributions";
+		case "total":
+			return "Total Contributions";
 		case "prs":
 			return "Pull Requests";
 		case "issues":
@@ -70,8 +70,8 @@ export function chartCaption(mode: ChartMode): string {
 	switch (mode) {
 		case "private":
 			return "Cumulative private contributions";
-		case "both":
-			return "Cumulative private and public contributions";
+		case "total":
+			return "Cumulative total contributions";
 		case "prs":
 			return "Cumulative public pull requests";
 		case "issues":
@@ -85,15 +85,26 @@ export function chartCaption(mode: ChartMode): string {
 	}
 }
 
-/** The month's raw count for the selected metric. */
+/**
+ * The month's raw count for the selected metric. "total" is every contribution type summed:
+ * public commits + issues + PRs + reviews + repos, plus the opaque private (restricted) count —
+ * all disjoint buckets, so nothing is double-counted.
+ */
 export function metricDelta(p: CommitPoint, mode: ChartMode): number {
 	switch (mode) {
 		case "public":
 			return p.commits;
 		case "private":
 			return p.restricted;
-		case "both":
-			return p.commits + p.restricted;
+		case "total":
+			return (
+				p.commits +
+				p.issues +
+				p.pullRequests +
+				p.reviews +
+				p.repos +
+				p.restricted
+			);
 		case "prs":
 			return p.pullRequests;
 		case "issues":
@@ -123,7 +134,7 @@ export function cumulativeSeries(
 
 export function CommitChart({
 	points,
-	mode = "both",
+	mode = "public",
 	label,
 	title = chartTitle(mode),
 }: {
