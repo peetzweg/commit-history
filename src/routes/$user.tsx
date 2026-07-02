@@ -140,6 +140,8 @@ function useMetric(): [ChartMode, (m: ChartMode) => void] {
 		navigate({
 			search: (prev) => ({ ...prev, metric: m === "public" ? undefined : m }),
 			replace: true,
+			// It's the same page with a different series — don't scroll to top like a fresh load.
+			resetScroll: false,
 		});
 	return [metric ?? "public", setMetric];
 }
@@ -245,9 +247,15 @@ function timeAgo(date: string) {
 /** Navigate to the route for a given set of logins (single = detailed view, many = comparison). */
 function useGoToLogins() {
 	const navigate = useNavigate();
+	// Keep the selected metric when adding/removing people so the compare view stays in the same view.
+	const { metric } = Route.useSearch();
 	return (logins: string[]) => {
 		if (logins.length > 0) {
-			navigate({ to: "/$user", params: { user: logins.join(",") } });
+			navigate({
+				to: "/$user",
+				params: { user: logins.join(",") },
+				search: { metric },
+			});
 		}
 	};
 }

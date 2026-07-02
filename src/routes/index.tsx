@@ -13,7 +13,31 @@ import {
 	type RecentEntry,
 } from "#/lib/commit-history";
 
+// Leaderboard metrics that live in the URL as `?metric=…`. "public" (commits) is the default and
+// is omitted so the common case stays a clean, copy-pasteable URL.
+const LB_METRIC_PARAMS: readonly LeaderMode[] = [
+	"prs",
+	"issues",
+	"reviews",
+	"repos",
+	"private",
+	"both",
+	"followers",
+];
+
+function isLeaderMetricParam(v: unknown): v is LeaderMode {
+	return typeof v === "string" && (LB_METRIC_PARAMS as string[]).includes(v);
+}
+
+interface HomeSearch {
+	/** Selected leaderboard metric; absent = the default (commits). */
+	metric?: LeaderMode;
+}
+
 export const Route = createFileRoute("/")({
+	// `?metric=` selects the leaderboard type so a view can be shared; invalid/absent → commits.
+	validateSearch: (search: Record<string, unknown>): HomeSearch =>
+		isLeaderMetricParam(search.metric) ? { metric: search.metric } : {},
 	head: () => ({
 		links: [{ rel: "canonical", href: "https://commit-history.com/" }],
 	}),
@@ -242,7 +266,17 @@ const LB_UNIT: Record<LeaderMode, string> = {
 };
 
 function Leaderboard({ initialPage }: { initialPage: LeaderEntry[] }) {
-	const [mode, setMode] = useState<LeaderMode>("public");
+	// Mirror the selected metric to `?metric=` so the current view is copy-pasteable/shareable.
+	// Commits is the default and stays param-free; `replace`+no scroll keeps switching in place.
+	const { metric } = Route.useSearch();
+	const navigate = Route.useNavigate();
+	const mode = metric ?? "public";
+	const setMode = (m: LeaderMode) =>
+		navigate({
+			search: { metric: m === "public" ? undefined : m },
+			replace: true,
+			resetScroll: false,
+		});
 	const value = LB_VALUE[mode];
 	// Carry the selected metric into the profile links so a click keeps the current view. Commits is
 	// the profile default (clean URL, no param), and followers has no chart, so both omit it.
