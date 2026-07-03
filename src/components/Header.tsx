@@ -14,9 +14,11 @@ export function Header() {
 	return (
 		<header className="flex h-14 w-full shrink-0 flex-row items-center justify-between bg-foreground pr-2 pl-1 text-[#f5f5f5] sm:px-4">
 			<div className="flex h-full min-w-0 flex-row items-center">
-				<Link to="/" className="header-link gap-2 font-semibold">
+				<Link to="/" className="header-link gap-2">
 					<img src="/crown.svg" alt="" className="h-6 w-auto shrink-0" />
-					<span className="whitespace-nowrap">Commit History</span>
+					<span className="whitespace-nowrap font-hand text-2xl leading-none">
+						Commit History
+					</span>
 				</Link>
 			</div>
 			<div className="flex h-full flex-row items-center gap-1 sm:gap-4">

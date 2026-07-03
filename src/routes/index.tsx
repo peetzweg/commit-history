@@ -68,7 +68,7 @@ function Home() {
 
 	return (
 		<main className="mx-auto max-w-2xl px-6 py-16">
-			<h1 className="text-center text-4xl font-bold tracking-tight sm:text-5xl">
+			<h1 className="text-center font-hand text-5xl sm:text-6xl">
 				Commit History
 			</h1>
 			<p className="mt-4 text-center text-lg text-muted-foreground">
@@ -388,11 +388,11 @@ function Leaderboard({ initialPage }: { initialPage: LeaderEntry[] }) {
 
 	return (
 		<section className="mt-14">
-			{/* The selected metric sits in a green chip mirroring the bottom tab bar's active tab, so
-			    the heading itself shows what you're ranking. */}
-			<h2 className="flex flex-wrap items-center gap-x-2 gap-y-1 text-2xl font-bold tracking-tight">
+			{/* The selected metric is called out in the hand-drawn font and brand green, right inside
+			    the heading, so the title itself shows what you're ranking. */}
+			<h2 className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-2xl font-bold tracking-tight">
 				All-time
-				<span className="rounded-full bg-primary px-3 py-0.5 text-lg font-semibold text-primary-foreground">
+				<span className="font-hand font-normal text-3xl text-primary leading-none">
 					{HEADING_LABEL[mode]}
 				</span>
 				leaderboard

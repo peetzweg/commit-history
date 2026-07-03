@@ -1,4 +1,4 @@
-import { AnimatePresence, motion } from "motion/react";
+import { motion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "#/lib/utils";
 
@@ -120,9 +120,14 @@ export function SegmentedControl<T extends string>({
 		// handles the grow/shrink morph across navigations).
 		<div className="fixed inset-x-0 bottom-4 z-50 flex justify-center px-4">
 			{/* layout animates the pill's width as chips come and go; overflow-hidden clips the
-			    scrolling content (and the thumb) to the rounded shape. */}
+			    scrolling content (and the thumb) to the rounded shape. layoutDependency pins the
+			    animation to the option set ONLY — without it, motion re-projects on every render
+			    (this bar re-renders on every navigation) and springs any transient reflow into a
+			    vertical bounce. Scoped this way, an unchanged chip set across a navigation animates
+			    nothing; a changed one morphs its width. */}
 			<motion.div
 				layout
+				layoutDependency={optionsKey}
 				transition={spring}
 				className="relative flex min-w-0 max-w-full overflow-hidden rounded-full border bg-background shadow-lg"
 			>
@@ -141,42 +146,40 @@ export function SegmentedControl<T extends string>({
 							transition={spring}
 						/>
 					)}
-					<AnimatePresence mode="popLayout" initial={false}>
-						{options.map((o) => {
-							const active = o.value === value;
-							return (
-								<motion.button
-									key={o.value}
-									ref={(node: HTMLButtonElement | null) => {
-										btnRefs.current.set(o.value, node);
-									}}
-									layout
-									initial={{ opacity: 0 }}
-									animate={{ opacity: 1 }}
-									exit={{ opacity: 0 }}
-									transition={spring}
-									type="button"
-									aria-pressed={active}
-									onClick={() => onChange(o.value)}
-									// shrink-0 keeps chips at their natural width so they overflow into a
-									// horizontal scroll instead of squashing. py-2.5 on mobile nudges the bar
-									// closer to iOS tab-bar height; py-2 on desktop matches the Plot button.
-									// Active text is white over the thumb, but stays dark until the thumb is
-									// measured (avoids a white-on-white flash on first paint).
-									className={cn(
-										"relative z-10 shrink-0 whitespace-nowrap rounded-full px-4 py-2.5 text-center transition-colors sm:py-2",
-										active
-											? thumb
-												? "text-primary-foreground"
-												: "font-medium text-foreground"
-											: "text-muted-foreground hover:text-foreground",
-									)}
-								>
-									{o.label}
-								</motion.button>
-							);
-						})}
-					</AnimatePresence>
+					{options.map((o) => {
+						const active = o.value === value;
+						return (
+							<motion.button
+								key={o.value}
+								ref={(node: HTMLButtonElement | null) => {
+									btnRefs.current.set(o.value, node);
+								}}
+								layout
+								layoutDependency={optionsKey}
+								initial={{ opacity: 0 }}
+								animate={{ opacity: 1 }}
+								transition={spring}
+								type="button"
+								aria-pressed={active}
+								onClick={() => onChange(o.value)}
+								// shrink-0 keeps chips at their natural width so they overflow into a
+								// horizontal scroll instead of squashing. py-2.5 on mobile nudges the bar
+								// closer to iOS tab-bar height; py-2 on desktop matches the Plot button.
+								// Active text is white over the thumb, but stays dark until the thumb is
+								// measured (avoids a white-on-white flash on first paint).
+								className={cn(
+									"relative z-10 shrink-0 whitespace-nowrap rounded-full px-4 py-2.5 text-center transition-colors sm:py-2",
+									active
+										? thumb
+											? "text-primary-foreground"
+											: "font-medium text-foreground"
+										: "text-muted-foreground hover:text-foreground",
+								)}
+							>
+								{o.label}
+							</motion.button>
+						);
+					})}
 				</div>
 			</motion.div>
 		</div>
