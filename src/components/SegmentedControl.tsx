@@ -9,8 +9,9 @@ import { cn } from "#/lib/utils";
  *
  * It's rendered once, at the app root (see MetricBar), so it's a single persistent element across
  * navigations: when the option set changes (e.g. "Followers" only exists on the leaderboard) the
- * pill grows/shrinks and chips animate in and out via a real layout animation, rather than being
- * replaced. The thumb is positioned in content coordinates (active chip's offsetLeft/width) so it's
+ * pill's width morphs and the surviving chips reflow to their new positions via a layout animation,
+ * rather than the whole bar being replaced. The thumb is positioned in content coordinates (active
+ * chip's offsetLeft/width) so it's
  * unaffected by the horizontal scroll; the row scrolls when chips overflow, the selected chip
  * auto-centres, and gradient fades mark whichever edge still has hidden chips. Number keys 1–9 jump
  * to the Nth option (ignored while typing in inputs).
@@ -156,8 +157,7 @@ export function SegmentedControl<T extends string>({
 								}}
 								layout
 								layoutDependency={optionsKey}
-								initial={{ opacity: 0 }}
-								animate={{ opacity: 1 }}
+								initial={false}
 								transition={spring}
 								type="button"
 								aria-pressed={active}
