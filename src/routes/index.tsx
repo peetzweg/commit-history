@@ -11,6 +11,7 @@ import {
 	type LeaderMode,
 	type RecentEntry,
 } from "#/lib/commit-history";
+import { METRIC_LABEL } from "#/lib/metrics";
 
 // Leaderboard metrics that live in the URL as `?metric=…`. "public" (commits) is the default and
 // is omitted so the common case stays a clean, copy-pasteable URL.
@@ -375,8 +376,16 @@ function Leaderboard({ initialPage }: { initialPage: LeaderEntry[] }) {
 
 	return (
 		<section className="mt-14">
-			<SectionHeading>All-time leaderboard</SectionHeading>
-			<p className="mt-1 text-xs text-muted-foreground">{subtitle}</p>
+			{/* The selected metric sits in a green chip mirroring the bottom tab bar's active tab, so
+			    the heading itself shows what you're ranking. */}
+			<h2 className="flex flex-wrap items-center gap-x-2 gap-y-1 text-2xl font-bold tracking-tight">
+				All-time
+				<span className="rounded-full bg-primary px-3 py-0.5 text-lg font-semibold text-primary-foreground">
+					{METRIC_LABEL[mode]}
+				</span>
+				leaderboard
+			</h2>
+			<p className="mt-1.5 text-xs text-muted-foreground">{subtitle}</p>
 			<ol className="mt-4">
 				<AnimatePresence initial={false} mode="popLayout">
 					{rows.map((u, i) => (
