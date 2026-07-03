@@ -40,7 +40,7 @@ export const entities = pgTable("entities", {
 	websiteUrl: text("website_url"),
 	twitterUsername: text("twitter_username"),
 	lastFetched: timestamp("last_fetched", { withTimezone: true }), // staleness / trailing refresh; also "profile last updated"
-	builtAt: timestamp("built_at", { withTimezone: true }), // last full rebuild (catches backfills)
+	builtAt: timestamp("built_at", { withTimezone: true }), // initial build completed; null = months still being fetched incrementally
 	// Moderation: null = active. When set, the entity is hidden from the leaderboard and
 	// "recently looked up" (still directly viewable, with an under-review notice) until cleared.
 	suspendedAt: timestamp("suspended_at", { withTimezone: true }),
