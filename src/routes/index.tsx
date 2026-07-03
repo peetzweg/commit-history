@@ -11,7 +11,6 @@ import {
 	type LeaderMode,
 	type RecentEntry,
 } from "#/lib/commit-history";
-import { METRIC_LABEL } from "#/lib/metrics";
 
 // Leaderboard metrics that live in the URL as `?metric=…`. "public" (commits) is the default and
 // is omitted so the common case stays a clean, copy-pasteable URL.
@@ -272,6 +271,19 @@ function SelfPromoRow() {
 	);
 }
 
+// Singular label for the heading chip ("All-time Commit leaderboard") — reads better as a
+// noun-modifier than the plural tab-bar labels.
+const HEADING_LABEL: Record<LeaderMode, string> = {
+	public: "Commit",
+	prs: "PR",
+	issues: "Issue",
+	reviews: "Review",
+	repos: "Repo",
+	private: "Private",
+	total: "Total",
+	followers: "Follower",
+};
+
 const LB_VALUE: Record<LeaderMode, (u: LeaderEntry) => number> = {
 	public: (u) => u.totalCommits,
 	prs: (u) => u.totalPullRequests ?? 0,
@@ -381,7 +393,7 @@ function Leaderboard({ initialPage }: { initialPage: LeaderEntry[] }) {
 			<h2 className="flex flex-wrap items-center gap-x-2 gap-y-1 text-2xl font-bold tracking-tight">
 				All-time
 				<span className="rounded-full bg-primary px-3 py-0.5 text-lg font-semibold text-primary-foreground">
-					{METRIC_LABEL[mode]}
+					{HEADING_LABEL[mode]}
 				</span>
 				leaderboard
 			</h2>

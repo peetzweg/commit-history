@@ -199,6 +199,37 @@ async function queryRecent(limit: number): Promise<RecentEntry[]> {
 	}));
 }
 
+/**
+ * GitHub star count for this project, shown in the header. Fetched server-side (with the PAT when
+ * present, to dodge the low unauthenticated rate limit) and returns null on any failure so the
+ * header just omits the count rather than breaking.
+ */
+export const getRepoStars = createServerFn({ method: "GET" }).handler(
+	async (): Promise<number | null> => {
+		try {
+			const res = await fetch(
+				"https://api.github.com/repos/peetzweg/commit-history",
+				{
+					headers: {
+						Accept: "application/vnd.github+json",
+						"User-Agent": "commit-history.com",
+						...(process.env.GITHUB_TOKEN
+							? { Authorization: `Bearer ${process.env.GITHUB_TOKEN}` }
+							: {}),
+					},
+				},
+			);
+			if (!res.ok) return null;
+			const data = (await res.json()) as { stargazers_count?: number };
+			return typeof data.stargazers_count === "number"
+				? data.stargazers_count
+				: null;
+		} catch {
+			return null;
+		}
+	},
+);
+
 /** First-paint data for the start page: recent lookups + leaderboard page 1 (Both). */
 export const getStartPageData = createServerFn({ method: "GET" }).handler(
 	async (): Promise<StartPageData> => {
