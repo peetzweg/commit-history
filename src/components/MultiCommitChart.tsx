@@ -1,28 +1,15 @@
 import { useState } from "react";
+import { ChartAttribution } from "#/components/ChartAttribution";
 import { ChartLegend } from "#/components/ChartLegend";
 import { ChartTooltip } from "#/components/ChartTooltip";
-import type { ChartMode } from "#/components/CommitChart";
+import {
+	type ChartMode,
+	chartTitle,
+	cumulativeSeries,
+	metricDelta,
+} from "#/components/CommitChart";
 import type { CommitPoint } from "#/lib/github";
 import { useIsMobile } from "#/lib/useIsMobile";
-
-/** Cumulative value to plot for a point, per the public/private/both selection.
- *  "both" sums public commits and private contributions. */
-export function chartValue(p: CommitPoint, mode: ChartMode) {
-	return mode === "public"
-		? p.cumulative
-		: mode === "private"
-			? p.restrictedCumulative
-			: p.cumulative + p.restrictedCumulative;
-}
-
-/** Commits added in this point's own month (the non-cumulative delta), per selection. */
-export function chartDelta(p: CommitPoint, mode: ChartMode) {
-	return mode === "public"
-		? p.commits
-		: mode === "private"
-			? p.restricted
-			: p.commits + p.restricted;
-}
 
 // First color is star-history's brand green; the rest are a distinguishable palette.
 export const SERIES_COLORS = [
@@ -45,16 +32,18 @@ export interface ChartSeries {
 }
 
 // Fixed viewBox scaled to container width — see CommitChart for why the layout is responsive.
+// Layout mirrors CommitChart so the single- and multi-user charts read identically: a hand-drawn
+// title up top, year labels and the credit line stacked under the plot.
 const W = 880;
 const H = 420;
 
 const DESKTOP = {
-	pad: { top: 40, right: 24, bottom: 30, left: 60 },
-	font: { axis: 16, readout: 15, legend: 16 },
+	pad: { top: 48, right: 24, bottom: 54, left: 60 },
+	font: { title: 24, axis: 16, readout: 15, legend: 16, footer: 13 },
 };
 const MOBILE = {
-	pad: { top: 46, right: 16, bottom: 44, left: 88 },
-	font: { axis: 26, readout: 22, legend: 24 },
+	pad: { top: 56, right: 16, bottom: 72, left: 88 },
+	font: { title: 32, axis: 26, readout: 22, legend: 24, footer: 20 },
 };
 
 function compact(n: number) {
@@ -94,10 +83,13 @@ export function MultiCommitChart({
 	series,
 	mode,
 	chartMode = "public",
+	title = chartTitle(chartMode),
 }: {
 	series: ChartSeries[];
 	mode: TimelineMode;
 	chartMode?: ChartMode;
+	/** Hand-drawn heading; defaults to the metric's title (see chartTitle). */
+	title?: string;
 }) {
 	const [hover, setHover] = useState<{ frac: number; y: number } | null>(null);
 	const hoverFrac = hover?.frac ?? null;
@@ -109,10 +101,12 @@ export function MultiCommitChart({
 		return null;
 	}
 
-	const cval = (p: CommitPoint) => chartValue(p, chartMode);
-	const dcval = (p: CommitPoint) => chartDelta(p, chartMode);
+	// Cumulative series per line for the selected metric (indexed the same as `series`); the plotted
+	// value is the running total, the readout also shows the month's own delta.
+	const seriesCum = series.map((s) => cumulativeSeries(s.points, chartMode));
+	const dval = (p: CommitPoint) => metricDelta(p, chartMode);
 
-	const yMax = Math.max(1, ...series.flatMap((s) => s.points.map(cval)));
+	const yMax = Math.max(1, ...seriesCum.flat());
 	const y = (v: number) => PAD.top + innerH - (v / yMax) * innerH;
 	const baseline = PAD.top + innerH;
 
@@ -134,11 +128,11 @@ export function MultiCommitChart({
 
 	const single = series.length === 1;
 
-	function buildLine(s: ChartSeries) {
+	function buildLine(s: ChartSeries, si: number) {
 		return s.points
 			.map(
-				(p, i) =>
-					`${i === 0 ? "M" : "L"}${xOf(s, i).toFixed(1)},${y(cval(p)).toFixed(1)}`,
+				(_, i) =>
+					`${i === 0 ? "M" : "L"}${xOf(s, i).toFixed(1)},${y(seriesCum[si][i]).toFixed(1)}`,
 			)
 			.join(" ");
 	}
@@ -219,7 +213,7 @@ export function MultiCommitChart({
 		<svg
 			viewBox={`0 0 ${W} ${H}`}
 			role="img"
-			aria-label="Cumulative commits over time"
+			aria-label={`${title} over time`}
 			className="chart-sketch block h-auto w-full text-foreground"
 			onMouseMove={onMove}
 			onMouseLeave={() => setHover(null)}
@@ -254,6 +248,17 @@ export function MultiCommitChart({
 				</filter>
 			</defs>
 
+			{/* Title — hand-drawn, matching the single-user chart; reflects the metric on show */}
+			<text
+				x={PAD.left}
+				y={28}
+				fontSize={FONT.title}
+				fontWeight={400}
+				fill="currentColor"
+			>
+				{title}
+			</text>
+
 			{yTicks.map((v) => (
 				<g key={v}>
 					<line
@@ -281,7 +286,7 @@ export function MultiCommitChart({
 				<text
 					key={`${t.label}-${t.x.toFixed(0)}`}
 					x={t.x}
-					y={H - 10}
+					y={baseline + FONT.axis + 10}
 					textAnchor="middle"
 					fill="#6b7280"
 					fontSize={FONT.axis}
@@ -293,14 +298,14 @@ export function MultiCommitChart({
 			<g filter="url(#xkcdify)">
 				{single && (
 					<path
-						d={`${buildLine(series[0])} L${xOf(series[0], series[0].points.length - 1).toFixed(1)},${baseline} L${xOf(series[0], 0).toFixed(1)},${baseline} Z`}
+						d={`${buildLine(series[0], 0)} L${xOf(series[0], series[0].points.length - 1).toFixed(1)},${baseline} L${xOf(series[0], 0).toFixed(1)},${baseline} Z`}
 						fill="url(#fill0)"
 					/>
 				)}
-				{series.map((s) => (
+				{series.map((s, si) => (
 					<path
 						key={s.login}
-						d={buildLine(s)}
+						d={buildLine(s, si)}
 						fill="none"
 						stroke={s.color}
 						strokeWidth={2.5}
@@ -328,15 +333,14 @@ export function MultiCommitChart({
 						stroke="#9ca3af"
 						strokeWidth={1}
 					/>
-					{series.map((s) => {
+					{series.map((s, si) => {
 						const hp = hoverPoint(s);
 						if (!hp) return null;
-						const p = s.points[hp.i];
 						return (
 							<circle
 								key={s.login}
 								cx={xOf(s, hp.i)}
-								cy={y(cval(p))}
+								cy={y(seriesCum[si][hp.i])}
 								r={4}
 								fill={s.color}
 								stroke="#fff"
@@ -346,20 +350,20 @@ export function MultiCommitChart({
 					})}
 					{(() => {
 						const rows = series
-							.map((s) => {
+							.map((s, si) => {
 								const hp = hoverPoint(s);
 								if (!hp) return null;
-								const p = s.points[hp.i];
-								const delta = dcval(p);
+								const total = seriesCum[si][hp.i];
+								const delta = dval(s.points[hp.i]);
 								// Total, with the month's own additions in brackets behind it.
 								const value =
 									delta > 0
-										? `${cval(p).toLocaleString()} (+${delta.toLocaleString()})`
-										: cval(p).toLocaleString();
+										? `${total.toLocaleString()} (+${delta.toLocaleString()})`
+										: total.toLocaleString();
 								return { label: s.login, value, color: s.color };
 							})
 							.filter((r): r is NonNullable<typeof r> => r != null);
-						const title =
+						const readoutTitle =
 							mode === "date"
 								? hoverMonth != null
 									? monthLabelFromIndex(hoverMonth)
@@ -369,7 +373,7 @@ export function MultiCommitChart({
 									: "";
 						return (
 							<ChartTooltip
-								title={title}
+								title={readoutTitle}
 								rows={rows}
 								anchorX={hoverX}
 								anchorY={hover.y}
@@ -385,6 +389,8 @@ export function MultiCommitChart({
 					})()}
 				</g>
 			)}
+
+			<ChartAttribution x={W - PAD.right} y={H - 8} font={FONT.footer} />
 		</svg>
 	);
 }

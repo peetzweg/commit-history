@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ChartAttribution } from "#/components/ChartAttribution";
 import { ChartLegend } from "#/components/ChartLegend";
 import type { CommitPoint } from "#/lib/github";
 import { useIsMobile } from "#/lib/useIsMobile";
@@ -10,13 +11,15 @@ import { useIsMobile } from "#/lib/useIsMobile";
 const W = 880;
 const H = 420;
 
+// Bottom padding leaves two stacked rows under the plot: the x-axis year labels, then the
+// "commit-history.com" credit line at the very bottom (matching MultiCommitChart).
 const DESKTOP = {
-	pad: { top: 48, right: 24, bottom: 36, left: 60 },
-	font: { title: 24, axis: 16, readout: 16, legend: 16 },
+	pad: { top: 48, right: 24, bottom: 54, left: 60 },
+	font: { title: 24, axis: 16, readout: 16, legend: 16, footer: 13 },
 };
 const MOBILE = {
-	pad: { top: 56, right: 16, bottom: 50, left: 88 },
-	font: { title: 32, axis: 26, readout: 24, legend: 24 },
+	pad: { top: 56, right: 16, bottom: 72, left: 88 },
+	font: { title: 32, axis: 26, readout: 24, legend: 24, footer: 20 },
 };
 
 // star-history's brand green.
@@ -33,17 +36,114 @@ function monthLabel(date: string) {
 	});
 }
 
-export type ChartMode = "public" | "private" | "both";
+export type ChartMode =
+	| "public"
+	| "private"
+	| "total"
+	| "prs"
+	| "issues"
+	| "reviews"
+	| "repos";
+
+/** Hand-drawn graph heading for the metric on show — the one switch point for chart titles. */
+export function chartTitle(mode: ChartMode): string {
+	switch (mode) {
+		case "private":
+			return "Private Contributions";
+		case "total":
+			return "Total Contributions";
+		case "prs":
+			return "Pull Requests";
+		case "issues":
+			return "Issues";
+		case "reviews":
+			return "Reviews";
+		case "repos":
+			return "Repositories";
+		default:
+			return "Commit History";
+	}
+}
+
+/** The metric phrase for the "<phrase> attributed by GitHub since <date>" caption. */
+export function chartCaption(mode: ChartMode): string {
+	switch (mode) {
+		case "private":
+			return "Cumulative private contributions";
+		case "total":
+			return "Cumulative total contributions";
+		case "prs":
+			return "Cumulative public pull requests";
+		case "issues":
+			return "Cumulative public issues";
+		case "reviews":
+			return "Cumulative public pull-request reviews";
+		case "repos":
+			return "Cumulative public repositories";
+		default:
+			return "Cumulative public commits";
+	}
+}
+
+/**
+ * The month's raw count for the selected metric. "total" is every contribution type summed:
+ * public commits + issues + PRs + reviews + repos, plus the opaque private (restricted) count —
+ * all disjoint buckets, so nothing is double-counted.
+ */
+export function metricDelta(p: CommitPoint, mode: ChartMode): number {
+	switch (mode) {
+		case "public":
+			return p.commits;
+		case "private":
+			return p.restricted;
+		case "total":
+			return (
+				p.commits +
+				p.issues +
+				p.pullRequests +
+				p.reviews +
+				p.repos +
+				p.restricted
+			);
+		case "prs":
+			return p.pullRequests;
+		case "issues":
+			return p.issues;
+		case "reviews":
+			return p.reviews;
+		case "repos":
+			return p.repos;
+	}
+}
+
+/**
+ * Running cumulative series for the selected metric. For commits/private/both this reproduces the
+ * precomputed `cumulative`/`restrictedCumulative`; the other types have no stored cumulative, so we
+ * accumulate their per-month counts here.
+ */
+export function cumulativeSeries(
+	points: CommitPoint[],
+	mode: ChartMode,
+): number[] {
+	let sum = 0;
+	return points.map((p) => {
+		sum += metricDelta(p, mode);
+		return sum;
+	});
+}
 
 export function CommitChart({
 	points,
-	mode = "both",
+	mode = "public",
 	label,
+	title = chartTitle(mode),
 }: {
 	points: CommitPoint[];
 	mode?: ChartMode;
 	/** Username shown in the in-chart legend (omit to hide the legend). */
 	label?: string;
+	/** Hand-drawn heading; defaults to the metric's title (see chartTitle). */
+	title?: string;
 }) {
 	const [hover, setHover] = useState<number | null>(null);
 	const isMobile = useIsMobile();
@@ -52,23 +152,12 @@ export function CommitChart({
 	const innerH = H - PAD.top - PAD.bottom;
 	if (points.length === 0) return null;
 
-	// Cumulative value to plot, and the month's delta — per the selected mode.
-	// "both" is the per-month sum of public commits + private contributions.
-	const cval = (p: CommitPoint) =>
-		mode === "public"
-			? p.cumulative
-			: mode === "private"
-				? p.restrictedCumulative
-				: p.cumulative + p.restrictedCumulative;
-	const dval = (p: CommitPoint) =>
-		mode === "public"
-			? p.commits
-			: mode === "private"
-				? p.restricted
-				: p.commits + p.restricted;
+	// Cumulative value to plot (per point, by index) and the month's delta, for the selected metric.
+	const cum = cumulativeSeries(points, mode);
+	const dval = (p: CommitPoint) => metricDelta(p, mode);
 
 	const n = points.length;
-	const max = Math.max(...points.map(cval), 1);
+	const max = Math.max(...cum, 1);
 	const x = (i: number) =>
 		PAD.left + (n === 1 ? innerW / 2 : (i / (n - 1)) * innerW);
 	const y = (v: number) => PAD.top + innerH - (v / max) * innerH;
@@ -76,8 +165,8 @@ export function CommitChart({
 
 	const line = points
 		.map(
-			(p, i) =>
-				`${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(cval(p)).toFixed(1)}`,
+			(_, i) =>
+				`${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(cum[i]).toFixed(1)}`,
 		)
 		.join(" ");
 	const area = `${line} L${x(n - 1).toFixed(1)},${baseline} L${x(0).toFixed(1)},${baseline} Z`;
@@ -100,12 +189,13 @@ export function CommitChart({
 
 	const hp = hover != null ? points[hover] : null;
 	const hx = hover != null ? x(hover) : 0;
+	const hcum = hover != null ? cum[hover] : 0;
 
 	return (
 		<svg
 			viewBox={`0 0 ${W} ${H}`}
 			role="img"
-			aria-label="Cumulative commits over time"
+			aria-label={`${title} over time`}
 			className="chart-sketch block h-auto w-full text-foreground"
 			onMouseMove={onMove}
 			onMouseLeave={() => setHover(null)}
@@ -139,7 +229,7 @@ export function CommitChart({
 				</filter>
 			</defs>
 
-			{/* Title — hand-drawn, like "Star History" */}
+			{/* Title — hand-drawn, like "Star History"; reflects the metric on show */}
 			<text
 				x={PAD.left}
 				y={28}
@@ -147,7 +237,7 @@ export function CommitChart({
 				fontWeight={400}
 				fill="currentColor"
 			>
-				Commit History
+				{title}
 			</text>
 
 			{/* Y gridlines + labels */}
@@ -174,12 +264,12 @@ export function CommitChart({
 				</g>
 			))}
 
-			{/* X year labels */}
+			{/* X year labels — sit just below the plot, above the credit line */}
 			{xTicks.map((t) => (
 				<text
 					key={t.year}
 					x={x(t.i)}
-					y={H - 10}
+					y={baseline + FONT.axis + 10}
 					textAnchor="middle"
 					fill="#6b7280"
 					fontSize={FONT.axis}
@@ -203,7 +293,7 @@ export function CommitChart({
 						<circle
 							key={p.date}
 							cx={x(i)}
-							cy={y(cval(p))}
+							cy={y(cum[i])}
 							r={2.5}
 							fill={ACCENT}
 						/>
@@ -233,7 +323,7 @@ export function CommitChart({
 					/>
 					<circle
 						cx={hx}
-						cy={y(cval(hp))}
+						cy={y(hcum)}
 						r={4.5}
 						fill={ACCENT}
 						stroke="#fff"
@@ -246,11 +336,13 @@ export function CommitChart({
 						fill="currentColor"
 						fontSize={FONT.readout}
 					>
-						{monthLabel(hp.date)}: {cval(hp).toLocaleString()} total
+						{monthLabel(hp.date)}: {hcum.toLocaleString()} total
 						{dval(hp) ? ` (+${dval(hp)})` : ""}
 					</text>
 				</g>
 			)}
+
+			<ChartAttribution x={W - PAD.right} y={H - 8} font={FONT.footer} />
 		</svg>
 	);
 }

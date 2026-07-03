@@ -6,7 +6,12 @@ import {
 } from "@tanstack/react-router";
 import { motion } from "motion/react";
 import { useState } from "react";
-import { type ChartMode, CommitChart } from "#/components/CommitChart";
+import {
+	type ChartMode,
+	CommitChart,
+	chartCaption,
+	chartTitle,
+} from "#/components/CommitChart";
 import {
 	type ChartSeries,
 	MultiCommitChart,
@@ -19,8 +24,34 @@ import {
 	type UserResult,
 } from "#/lib/commit-history";
 import type { CommitPoint } from "#/lib/github";
+import { availableMetrics, METRIC_TOTAL } from "#/lib/metrics";
+
+// ── Chart metrics ─────────────────────────────────────────────────────────────
+
+// Metrics that live in the URL as `?metric=…`. "public" (commits) is the default and is
+// deliberately omitted so the common case keeps a clean URL — only a non-default pick is stored.
+const METRIC_PARAMS: readonly ChartMode[] = [
+	"prs",
+	"issues",
+	"reviews",
+	"repos",
+	"private",
+	"total",
+];
+
+function isMetricParam(v: unknown): v is ChartMode {
+	return typeof v === "string" && (METRIC_PARAMS as string[]).includes(v);
+}
+
+interface UserSearch {
+	/** Selected chart metric; absent = the default (commits). */
+	metric?: ChartMode;
+}
 
 export const Route = createFileRoute("/$user")({
+	// `?metric=` selects the chart contribution type; invalid/absent → default (commits).
+	validateSearch: (search: Record<string, unknown>): UserSearch =>
+		isMetricParam(search.metric) ? { metric: search.metric } : {},
 	loader: ({ params }) =>
 		getCommitHistories({ data: parseLogins(params.user) }),
 	head: ({ params }) => {
@@ -53,6 +84,25 @@ export const Route = createFileRoute("/$user")({
 	pendingComponent: PendingUser,
 	pendingMs: 150,
 });
+
+/**
+ * The chart metric, mirrored to `?metric=` so a view is shareable/linkable. The default (commits)
+ * is stored as an absent param to keep the URL clean; `replace` avoids spamming history on toggle.
+ */
+function useMetric(): [ChartMode, (m: ChartMode) => void] {
+	const { metric } = Route.useSearch();
+	const navigate = Route.useNavigate();
+	const setMetric = (m: ChartMode) =>
+		navigate({
+			search: (prev) => ({ ...prev, metric: m === "public" ? undefined : m }),
+			replace: true,
+			// It's the same page with a different series — don't scroll to top like a fresh load,
+			// and keep the live thumb animation instead of a view-transition morph of the bar.
+			resetScroll: false,
+			viewTransition: false,
+		});
+	return [metric ?? "public", setMetric];
+}
 
 // A generic rising curve, blurred behind the loading state — gives the page real shape while
 // the actual data streams in (instead of a shimmering skeleton).
@@ -155,9 +205,15 @@ function timeAgo(date: string) {
 /** Navigate to the route for a given set of logins (single = detailed view, many = comparison). */
 function useGoToLogins() {
 	const navigate = useNavigate();
+	// Keep the selected metric when adding/removing people so the compare view stays in the same view.
+	const { metric } = Route.useSearch();
 	return (logins: string[]) => {
 		if (logins.length > 0) {
-			navigate({ to: "/$user", params: { user: logins.join(",") } });
+			navigate({
+				to: "/$user",
+				params: { user: logins.join(",") },
+				search: { metric },
+			});
 		}
 	};
 }
@@ -357,9 +413,12 @@ function SingleView({
 	otherLogins: string[];
 }) {
 	// biome-ignore lint/style/noNonNullAssertion: ok results always have history
-	const { user, points, totalRestricted } = result.history!;
-	const hasPrivate = totalRestricted > 0;
-	const [mode, setMode] = useState<ChartMode>("both");
+	const history = result.history!;
+	const { user, points } = history;
+	const [requested] = useMetric();
+	const available = availableMetrics([history]);
+	// Fall back to commits if the requested metric isn't available for this user.
+	const effectiveMode = available.includes(requested) ? requested : "public";
 	const since = monthYear(user.createdAt);
 
 	return (
@@ -375,21 +434,16 @@ function SingleView({
 				transition={{ duration: 0.5 }}
 				className="-mx-4 mt-8 pt-5 pb-1.5 sm:mx-0 sm:rounded-xl sm:border sm:border-border sm:p-4"
 			>
-				<CommitChart
-					points={points}
-					mode={hasPrivate ? mode : "public"}
-					label={user.login}
-				/>
+				<CommitChart points={points} mode={effectiveMode} label={user.login} />
 			</motion.div>
 
-			<div className="mt-2 flex flex-wrap items-center gap-3 sm:mt-4 sm:justify-between">
-				<p className="w-full text-xs text-muted-foreground sm:w-auto">
-					Cumulative commits attributed by GitHub since {since}.
-				</p>
-				<div className="ml-auto flex flex-col-reverse items-end gap-3 sm:flex-row sm:items-center">
-					<AddUser currentLogins={otherLogins} label="Compare with…" />
-					{hasPrivate && <ChartModeToggle mode={mode} onChange={setMode} />}
-				</div>
+			{/* Caption sits on its own line so the chart + subtitle stay clean to screenshot; the
+			    Compare input drops to its own centered row below (desktop and mobile). */}
+			<p className="mt-2 text-xs text-muted-foreground sm:mt-4">
+				{chartCaption(effectiveMode)} attributed by GitHub since {since}.
+			</p>
+			<div className="mt-10 flex justify-center">
+				<AddUser currentLogins={otherLogins} label="Compare with…" />
 			</div>
 
 			<EmbedSnippet login={user.login} />
@@ -490,16 +544,16 @@ function ComparisonView({
 	allLogins: string[];
 }) {
 	const [mode, setMode] = useState<TimelineMode>("date");
-	const [chartMode, setChartMode] = useState<ChartMode>("both");
+	const [requested] = useMetric();
 	const go = useGoToLogins();
 
-	// Show the public/private/both toggle only when at least one developer exposes
-	// private contributions — otherwise "private"/"both" would be identical to "public".
-	const anyPrivate = results.some(
-		// biome-ignore lint/style/noNonNullAssertion: ok results always have history
-		(r) => r.history!.totalRestricted > 0,
-	);
-	const effectiveChartMode = anyPrivate ? chartMode : "public";
+	// biome-ignore lint/style/noNonNullAssertion: ok results always have history
+	const histories = results.map((r) => r.history!);
+	// A metric is offered only when at least one developer has data for it.
+	const available = availableMetrics(histories);
+	const effectiveChartMode = available.includes(requested)
+		? requested
+		: "public";
 
 	const series: ChartSeries[] = results.map((r, i) => ({
 		login: r.login,
@@ -508,16 +562,10 @@ function ComparisonView({
 		points: r.history!.points,
 	}));
 
-	// Legend total reflects the selected mode so the numbers match the lines.
+	// Legend total reflects the selected metric so the numbers match the lines.
 	const legendTotal = (r: UserResult) =>
-		effectiveChartMode === "public"
-			? // biome-ignore lint/style/noNonNullAssertion: ok results always have history
-				r.history!.total
-			: effectiveChartMode === "private"
-				? // biome-ignore lint/style/noNonNullAssertion: ok results always have history
-					r.history!.totalRestricted
-				: // biome-ignore lint/style/noNonNullAssertion: ok results always have history
-					r.history!.total + r.history!.totalRestricted;
+		// biome-ignore lint/style/noNonNullAssertion: ok results always have history
+		METRIC_TOTAL[effectiveChartMode](r.history!);
 
 	function removeLogin(login: string) {
 		go(allLogins.filter((l) => l !== login));
@@ -525,12 +573,15 @@ function ComparisonView({
 
 	return (
 		<>
-			<header className="mt-6">
-				<h1 className="text-2xl font-bold">Commit History</h1>
-				<p className="text-sm text-muted-foreground">
-					Comparing {series.length} developers
-				</p>
-			</header>
+			{/* The graph heading is drawn inside the chart SVG (hand-drawn, dynamic), matching the
+			    single-user view. The SVG title isn't a real heading, so keep an sr-only <h1> for
+			    SEO/screen readers; the visible caption stays below. */}
+			<h1 className="sr-only">
+				{chartTitle(effectiveChartMode)} — comparing {series.length} developers
+			</h1>
+			<p className="mt-6 text-sm text-muted-foreground">
+				Comparing {series.length} developers
+			</p>
 
 			<motion.div
 				initial={{ opacity: 0, filter: "blur(8px)" }}
@@ -545,8 +596,11 @@ function ComparisonView({
 				/>
 			</motion.div>
 
+			<p className="mt-2 text-xs text-muted-foreground sm:mt-4">
+				{chartCaption(effectiveChartMode)}.
+			</p>
 			{mode === "aligned" && (
-				<p className="mt-3 text-xs text-muted-foreground">
+				<p className="mt-1 text-xs text-muted-foreground">
 					Aligned: each line starts at its account’s first month, so you compare
 					trajectories regardless of when each person joined GitHub.
 				</p>
@@ -587,12 +641,7 @@ function ComparisonView({
 				))}
 				<div className="ml-auto flex flex-col-reverse items-end gap-3 sm:flex-row sm:items-center">
 					<AddUser currentLogins={allLogins} label="Add user…" />
-					<div className="flex flex-wrap items-center justify-end gap-2">
-						{anyPrivate && (
-							<ChartModeToggle mode={chartMode} onChange={setChartMode} />
-						)}
-						<TimelineToggle mode={mode} onChange={setMode} />
-					</div>
+					<TimelineToggle mode={mode} onChange={setMode} />
 				</div>
 			</div>
 
@@ -643,39 +692,6 @@ function TimelineToggle({
 	);
 }
 
-const MODE_LABELS: Record<ChartMode, string> = {
-	public: "Public",
-	private: "Private",
-	both: "Both",
-};
-
-function ChartModeToggle({
-	mode,
-	onChange,
-}: {
-	mode: ChartMode;
-	onChange: (m: ChartMode) => void;
-}) {
-	return (
-		<div className="inline-flex overflow-hidden rounded-md border text-sm">
-			{(["public", "private", "both"] as const).map((m) => (
-				<button
-					key={m}
-					type="button"
-					onClick={() => onChange(m)}
-					className={
-						mode === m
-							? "bg-foreground px-3 leading-9 text-background"
-							: "px-3 leading-9 text-muted-foreground hover:bg-muted"
-					}
-				>
-					{MODE_LABELS[m]}
-				</button>
-			))}
-		</div>
-	);
-}
-
 function AddUser({
 	currentLogins,
 	label,
@@ -702,7 +718,10 @@ function AddUser({
 				onChange={(e) => setValue(e.target.value)}
 				placeholder={label}
 				aria-label={label}
-				className="w-44 rounded-md border bg-transparent px-3 text-sm shadow-inner outline-none focus:shadow-[0_0_0_0.125em_var(--ring)]"
+				// h-9 keeps the input and the Add button (btn-secondary, leading-9) the same height as
+				// the metric pill below, so the compare row lines up cleanly. See follow-up issue on
+				// harmonising control heights site-wide.
+				className="h-9 w-44 rounded-md border bg-transparent px-3 text-sm shadow-inner outline-none focus:shadow-[0_0_0_0.125em_var(--ring)]"
 			/>
 			<button type="submit" className="btn-secondary shrink-0">
 				Add

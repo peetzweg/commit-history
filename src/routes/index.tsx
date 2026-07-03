@@ -11,8 +11,33 @@ import {
 	type LeaderMode,
 	type RecentEntry,
 } from "#/lib/commit-history";
+import { cn } from "#/lib/utils";
+
+// Leaderboard metrics that live in the URL as `?metric=…`. "public" (commits) is the default and
+// is omitted so the common case stays a clean, copy-pasteable URL.
+const LB_METRIC_PARAMS: readonly LeaderMode[] = [
+	"prs",
+	"issues",
+	"reviews",
+	"repos",
+	"private",
+	"total",
+	"followers",
+];
+
+function isLeaderMetricParam(v: unknown): v is LeaderMode {
+	return typeof v === "string" && (LB_METRIC_PARAMS as string[]).includes(v);
+}
+
+interface HomeSearch {
+	/** Selected leaderboard metric; absent = the default (commits). */
+	metric?: LeaderMode;
+}
 
 export const Route = createFileRoute("/")({
+	// `?metric=` selects the leaderboard type so a view can be shared; invalid/absent → commits.
+	validateSearch: (search: Record<string, unknown>): HomeSearch =>
+		isLeaderMetricParam(search.metric) ? { metric: search.metric } : {},
 	head: () => ({
 		links: [{ rel: "canonical", href: "https://commit-history.com/" }],
 	}),
@@ -44,7 +69,7 @@ function Home() {
 
 	return (
 		<main className="mx-auto max-w-2xl px-6 py-16">
-			<h1 className="text-center text-5xl font-bold tracking-tight">
+			<h1 className="text-center font-hand text-5xl sm:text-6xl">
 				Commit History
 			</h1>
 			<p className="mt-4 text-center text-lg text-muted-foreground">
@@ -92,7 +117,7 @@ function RecentSection({ recent }: { recent: RecentEntry[] }) {
 			<SectionHeading>Recently looked up</SectionHeading>
 			<div className="group/chips mt-4 flex flex-wrap gap-2">
 				<AnimatePresence initial={false} mode="popLayout">
-					{recent.map((u) => (
+					{recent.map((u, i) => (
 						<motion.div
 							key={u.login}
 							layout
@@ -102,7 +127,12 @@ function RecentSection({ recent }: { recent: RecentEntry[] }) {
 							transition={{ type: "spring", stiffness: 500, damping: 32 }}
 							// Lift the whole chip above its neighbours while its name is
 							// revealed, so the overflowing pill isn't painted under the next one.
-							className="relative desktop:has-[a:hover]:z-10 desktop:has-[a:focus-within]:z-10"
+							// Beyond the 8th chip we only show on desktop (sm+); phones keep the
+							// list to a tidy eight.
+							className={cn(
+								"relative desktop:has-[a:hover]:z-10 desktop:has-[a:focus-within]:z-10",
+								i >= 8 && "hidden sm:block",
+							)}
 						>
 							{/* Sizer holds the collapsed footprint so the row layout never
 							    reflows on hover (which would wrap the chip and cause a
@@ -169,18 +199,25 @@ function SponsorRow({ ref }: { ref?: React.Ref<HTMLLIElement> }) {
 				rel="sponsored nofollow noopener"
 				className="flex w-full items-center gap-3 py-2.5 text-left hover:bg-muted"
 			>
-				<span className="flex w-6 items-center justify-end text-[10px] uppercase tracking-wide text-muted-foreground">
+				{/* "Ad" gutter is dropped on mobile to give the title room (it reads cramped otherwise);
+				    "Sponsored" on the right keeps the disclosure. */}
+				<span className="hidden w-6 items-center justify-center text-[10px] uppercase tracking-wide text-muted-foreground sm:flex">
 					Ad
 				</span>
 				<img
 					src="https://rebates.ai/brand/rebates-bandit.svg"
 					alt="Rebates"
-					className="h-8 w-8 rounded-full border border-border object-cover"
+					className="h-8 w-8 shrink-0 rounded-full border border-border object-cover"
 				/>
-				<span className="flex-1 truncate font-medium">
-					Rebates - The ads in your terminal pay you
+				{/* Title + tagline on two lines in a lighter weight than the usernames, so the block
+				    matches the logo height and doesn't shout as loud as a real leaderboard entry. */}
+				<span className="min-w-0 flex-1">
+					<span className="block truncate">Rebates</span>
+					<span className="block truncate text-xs text-muted-foreground">
+						The ads in your terminal pay you
+					</span>
 				</span>
-				<span className="text-right text-xs text-muted-foreground">
+				<span className="shrink-0 text-right text-xs text-muted-foreground">
 					Sponsored
 				</span>
 			</a>
@@ -205,52 +242,96 @@ function SelfPromoRow({ ref }: { ref?: React.Ref<HTMLLIElement> }) {
 			transition={{ type: "spring", stiffness: 600, damping: 40 }}
 			className="border-border border-b border-dashed bg-muted/40"
 		>
-			<div className="flex w-full flex-wrap items-center gap-x-3 gap-y-2 py-2.5">
-				<span className="flex w-6 shrink-0 items-center justify-center text-base">
-					☕
-				</span>
+			{/* No flex-wrap so it stays one tidy row (it used to break over many lines on mobile). On
+			    desktop it mirrors a leaderboard entry — a blank rank slot + the author avatar in line
+			    with the others; on mobile both are dropped so the text starts at the row edge. The
+			    button is a compact Ko-fi mark + "Support". */}
+			<div className="flex w-full items-center gap-3 py-2.5">
+				{/* Empty rank slot (desktop only) so the avatar lines up with the ranked rows. */}
+				<span className="hidden w-6 shrink-0 sm:block" />
 				<img
 					src="https://github.com/peetzweg.png"
 					alt="peetzweg"
-					className="h-8 w-8 shrink-0 rounded-full border border-border"
+					className="hidden h-8 w-8 shrink-0 rounded-full border border-border sm:block"
 				/>
 				<p className="min-w-0 flex-1 text-sm text-muted-foreground">
-					Do you like this page?
-					<br />
-					Consider supporting me,{" "}
-					<a
-						href="https://github.com/peetzweg"
-						target="_blank"
-						rel="noopener"
+					Do you like this page? Consider supporting me,{" "}
+					<Link
+						to="/$user"
+						params={{ user: "peetzweg" }}
 						className="font-medium text-foreground hover:underline"
 					>
 						peetzweg
-					</a>
+					</Link>
 					.
 				</p>
 				<a
 					href="https://ko-fi.com/peetzweg"
 					target="_blank"
 					rel="noopener"
-					className="btn-secondary shrink-0 text-xs"
+					className="btn-secondary inline-flex shrink-0 items-center gap-1.5 text-xs"
 				>
-					Buy me a coffee →
+					<img src="/kofi-mark.webp" alt="" className="h-4 w-auto" />
+					Support
 				</a>
 			</div>
 		</motion.li>
 	);
 }
 
+// Singular label for the heading chip ("All-time Commit leaderboard") — reads better as a
+// noun-modifier than the plural tab-bar labels.
+const HEADING_LABEL: Record<LeaderMode, string> = {
+	public: "Commit",
+	prs: "PR",
+	issues: "Issue",
+	reviews: "Review",
+	repos: "Repo",
+	private: "Private",
+	total: "Total",
+	followers: "Follower",
+};
+
 const LB_VALUE: Record<LeaderMode, (u: LeaderEntry) => number> = {
 	public: (u) => u.totalCommits,
+	prs: (u) => u.totalPullRequests ?? 0,
+	issues: (u) => u.totalIssues ?? 0,
+	reviews: (u) => u.totalReviews ?? 0,
+	repos: (u) => u.totalRepos ?? 0,
 	private: (u) => u.totalRestricted,
-	both: (u) => u.totalCommits + u.totalRestricted,
+	// Every contribution type summed (null type totals coalesced to 0 until backfilled).
+	total: (u) =>
+		u.totalCommits +
+		(u.totalIssues ?? 0) +
+		(u.totalPullRequests ?? 0) +
+		(u.totalReviews ?? 0) +
+		(u.totalRepos ?? 0) +
+		u.totalRestricted,
 	followers: (u) => u.followers ?? 0,
 };
 
+/** Singular-ish unit shown under each row's number, per mode. */
+const LB_UNIT: Record<LeaderMode, string> = {
+	public: "commits",
+	prs: "pull requests",
+	issues: "issues",
+	reviews: "reviews",
+	repos: "repos",
+	private: "private",
+	total: "contributions",
+	followers: "followers",
+};
+
 function Leaderboard({ initialPage }: { initialPage: LeaderEntry[] }) {
-	const [mode, setMode] = useState<LeaderMode>("public");
+	// The leaderboard metric lives in `?metric=` (written by the shared MetricBar); we just read it
+	// here to rank the list. Commits is the default and stays param-free.
+	const { metric } = Route.useSearch();
+	const mode = metric ?? "public";
 	const value = LB_VALUE[mode];
+	// Carry the selected metric into the profile links so a click keeps the current view. Commits is
+	// the profile default (clean URL, no param), and followers has no chart, so both omit it.
+	const linkMetric =
+		mode === "public" || mode === "followers" ? undefined : mode;
 
 	const query = useInfiniteQuery({
 		queryKey: ["leaderboard", mode],
@@ -301,22 +382,30 @@ function Leaderboard({ initialPage }: { initialPage: LeaderEntry[] }) {
 		return () => io.disconnect();
 	}, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-	const subtitle =
-		mode === "public"
-			? "Public commits."
-			: mode === "private"
-				? "Private contributions (only users who expose them)."
-				: mode === "followers"
-					? "GitHub followers."
-					: "Total activity — public commits + private contributions.";
+	const subtitle = {
+		public: "Public commits.",
+		prs: "Public pull requests opened.",
+		issues: "Public issues opened.",
+		reviews: "Public pull-request reviews.",
+		repos: "Public repositories created.",
+		private: "Private contributions (only users who expose them).",
+		total:
+			"Every contribution type — commits, PRs, issues, reviews, repos, plus private.",
+		followers: "GitHub followers.",
+	}[mode];
 
 	return (
 		<section className="mt-14">
-			<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-				<SectionHeading>All-time leaderboard</SectionHeading>
-				<LeaderToggle mode={mode} onChange={setMode} />
-			</div>
-			<p className="mt-1 text-xs text-muted-foreground">{subtitle}</p>
+			{/* The selected metric is called out in the hand-drawn font and brand green, right inside
+			    the heading, so the title itself shows what you're ranking. */}
+			<h2 className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-2xl font-bold tracking-tight">
+				All-time
+				<span className="font-hand font-normal text-3xl text-primary leading-none">
+					{HEADING_LABEL[mode]}
+				</span>
+				leaderboard
+			</h2>
+			<p className="mt-1.5 text-xs text-muted-foreground">{subtitle}</p>
 			<ol className="mt-4">
 				<AnimatePresence initial={false} mode="popLayout">
 					{/* Flattened into one keyed list rather than Fragment-wrapped pairs: popLayout
@@ -336,10 +425,11 @@ function Leaderboard({ initialPage }: { initialPage: LeaderEntry[] }) {
 								<Link
 									to="/$user"
 									params={{ user: u.login }}
+									search={{ metric: linkMetric }}
 									preload={false}
 									className="group flex w-full items-center gap-3 py-2.5 text-left hover:bg-muted"
 								>
-									<span className="flex w-6 items-center justify-end text-sm tabular-nums text-muted-foreground">
+									<span className="flex w-6 items-center justify-center text-sm tabular-nums text-muted-foreground">
 										{i === 0 ? (
 											<img
 												src="/crown.svg"
@@ -358,7 +448,7 @@ function Leaderboard({ initialPage }: { initialPage: LeaderEntry[] }) {
 									<span className="flex-1 truncate font-medium">
 										{u.login}
 										{u.name && (
-											<span className="ml-2 font-normal text-muted-foreground opacity-0 transition-opacity duration-200 desktop:group-hover:opacity-100 desktop:group-focus-within:opacity-100">
+											<span className="ml-2 hidden font-normal text-muted-foreground opacity-0 transition-opacity duration-200 sm:inline desktop:group-hover:opacity-100 desktop:group-focus-within:opacity-100">
 												{u.name}
 											</span>
 										)}
@@ -368,15 +458,7 @@ function Leaderboard({ initialPage }: { initialPage: LeaderEntry[] }) {
 											{value(u).toLocaleString()}
 										</span>
 										<span className="block text-xs text-muted-foreground tabular-nums">
-											{mode === "private"
-												? "private"
-												: mode === "public"
-													? "commits"
-													: mode === "followers"
-														? "followers"
-														: u.totalRestricted > 0
-															? `${u.totalCommits.toLocaleString()} commits · ${u.totalRestricted.toLocaleString()} private`
-															: `${u.totalCommits.toLocaleString()} commits`}
+											{LB_UNIT[mode]}
 										</span>
 									</span>
 								</Link>
@@ -407,39 +489,5 @@ function Leaderboard({ initialPage }: { initialPage: LeaderEntry[] }) {
 				</p>
 			)}
 		</section>
-	);
-}
-
-const LB_LABELS: Record<LeaderMode, string> = {
-	public: "Public",
-	private: "Private",
-	both: "Both",
-	followers: "Followers",
-};
-
-function LeaderToggle({
-	mode,
-	onChange,
-}: {
-	mode: LeaderMode;
-	onChange: (m: LeaderMode) => void;
-}) {
-	return (
-		<div className="flex w-full overflow-hidden rounded-md border text-xs sm:inline-flex sm:w-auto">
-			{(["public", "private", "both", "followers"] as const).map((m) => (
-				<button
-					key={m}
-					type="button"
-					onClick={() => onChange(m)}
-					className={
-						mode === m
-							? "flex-1 bg-foreground px-3 py-1.5 text-background sm:flex-none"
-							: "flex-1 px-3 py-1.5 text-muted-foreground hover:bg-muted sm:flex-none"
-					}
-				>
-					{LB_LABELS[m]}
-				</button>
-			))}
-		</div>
 	);
 }
