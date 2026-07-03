@@ -105,7 +105,8 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 			<head>
 				<HeadContent />
 			</head>
-			<body>
+			{/* pb clears the floating metric tab bar (fixed at bottom-4) so it never hides page content. */}
+			<body className="pb-28">
 				<Header />
 				{children}
 				<TanStackDevtools

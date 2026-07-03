@@ -69,7 +69,7 @@ function Home() {
 
 	return (
 		<main className="mx-auto max-w-2xl px-6 py-16">
-			<h1 className="text-center text-5xl font-bold tracking-tight">
+			<h1 className="text-center text-4xl font-bold tracking-tight sm:text-5xl">
 				Commit History
 			</h1>
 			<p className="mt-4 text-center text-lg text-muted-foreground">
@@ -305,6 +305,9 @@ function Leaderboard({ initialPage }: { initialPage: LeaderEntry[] }) {
 			search: { metric: m === "public" ? undefined : m },
 			replace: true,
 			resetScroll: false,
+			// Same page, just a different metric — keep the live thumb animation instead of a
+			// view-transition morph (which would double-animate the thumb).
+			viewTransition: false,
 		});
 	const value = LB_VALUE[mode];
 	// Carry the selected metric into the profile links so a click keeps the current view. Commits is
@@ -376,7 +379,6 @@ function Leaderboard({ initialPage }: { initialPage: LeaderEntry[] }) {
 	return (
 		<section className="mt-14">
 			<SegmentedControl
-				className="mb-4"
 				options={LB_MODES.map((m) => ({ value: m, label: LB_LABELS[m] }))}
 				value={mode}
 				onChange={setMode}

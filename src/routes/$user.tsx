@@ -79,6 +79,19 @@ function metricOptions(available: ChartMode[]) {
 	return available.map((m) => ({ value: m, label: METRIC_LABEL[m] }));
 }
 
+// Full metric set shown by the floating bar while a not-yet-cached profile loads. We don't know the
+// real availability until the data arrives, so we show everything (and it narrows on load). Keeps
+// the bar a constant fixture across the loading state instead of vanishing and popping back in.
+const ALL_METRICS: ChartMode[] = [
+	"public",
+	"prs",
+	"issues",
+	"reviews",
+	"repos",
+	"private",
+	"total",
+];
+
 // Metrics that live in the URL as `?metric=…`. "public" (commits) is the default and is
 // deliberately omitted so the common case keeps a clean URL — only a non-default pick is stored.
 const METRIC_PARAMS: readonly ChartMode[] = [
@@ -147,8 +160,10 @@ function useMetric(): [ChartMode, (m: ChartMode) => void] {
 		navigate({
 			search: (prev) => ({ ...prev, metric: m === "public" ? undefined : m }),
 			replace: true,
-			// It's the same page with a different series — don't scroll to top like a fresh load.
+			// It's the same page with a different series — don't scroll to top like a fresh load,
+			// and keep the live thumb animation instead of a view-transition morph of the bar.
 			resetScroll: false,
+			viewTransition: false,
 		});
 	return [metric ?? "public", setMetric];
 }
@@ -181,6 +196,7 @@ const GENERIC_POINTS: CommitPoint[] = (() => {
 function PendingUser() {
 	const { user } = Route.useParams();
 	const login = user.split(",")[0];
+	const [metric, setMetric] = useMetric();
 	const labels = [
 		"Public rank",
 		"Public commits",
@@ -224,6 +240,15 @@ function PendingUser() {
 					<CommitChart points={GENERIC_POINTS} mode="public" />
 				</div>
 			</div>
+
+			{/* Keep the floating metric bar present while the profile loads — it morphs in from the
+			    previous page and stays put, then narrows to the real metric set once data arrives,
+			    instead of vanishing and popping back in. */}
+			<SegmentedControl
+				options={metricOptions(ALL_METRICS)}
+				value={metric}
+				onChange={setMetric}
+			/>
 		</main>
 	);
 }
@@ -486,16 +511,17 @@ function SingleView({
 				<CommitChart points={points} mode={effectiveMode} label={user.login} />
 			</motion.div>
 
-			<div className="mt-2 flex flex-wrap items-center gap-3 sm:mt-4 sm:justify-between">
-				<p className="w-full text-xs text-muted-foreground sm:w-auto">
-					{chartCaption(effectiveMode)} attributed by GitHub since {since}.
-				</p>
+			{/* Caption sits on its own line so the chart + subtitle stay clean to screenshot; the
+			    Compare input drops to its own centered row below (desktop and mobile). */}
+			<p className="mt-2 text-xs text-muted-foreground sm:mt-4">
+				{chartCaption(effectiveMode)} attributed by GitHub since {since}.
+			</p>
+			<div className="mt-10 flex justify-center">
 				<AddUser currentLogins={otherLogins} label="Compare with…" />
 			</div>
 
 			{available.length > 1 && (
 				<SegmentedControl
-					className="mt-3"
 					options={metricOptions(available)}
 					value={effectiveMode}
 					onChange={setMode}
@@ -664,7 +690,6 @@ function ComparisonView({
 
 			{available.length > 1 && (
 				<SegmentedControl
-					className="mt-3"
 					options={metricOptions(available)}
 					value={effectiveChartMode}
 					onChange={setChartMode}
@@ -783,7 +808,10 @@ function AddUser({
 				onChange={(e) => setValue(e.target.value)}
 				placeholder={label}
 				aria-label={label}
-				className="w-44 rounded-md border bg-transparent px-3 text-sm shadow-inner outline-none focus:shadow-[0_0_0_0.125em_var(--ring)]"
+				// h-9 keeps the input and the Add button (btn-secondary, leading-9) the same height as
+				// the metric pill below, so the compare row lines up cleanly. See follow-up issue on
+				// harmonising control heights site-wide.
+				className="h-9 w-44 rounded-md border bg-transparent px-3 text-sm shadow-inner outline-none focus:shadow-[0_0_0_0.125em_var(--ring)]"
 			/>
 			<button type="submit" className="btn-secondary shrink-0">
 				Add
