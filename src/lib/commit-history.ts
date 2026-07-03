@@ -39,18 +39,26 @@ function serverToken(): string {
 }
 
 export const getCommitHistory = createServerFn({ method: "GET" })
-	.validator((login: string) => login)
+	// Coerce non-strings instead of trusting the wire type: a crafted payload would otherwise
+	// crash on .trim()/.toLowerCase() further down. An empty string fails login validation with
+	// a clean 400 in the fetch layer.
+	.validator((login: string) => (typeof login === "string" ? login : ""))
 	.handler(async ({ data: login }): Promise<CommitHistory> => {
 		return getCachedCommitHistory(login, serverToken());
 	});
 
 const MAX_USERS = 8;
 
-/** Parse a comma-separated `$user` param into a clean, deduped, capped login list. */
-export function parseLogins(raw: string): string[] {
+/**
+ * Normalize a login list: strings only, trimmed, deduped case-insensitively, capped at
+ * MAX_USERS. Shared by the URL parser and the RPC validator so the server-side cap can
+ * never drift from what the UI builds.
+ */
+function normalizeLogins(parts: readonly unknown[]): string[] {
 	const seen = new Set<string>();
 	const logins: string[] = [];
-	for (const part of decodeURIComponent(raw).split(",")) {
+	for (const part of parts) {
+		if (typeof part !== "string") continue;
 		const login = part.trim();
 		const key = login.toLowerCase();
 		if (login && !seen.has(key)) {
@@ -59,6 +67,11 @@ export function parseLogins(raw: string): string[] {
 		}
 	}
 	return logins.slice(0, MAX_USERS);
+}
+
+/** Parse a comma-separated `$user` param into a clean, deduped, capped login list. */
+export function parseLogins(raw: string): string[] {
+	return normalizeLogins(decodeURIComponent(raw).split(","));
 }
 
 export interface UserResult {
@@ -293,7 +306,13 @@ async function publicRankFor(publicCommits: number): Promise<number | null> {
  * username doesn't sink the whole comparison.
  */
 export const getCommitHistories = createServerFn({ method: "GET" })
-	.validator((logins: string[]) => logins)
+	// The client normally sends the loader's already-parsed list, but the RPC endpoint is public:
+	// without re-normalizing here, a hand-crafted request with hundreds of logins fans out that
+	// many GitHub fetches on the shared token (secondary-rate-limit → token poisoned for every
+	// visitor). Never trust the array to be small, deduped, or even strings.
+	.validator((logins: string[]) =>
+		normalizeLogins(Array.isArray(logins) ? logins : []),
+	)
 	.handler(async ({ data: logins }): Promise<UserResult[]> => {
 		const token = serverToken();
 		// allSettled (not all): one user's failed GitHub fetch must not reject the whole batch and
