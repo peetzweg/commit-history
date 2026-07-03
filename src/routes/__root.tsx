@@ -7,6 +7,7 @@ import {
 } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { Header } from "../components/Header";
+import { MetricBar } from "../components/MetricBar";
 import TanStackQueryDevtools from "../integrations/tanstack-query/devtools";
 import appCss from "../styles.css?url";
 
@@ -109,6 +110,9 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 			<body className="pb-28">
 				<Header />
 				{children}
+				{/* One persistent bar for the whole app: it morphs (grows/shrinks) across navigations
+				    rather than remounting per route. */}
+				<MetricBar />
 				<TanStackDevtools
 					config={{
 						position: "bottom-right",

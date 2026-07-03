@@ -2,7 +2,6 @@ import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "motion/react";
 import { Fragment, useEffect, useRef, useState } from "react";
-import { SegmentedControl } from "#/components/SegmentedControl";
 import {
 	getLeaderboard,
 	getRecentLookups,
@@ -193,18 +192,25 @@ function SponsorRow() {
 				rel="sponsored nofollow noopener"
 				className="flex w-full items-center gap-3 py-2.5 text-left hover:bg-muted"
 			>
-				<span className="flex w-6 items-center justify-end text-[10px] uppercase tracking-wide text-muted-foreground">
+				{/* "Ad" gutter is dropped on mobile to give the title room (it reads cramped otherwise);
+				    "Sponsored" on the right keeps the disclosure. */}
+				<span className="hidden w-6 items-center justify-center text-[10px] uppercase tracking-wide text-muted-foreground sm:flex">
 					Ad
 				</span>
 				<img
 					src="https://rebates.ai/brand/rebates-bandit.svg"
 					alt="Rebates"
-					className="h-8 w-8 rounded-full border border-border object-cover"
+					className="h-8 w-8 shrink-0 rounded-full border border-border object-cover"
 				/>
-				<span className="flex-1 truncate font-medium">
-					Rebates - The ads in your terminal pay you
+				{/* Title + tagline on two lines in a lighter weight than the usernames, so the block
+				    matches the logo height and doesn't shout as loud as a real leaderboard entry. */}
+				<span className="min-w-0 flex-1">
+					<span className="block truncate">Rebates</span>
+					<span className="block truncate text-xs text-muted-foreground">
+						The ads in your terminal pay you
+					</span>
 				</span>
-				<span className="text-right text-xs text-muted-foreground">
+				<span className="shrink-0 text-right text-xs text-muted-foreground">
 					Sponsored
 				</span>
 			</a>
@@ -228,36 +234,37 @@ function SelfPromoRow() {
 			transition={{ type: "spring", stiffness: 600, damping: 40 }}
 			className="border-border border-b border-dashed bg-muted/40"
 		>
-			<div className="flex w-full flex-wrap items-center gap-x-3 gap-y-2 py-2.5">
-				<span className="flex w-6 shrink-0 items-center justify-center text-base">
-					☕
-				</span>
+			{/* No flex-wrap so it stays one tidy row (it used to break over many lines on mobile). On
+			    desktop it mirrors a leaderboard entry — a blank rank slot + the author avatar in line
+			    with the others; on mobile both are dropped so the text starts at the row edge. The
+			    button is a compact Ko-fi mark + "Support". */}
+			<div className="flex w-full items-center gap-3 py-2.5">
+				{/* Empty rank slot (desktop only) so the avatar lines up with the ranked rows. */}
+				<span className="hidden w-6 shrink-0 sm:block" />
 				<img
 					src="https://github.com/peetzweg.png"
 					alt="peetzweg"
-					className="h-8 w-8 shrink-0 rounded-full border border-border"
+					className="hidden h-8 w-8 shrink-0 rounded-full border border-border sm:block"
 				/>
 				<p className="min-w-0 flex-1 text-sm text-muted-foreground">
-					Do you like this page?
-					<br />
-					Consider supporting me,{" "}
-					<a
-						href="https://github.com/peetzweg"
-						target="_blank"
-						rel="noopener"
+					Do you like this page? Consider supporting me,{" "}
+					<Link
+						to="/$user"
+						params={{ user: "peetzweg" }}
 						className="font-medium text-foreground hover:underline"
 					>
 						peetzweg
-					</a>
+					</Link>
 					.
 				</p>
 				<a
 					href="https://ko-fi.com/peetzweg"
 					target="_blank"
 					rel="noopener"
-					className="btn-secondary shrink-0 text-xs"
+					className="btn-secondary inline-flex shrink-0 items-center gap-1.5 text-xs"
 				>
-					Buy me a coffee →
+					<img src="/kofi-mark.webp" alt="" className="h-4 w-auto" />
+					Support
 				</a>
 			</div>
 		</motion.li>
@@ -295,20 +302,10 @@ const LB_UNIT: Record<LeaderMode, string> = {
 };
 
 function Leaderboard({ initialPage }: { initialPage: LeaderEntry[] }) {
-	// Mirror the selected metric to `?metric=` so the current view is copy-pasteable/shareable.
-	// Commits is the default and stays param-free; `replace`+no scroll keeps switching in place.
+	// The leaderboard metric lives in `?metric=` (written by the shared MetricBar); we just read it
+	// here to rank the list. Commits is the default and stays param-free.
 	const { metric } = Route.useSearch();
-	const navigate = Route.useNavigate();
 	const mode = metric ?? "public";
-	const setMode = (m: LeaderMode) =>
-		navigate({
-			search: { metric: m === "public" ? undefined : m },
-			replace: true,
-			resetScroll: false,
-			// Same page, just a different metric — keep the live thumb animation instead of a
-			// view-transition morph (which would double-animate the thumb).
-			viewTransition: false,
-		});
 	const value = LB_VALUE[mode];
 	// Carry the selected metric into the profile links so a click keeps the current view. Commits is
 	// the profile default (clean URL, no param), and followers has no chart, so both omit it.
@@ -378,11 +375,6 @@ function Leaderboard({ initialPage }: { initialPage: LeaderEntry[] }) {
 
 	return (
 		<section className="mt-14">
-			<SegmentedControl
-				options={LB_MODES.map((m) => ({ value: m, label: LB_LABELS[m] }))}
-				value={mode}
-				onChange={setMode}
-			/>
 			<SectionHeading>All-time leaderboard</SectionHeading>
 			<p className="mt-1 text-xs text-muted-foreground">{subtitle}</p>
 			<ol className="mt-4">
@@ -404,7 +396,7 @@ function Leaderboard({ initialPage }: { initialPage: LeaderEntry[] }) {
 									preload={false}
 									className="group flex w-full items-center gap-3 py-2.5 text-left hover:bg-muted"
 								>
-									<span className="flex w-6 items-center justify-end text-sm tabular-nums text-muted-foreground">
+									<span className="flex w-6 items-center justify-center text-sm tabular-nums text-muted-foreground">
 										{i === 0 ? (
 											<img
 												src="/crown.svg"
@@ -461,25 +453,3 @@ function Leaderboard({ initialPage }: { initialPage: LeaderEntry[] }) {
 		</section>
 	);
 }
-
-const LB_LABELS: Record<LeaderMode, string> = {
-	public: "Commits",
-	prs: "PRs",
-	issues: "Issues",
-	reviews: "Reviews",
-	repos: "Repos",
-	private: "Private",
-	total: "Total",
-	followers: "Followers",
-};
-
-const LB_MODES = [
-	"public",
-	"prs",
-	"issues",
-	"reviews",
-	"repos",
-	"private",
-	"total",
-	"followers",
-] as const;

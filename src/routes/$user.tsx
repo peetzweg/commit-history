@@ -18,79 +18,15 @@ import {
 	SERIES_COLORS,
 	type TimelineMode,
 } from "#/components/MultiCommitChart";
-import { SegmentedControl } from "#/components/SegmentedControl";
 import {
 	getCommitHistories,
 	parseLogins,
 	type UserResult,
 } from "#/lib/commit-history";
-import type { CommitHistory, CommitPoint } from "#/lib/github";
+import type { CommitPoint } from "#/lib/github";
+import { availableMetrics, METRIC_TOTAL } from "#/lib/metrics";
 
 // ── Chart metrics ─────────────────────────────────────────────────────────────
-
-const METRIC_LABEL: Record<ChartMode, string> = {
-	public: "Commits",
-	prs: "PRs",
-	issues: "Issues",
-	reviews: "Reviews",
-	repos: "Repos",
-	private: "Private",
-	total: "Total",
-};
-
-const METRIC_TOTAL: Record<ChartMode, (h: CommitHistory) => number> = {
-	public: (h) => h.total,
-	prs: (h) => h.totalPullRequests,
-	issues: (h) => h.totalIssues,
-	reviews: (h) => h.totalReviews,
-	repos: (h) => h.totalRepos,
-	private: (h) => h.totalRestricted,
-	// Every contribution type summed (disjoint buckets — no double-counting).
-	total: (h) =>
-		h.total +
-		h.totalIssues +
-		h.totalPullRequests +
-		h.totalReviews +
-		h.totalRepos +
-		h.totalRestricted,
-};
-
-/**
- * Which metrics are worth offering for these histories: commits always; each public type and
- * private only when at least one developer has any; and "total" only when there's something beyond
- * commits to add up (else it would just duplicate the commits line).
- */
-function availableMetrics(histories: CommitHistory[]): ChartMode[] {
-	const any = (m: ChartMode) => histories.some((h) => METRIC_TOTAL[m](h) > 0);
-	const list: ChartMode[] = ["public"];
-	for (const m of ["prs", "issues", "reviews", "repos"] as const)
-		if (any(m)) list.push(m);
-	if (any("private")) list.push("private");
-	if (
-		["prs", "issues", "reviews", "repos", "private"].some((m) =>
-			any(m as ChartMode),
-		)
-	)
-		list.push("total");
-	return list;
-}
-
-function metricOptions(available: ChartMode[]) {
-	return available.map((m) => ({ value: m, label: METRIC_LABEL[m] }));
-}
-
-// Full metric set shown by the floating bar while a not-yet-cached profile loads. We don't know the
-// real availability until the data arrives, so we show everything (and it narrows on load). Keeps
-// the bar a constant fixture across the loading state instead of vanishing and popping back in.
-const ALL_METRICS: ChartMode[] = [
-	"public",
-	"prs",
-	"issues",
-	"reviews",
-	"repos",
-	"private",
-	"total",
-];
 
 // Metrics that live in the URL as `?metric=…`. "public" (commits) is the default and is
 // deliberately omitted so the common case keeps a clean URL — only a non-default pick is stored.
@@ -196,7 +132,6 @@ const GENERIC_POINTS: CommitPoint[] = (() => {
 function PendingUser() {
 	const { user } = Route.useParams();
 	const login = user.split(",")[0];
-	const [metric, setMetric] = useMetric();
 	const labels = [
 		"Public rank",
 		"Public commits",
@@ -240,15 +175,6 @@ function PendingUser() {
 					<CommitChart points={GENERIC_POINTS} mode="public" />
 				</div>
 			</div>
-
-			{/* Keep the floating metric bar present while the profile loads — it morphs in from the
-			    previous page and stays put, then narrows to the real metric set once data arrives,
-			    instead of vanishing and popping back in. */}
-			<SegmentedControl
-				options={metricOptions(ALL_METRICS)}
-				value={metric}
-				onChange={setMetric}
-			/>
 		</main>
 	);
 }
@@ -489,7 +415,7 @@ function SingleView({
 	// biome-ignore lint/style/noNonNullAssertion: ok results always have history
 	const history = result.history!;
 	const { user, points } = history;
-	const [requested, setMode] = useMetric();
+	const [requested] = useMetric();
 	const available = availableMetrics([history]);
 	// Fall back to commits if the requested metric isn't available for this user.
 	const effectiveMode = available.includes(requested) ? requested : "public";
@@ -519,14 +445,6 @@ function SingleView({
 			<div className="mt-10 flex justify-center">
 				<AddUser currentLogins={otherLogins} label="Compare with…" />
 			</div>
-
-			{available.length > 1 && (
-				<SegmentedControl
-					options={metricOptions(available)}
-					value={effectiveMode}
-					onChange={setMode}
-				/>
-			)}
 
 			<EmbedSnippet login={user.login} />
 		</>
@@ -626,7 +544,7 @@ function ComparisonView({
 	allLogins: string[];
 }) {
 	const [mode, setMode] = useState<TimelineMode>("date");
-	const [requested, setChartMode] = useMetric();
+	const [requested] = useMetric();
 	const go = useGoToLogins();
 
 	// biome-ignore lint/style/noNonNullAssertion: ok results always have history
@@ -686,14 +604,6 @@ function ComparisonView({
 					Aligned: each line starts at its account’s first month, so you compare
 					trajectories regardless of when each person joined GitHub.
 				</p>
-			)}
-
-			{available.length > 1 && (
-				<SegmentedControl
-					options={metricOptions(available)}
-					value={effectiveChartMode}
-					onChange={setChartMode}
-				/>
 			)}
 
 			<div className="mt-6 flex flex-wrap items-center gap-3">

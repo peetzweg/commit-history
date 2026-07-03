@@ -10,12 +10,6 @@ export function getRouter() {
 		routeTree,
 		context,
 		scrollRestoration: true,
-		// Wrap page navigations in the View Transitions API so the floating metric bar (tagged with
-		// `view-transition-name: metric-bar`) morphs — shrinking/expanding — across routes instead of
-		// unmounting and re-entering. The page itself swaps instantly (the root transition is disabled
-		// in CSS); metric-only navigations opt out via `viewTransition: false` so the live thumb still
-		// animates. No-ops in browsers without the API.
-		defaultViewTransition: true,
 		defaultPreload: "intent",
 		// Commit histories change ~monthly, so treat loaded data as fresh for the
 		// whole session: revisiting a user (or a comparison) is instant, no refetch.
