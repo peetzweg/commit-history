@@ -415,7 +415,7 @@ function Leaderboard({ initialPage }: { initialPage: LeaderEntry[] }) {
 									<span className="flex-1 truncate font-medium">
 										{u.login}
 										{u.name && (
-											<span className="ml-2 font-normal text-muted-foreground opacity-0 transition-opacity duration-200 desktop:group-hover:opacity-100 desktop:group-focus-within:opacity-100">
+											<span className="ml-2 hidden font-normal text-muted-foreground opacity-0 transition-opacity duration-200 sm:inline desktop:group-hover:opacity-100 desktop:group-focus-within:opacity-100">
 												{u.name}
 											</span>
 										)}

@@ -135,7 +135,7 @@ export function SegmentedControl<T extends string>({
 					{thumb && (
 						<motion.div
 							aria-hidden
-							className="absolute top-1 bottom-1 left-0 z-0 rounded-full bg-foreground"
+							className="absolute top-1 bottom-1 left-0 z-0 rounded-full bg-primary"
 							initial={false}
 							animate={{ x: thumb.left, width: thumb.width }}
 							transition={spring}
@@ -167,7 +167,7 @@ export function SegmentedControl<T extends string>({
 										"relative z-10 shrink-0 whitespace-nowrap rounded-full px-4 py-2.5 text-center transition-colors sm:py-2",
 										active
 											? thumb
-												? "text-background"
+												? "text-primary-foreground"
 												: "font-medium text-foreground"
 											: "text-muted-foreground hover:text-foreground",
 									)}
