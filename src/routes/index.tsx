@@ -11,6 +11,7 @@ import {
 	type LeaderMode,
 	type RecentEntry,
 } from "#/lib/commit-history";
+import { cn } from "#/lib/utils";
 
 // Leaderboard metrics that live in the URL as `?metric=…`. "public" (commits) is the default and
 // is omitted so the common case stays a clean, copy-pasteable URL.
@@ -116,7 +117,7 @@ function RecentSection({ recent }: { recent: RecentEntry[] }) {
 			<SectionHeading>Recently looked up</SectionHeading>
 			<div className="group/chips mt-4 flex flex-wrap gap-2">
 				<AnimatePresence initial={false} mode="popLayout">
-					{recent.map((u) => (
+					{recent.map((u, i) => (
 						<motion.div
 							key={u.login}
 							layout
@@ -126,7 +127,12 @@ function RecentSection({ recent }: { recent: RecentEntry[] }) {
 							transition={{ type: "spring", stiffness: 500, damping: 32 }}
 							// Lift the whole chip above its neighbours while its name is
 							// revealed, so the overflowing pill isn't painted under the next one.
-							className="relative desktop:has-[a:hover]:z-10 desktop:has-[a:focus-within]:z-10"
+							// Beyond the 8th chip we only show on desktop (sm+); phones keep the
+							// list to a tidy eight.
+							className={cn(
+								"relative desktop:has-[a:hover]:z-10 desktop:has-[a:focus-within]:z-10",
+								i >= 8 && "hidden sm:block",
+							)}
 						>
 							{/* Sizer holds the collapsed footprint so the row layout never
 							    reflows on hover (which would wrap the chip and cause a
