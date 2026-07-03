@@ -33,17 +33,19 @@ const BATCH = 6;
 // `contributionsCollection` queries are slow, and firing a whole lifetime at once (old accounts
 // span a dozen-plus batches) makes GitHub time them out (502) AND trips its secondary-rate-limit /
 // abuse detector (403 with a multi-minute Retry-After) — which poisons the shared token for every
-// other visitor. So we cap the number of batches in flight and retry transient failures with
-// backoff instead of bursting. See MAX_BACKOFF_MS for why we don't fully honor long Retry-Afters.
+// other visitor. So we cap the number of batches in flight, retry transient 5xx with backoff, and
+// fail fast on rate limits instead of bursting (see RETRYABLE_STATUS).
 const CONCURRENCY = 3;
 const MAX_ATTEMPTS = 3;
-// Longest we'll block a single request while backing off. A long Retry-After (GitHub hands out
-// 60-300s once its abuse detector trips) is useless inside a serverless request that has ~seconds
-// to live, so we cap the wait and fail fast to a stale/error response rather than hang.
+// Longest we'll block a single request while backing off between 5xx retries — a serverless
+// request only has ~seconds to live, so we never wait longer than this.
 const MAX_BACKOFF_MS = 4000;
-// Statuses worth retrying: secondary-rate-limit (403), rate limit (429), and transient 5xx
-// (502 also covers GraphQL-level errors we map below, e.g. heavy-query timeouts).
-const RETRYABLE_STATUS = new Set([403, 429, 500, 502, 503, 504]);
+// Statuses worth retrying: transient 5xx only (502 also covers GraphQL-level errors we map below,
+// e.g. heavy-query timeouts). Rate limits (403 secondary/abuse, 429) are deliberately NOT retried:
+// GitHub hands out 60-300s Retry-Afters and documents that retrying before they elapse extends
+// the cooldown — inside a request that lives seconds, an early retry can only prolong the ban on
+// the shared token for every visitor. Fail fast and let the cache serve what it has.
+const RETRYABLE_STATUS = new Set([500, 502, 503, 504]);
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -238,13 +240,18 @@ async function graphqlOnce<T>(
 
 	const json = (await res.json()) as {
 		data?: T;
-		errors?: Array<{ message: string }>;
+		errors?: Array<{ message: string; type?: string }>;
 	};
 	if (json.errors?.length) {
 		const msg = json.errors.map((e) => e.message).join("; ");
 		// A missing user is a hard 404; anything else (incl. heavy-query timeouts) is a transient 502.
 		if (/could not resolve to a user/i.test(msg)) {
 			throw new GitHubError(msg, 404);
+		}
+		// The primary GraphQL rate limit arrives as HTTP 200 + RATE_LIMITED — map it to 429 so it
+		// fails fast like the HTTP-level rate limits instead of being retried as a transient 502.
+		if (json.errors.some((e) => e.type === "RATE_LIMITED")) {
+			return { error: new GitHubError(msg, 429), retryAfterMs: null };
 		}
 		return { error: new GitHubError(msg, 502), retryAfterMs: null };
 	}
