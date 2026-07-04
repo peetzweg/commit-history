@@ -13,7 +13,11 @@ import {
 import { getCommitHistory as getCachedCommitHistory } from "#/lib/cache";
 import { db } from "#/lib/db";
 import { entities, lookups } from "#/lib/db/schema";
-import { type CommitHistory, GitHubError } from "#/lib/github";
+import {
+	type BuildProgress,
+	type CommitHistory,
+	GitHubError,
+} from "#/lib/github";
 
 /**
  * Server function: resolves a username's lifetime commit history.
@@ -85,6 +89,9 @@ export interface UserResult {
 	// Position on the public-commits leaderboard (1 = most public commits), among active entities.
 	// Null when there's no DB; suppressed in the UI for suspended profiles (hidden from the board).
 	publicRank: number | null;
+	// Non-null while the initial server-side build is still in progress — each poll of the loader
+	// advances it. Mutually exclusive with `error`: a building result is progress, not a failure.
+	building: BuildProgress | null;
 }
 
 export interface LeaderEntry {
@@ -336,12 +343,24 @@ export const getCommitHistories = createServerFn({ method: "GET" })
 				const isSuspended = suspended.has(login.toLowerCase());
 				if (outcome.status === "rejected") {
 					const e = outcome.reason;
+					// The 503 "still building" rejection carries progress — surface it as `building`
+					// (with error null) so the client polls to continue instead of showing a failure
+					// card. This mapping runs server-side, in-process, so instanceof sees the raw reason.
+					const building =
+						e instanceof GitHubError && e.status === 503 && e.progress
+							? e.progress
+							: null;
 					return {
 						login,
 						history: null,
-						error: e instanceof Error ? e.message : "Failed to load",
+						error: building
+							? null
+							: e instanceof Error
+								? e.message
+								: "Failed to load",
 						suspended: isSuspended,
 						publicRank: null,
+						building,
 					};
 				}
 				const history = outcome.value;
@@ -353,6 +372,7 @@ export const getCommitHistories = createServerFn({ method: "GET" })
 					error: null,
 					suspended: isSuspended,
 					publicRank,
+					building: null,
 				};
 			}),
 		);

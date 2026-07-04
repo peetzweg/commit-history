@@ -5,7 +5,7 @@ import {
 	useRouter,
 } from "@tanstack/react-router";
 import { motion } from "motion/react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
 	type ChartMode,
 	CommitChart,
@@ -23,7 +23,7 @@ import {
 	parseLogins,
 	type UserResult,
 } from "#/lib/commit-history";
-import type { CommitPoint } from "#/lib/github";
+import type { BuildProgress, CommitPoint } from "#/lib/github";
 import { availableMetrics, METRIC_TOTAL } from "#/lib/metrics";
 
 // ── Chart metrics ─────────────────────────────────────────────────────────────
@@ -218,11 +218,193 @@ function useGoToLogins() {
 	};
 }
 
+// ── Build polling: keep an in-progress server-side build moving ───────────────
+
+const BUILD_POLL_MS = 3_000;
+const BUILD_POLL_TIMEOUT_MS = 5 * 60_000;
+// Consecutive polls with no monthsFetched growth before giving up. Each healthy poll fetches
+// a chunk or more, so this many stalls means something is genuinely stuck (quota, DB writes).
+const BUILD_MAX_STALLED_POLLS = 5;
+
+/**
+ * While any result is `building`, re-run this route's loader every few seconds — each run
+ * advances the build server-side (there are no background workers; requests ARE the worker).
+ * Polls chain off loaderData identity, so they never overlap: period ≈ loader time + delay.
+ * `router.invalidate` keeps the current view rendered (no pending flash) and keeps loaderData
+ * the single source of truth, which MetricBar reads directly.
+ */
+function useBuildPolling(results: UserResult[]) {
+	const router = useRouter();
+	const { user } = Route.useParams();
+	const [gaveUp, setGaveUp] = useState(false);
+	const startedAt = useRef<number | null>(null);
+	const lastFetched = useRef(-1);
+	const stalls = useRef(0);
+
+	const anyBuilding = results.some((r) => r.building);
+
+	// A different login set is a fresh polling session.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: reset exactly when the route param changes
+	useEffect(() => {
+		startedAt.current = null;
+		lastFetched.current = -1;
+		stalls.current = 0;
+		setGaveUp(false);
+	}, [user]);
+
+	useEffect(() => {
+		if (!anyBuilding || gaveUp) return;
+		startedAt.current ??= Date.now();
+		const fetched = results.reduce(
+			(sum, r) => sum + (r.building?.monthsFetched ?? 0),
+			0,
+		);
+		stalls.current = fetched > lastFetched.current ? 0 : stalls.current + 1;
+		lastFetched.current = fetched;
+		if (
+			Date.now() - startedAt.current > BUILD_POLL_TIMEOUT_MS ||
+			stalls.current >= BUILD_MAX_STALLED_POLLS
+		) {
+			setGaveUp(true);
+			return;
+		}
+		const t = setTimeout(() => {
+			router.invalidate({ filter: (m) => m.routeId === "/$user" });
+		}, BUILD_POLL_MS);
+		return () => clearTimeout(t);
+	}, [results, anyBuilding, gaveUp, router]);
+
+	const retry = () => {
+		startedAt.current = null;
+		lastFetched.current = -1;
+		stalls.current = 0;
+		setGaveUp(false);
+		router.invalidate({ filter: (m) => m.routeId === "/$user" });
+	};
+
+	return { gaveUp, retry };
+}
+
+function BuildProgressCard({
+	login,
+	progress,
+}: {
+	login: string;
+	progress: BuildProgress;
+}) {
+	const pct =
+		progress.monthsTotal > 0
+			? Math.min(
+					100,
+					Math.round((progress.monthsFetched / progress.monthsTotal) * 100),
+				)
+			: 0;
+	return (
+		<div className="rounded-xl border border-border p-4 text-left">
+			<p className="text-sm font-medium">Building {login}’s history…</p>
+			<div
+				className="mt-3 h-2 w-full overflow-hidden rounded-full bg-muted"
+				role="progressbar"
+				aria-valuenow={pct}
+				aria-valuemin={0}
+				aria-valuemax={100}
+				aria-label={`Fetching ${login}'s history`}
+			>
+				<div
+					className="h-full rounded-full bg-primary transition-[width] duration-700 ease-out"
+					style={{ width: `${pct}%` }}
+				/>
+			</div>
+			<p
+				className="mt-2 text-xs text-muted-foreground tabular-nums"
+				aria-live="polite"
+			>
+				{progress.monthsFetched.toLocaleString()} of{" "}
+				{progress.monthsTotal.toLocaleString()} months fetched
+			</p>
+			<p className="mt-1 text-xs text-muted-foreground">
+				Large accounts take a moment on first lookup — hang tight.
+			</p>
+		</div>
+	);
+}
+
+/** Full-page building state — mirrors PendingUser's shell so nothing jumps when data lands. */
+function BuildingView({
+	building,
+	failed,
+}: {
+	building: UserResult[];
+	failed: UserResult[];
+}) {
+	const primary = building[0];
+	return (
+		<main className="mx-auto max-w-4xl px-6 py-12">
+			<Link
+				to="/"
+				className="text-sm text-muted-foreground hover:text-foreground"
+			>
+				← commit-history
+			</Link>
+			<header className="mt-6 flex items-center gap-4">
+				<div className="h-14 w-14 rounded-full border border-border bg-muted" />
+				<div>
+					<h1 className="text-2xl font-bold">&nbsp;</h1>
+					<span className="text-sm text-muted-foreground">
+						@{primary.login}
+					</span>
+				</div>
+			</header>
+			<div className="mx-auto mt-8 grid w-full gap-3 sm:max-w-md">
+				{building.map(
+					(r) =>
+						r.building && (
+							<BuildProgressCard
+								key={r.login}
+								login={r.login}
+								progress={r.building}
+							/>
+						),
+				)}
+			</div>
+			<div className="-mx-4 mt-6 pt-5 pb-1.5 sm:mx-0 sm:rounded-xl sm:border sm:border-border sm:p-4">
+				<div className="pointer-events-none opacity-40 blur-[6px]">
+					<CommitChart points={GENERIC_POINTS} mode="public" />
+				</div>
+			</div>
+			{failed.length > 0 && (
+				<p className="mt-4 text-xs text-destructive">
+					Couldn’t load:{" "}
+					{failed.map((r) => `${r.login} (${r.error})`).join(", ")}
+				</p>
+			)}
+		</main>
+	);
+}
+
 function View() {
 	const results = Route.useLoaderData();
+	const { gaveUp, retry } = useBuildPolling(results);
 	const ok = results.filter((r) => r.history);
-	const failed = results.filter((r) => r.error);
+	const building = gaveUp ? [] : results.filter((r) => r.building);
+	// Once polling gives up, building entries degrade to failures with a retryable message.
+	const failed = results
+		.filter((r) => r.error || (gaveUp && r.building))
+		.map((r) =>
+			r.error
+				? r
+				: {
+						...r,
+						error:
+							"This build is taking longer than expected — hit Retry to continue it.",
+					},
+		);
 	const logins = results.map((r) => r.login);
+
+	// Nothing loaded yet but at least one build in flight → full-page building state.
+	if (ok.length === 0 && building.length > 0) {
+		return <BuildingView building={building} failed={failed} />;
+	}
 
 	if (ok.length === 0) {
 		return (
@@ -233,6 +415,11 @@ function View() {
 						<span className="font-medium">{r.login}</span>: {r.error}
 					</p>
 				))}
+				{gaveUp && (
+					<button type="button" onClick={retry} className="btn-primary mt-6">
+						Retry
+					</button>
+				)}
 				<div className="mt-6">
 					<Link
 						to="/"
@@ -258,10 +445,34 @@ function View() {
 			) : (
 				<ComparisonView results={ok} allLogins={logins} />
 			)}
+			{/* Compare view with someone still building → inline progress card(s). */}
+			{building.length > 0 && (
+				<div className="mx-auto mt-6 grid w-full gap-3 sm:max-w-md">
+					{building.map(
+						(r) =>
+							r.building && (
+								<BuildProgressCard
+									key={r.login}
+									login={r.login}
+									progress={r.building}
+								/>
+							),
+					)}
+				</div>
+			)}
 			{failed.length > 0 && (
 				<p className="mt-4 text-xs text-destructive">
 					Couldn’t load:{" "}
 					{failed.map((r) => `${r.login} (${r.error})`).join(", ")}
+					{gaveUp && (
+						<button
+							type="button"
+							onClick={retry}
+							className="ml-2 underline hover:text-foreground"
+						>
+							Retry
+						</button>
+					)}
 				</p>
 			)}
 		</main>

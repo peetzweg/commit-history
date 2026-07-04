@@ -160,10 +160,20 @@ export function sumContributionTypes(points: CommitPoint[]): {
 	);
 }
 
+/** How far along an incremental history build is (see cache.ts). */
+export interface BuildProgress {
+	/** Months already fetched & persisted (including the stored head). */
+	monthsFetched: number;
+	/** Total months in the account's lifetime window. */
+	monthsTotal: number;
+}
+
 export class GitHubError extends Error {
 	constructor(
 		message: string,
 		readonly status: number,
+		/** Set only on the 503 "still building" error, so callers can report progress. */
+		readonly progress?: BuildProgress,
 	) {
 		super(message);
 		this.name = "GitHubError";
