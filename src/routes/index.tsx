@@ -404,17 +404,24 @@ function Leaderboard({ initialPage }: { initialPage: LeaderEntry[] }) {
 
 	return (
 		<section className="mt-14">
-			{/* The selected metric is called out in the hand-drawn font and brand green, right inside
-			    the heading, so the title itself shows what you're ranking. */}
-			<h2 className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-2xl font-bold tracking-tight">
-				All-time
-				<span className="font-hand font-normal text-3xl text-primary leading-none">
-					{HEADING_LABEL[mode]}
-				</span>
-				leaderboard
-			</h2>
-			<p className="mt-1.5 text-xs text-muted-foreground">{subtitle}</p>
-			<ol className="mt-4">
+			{/* Sticky heading: pins to the top of the window while the list scrolls, so deep in the
+			    board you (and any screenshot) still see which metric is ranked. Solid background —
+			    no translucency/blur — so passing rows never bleed through a capture. z sits above
+			    the row hover/recent-chip layers (z-10) and below the floating metric bar (z-50).
+			    The bottom hairline doubles as the list's top border while rows slide under it. */}
+			<div className="sticky top-0 z-20 border-border border-b bg-background pt-3 pb-3">
+				{/* The selected metric is called out in the hand-drawn font and brand green, right inside
+				    the heading, so the title itself shows what you're ranking. */}
+				<h2 className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-2xl font-bold tracking-tight">
+					All-time
+					<span className="font-hand font-normal text-3xl text-primary leading-none">
+						{HEADING_LABEL[mode]}
+					</span>
+					leaderboard
+				</h2>
+				<p className="mt-1.5 text-xs text-muted-foreground">{subtitle}</p>
+			</div>
+			<ol>
 				<AnimatePresence initial={false} mode="popLayout">
 					{/* Flattened into one keyed list rather than Fragment-wrapped pairs: popLayout
 					    attaches a ref to each direct child to measure it, and a Fragment can't hold a
