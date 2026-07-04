@@ -273,10 +273,12 @@ async function getFromDb(
 		await persistEntity(database, id, history, now, !complete);
 	} else if (!complete) {
 		// Ran out of request budget mid-build. Progress is persisted; the next request resumes.
-		// An honest retry beats silently serving a truncated chart with wrong totals.
+		// An honest retry beats silently serving a truncated chart with wrong totals. The progress
+		// payload lets the client show a live "X of Y months" bar while it polls to continue.
 		throw new GitHubError(
 			`Still building ${profile.login}'s history (large account) — try again in a few seconds to continue.`,
 			503,
+			{ monthsFetched: points.length, monthsTotal: windows.length },
 		);
 	}
 	await recordLookup(database, id, now);
