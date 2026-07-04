@@ -355,7 +355,7 @@ function BuildingView({
 					</span>
 				</div>
 			</header>
-			<div className="mt-8 grid gap-3 sm:max-w-md">
+			<div className="mx-auto mt-8 grid w-full gap-3 sm:max-w-md">
 				{building.map(
 					(r) =>
 						r.building && (
@@ -447,7 +447,7 @@ function View() {
 			)}
 			{/* Compare view with someone still building → inline progress card(s). */}
 			{building.length > 0 && (
-				<div className="mt-6 grid gap-3 sm:max-w-md">
+				<div className="mx-auto mt-6 grid w-full gap-3 sm:max-w-md">
 					{building.map(
 						(r) =>
 							r.building && (
