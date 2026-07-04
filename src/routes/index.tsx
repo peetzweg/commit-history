@@ -387,7 +387,7 @@ function Leaderboard({ initialPage }: { initialPage: LeaderEntry[] }) {
 		prs: "Public pull requests opened.",
 		issues: "Public issues opened.",
 		reviews: "Public pull-request reviews.",
-		repos: "Public repositories created.",
+		repos: "Public repositories created — forks don’t count.",
 		private: "Private contributions (only users who expose them).",
 		total:
 			"Every contribution type — commits, PRs, issues, reviews, repos, plus private.",

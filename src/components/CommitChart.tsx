@@ -79,7 +79,9 @@ export function chartCaption(mode: ChartMode): string {
 		case "reviews":
 			return "Cumulative public pull-request reviews";
 		case "repos":
-			return "Cumulative public repositories";
+			// "created" + the forks note: GitHub only counts repositories the user created —
+			// forks are excluded, so this figure is lower than the profile's repository count.
+			return "Cumulative public repositories created (forks don’t count)";
 		default:
 			return "Cumulative public commits";
 	}
