@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import {
 	and,
+	asc,
 	desc,
 	eq,
 	gt,
@@ -158,6 +159,11 @@ async function queryLeaderboard(
 					sql`${entities.totalCommits} + coalesce(${entities.totalIssues}, 0) + coalesce(${entities.totalPullRequests}, 0) + coalesce(${entities.totalReviews}, 0) + coalesce(${entities.totalRepos}, 0) + ${entities.totalRestricted}`,
 				)
 			: sql`${rankCol} desc nulls last`;
+	// Deterministic tiebreaker. Without it, Postgres returns tied rows in arbitrary,
+	// query-to-query-different order — and since each scroll stop is a separate OFFSET query,
+	// a tie group straddling a page boundary gets shuffled between fetches: some users appear
+	// twice in the stitched list and others silently vanish from the board entirely.
+	const tiebreak = asc(entities.id);
 	const cols = {
 		login: entities.login,
 		name: entities.name,
@@ -187,7 +193,7 @@ async function queryLeaderboard(
 	const scoped = positive
 		? base.where(and(active, gt(positive, 0)))
 		: base.where(active);
-	return scoped.orderBy(order).limit(limit).offset(offset);
+	return scoped.orderBy(order, tiebreak).limit(limit).offset(offset);
 }
 
 async function queryRecent(limit: number): Promise<RecentEntry[]> {

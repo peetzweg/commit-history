@@ -362,7 +362,15 @@ function Leaderboard({ initialPage }: { initialPage: LeaderEntry[] }) {
 		// back shows new entries immediately) and on window focus, but never while idle.
 	});
 
-	const rows = query.data?.pages.flat() ?? [];
+	// Pages are separate OFFSET queries against a live table: if ranks shift between fetches
+	// (a freshly built user slots in mid-scroll), a login can land in two pages. Keep the first
+	// occurrence — duplicates would collide as React keys and hide a neighbouring row.
+	const seenLogins = new Set<string>();
+	const rows = (query.data?.pages.flat() ?? []).filter((r) => {
+		if (seenLogins.has(r.login)) return false;
+		seenLogins.add(r.login);
+		return true;
+	});
 
 	// Infinite scroll: load the next page when the sentinel nears the viewport.
 	const sentinel = useRef<HTMLDivElement>(null);
