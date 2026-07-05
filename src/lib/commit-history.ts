@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import {
 	and,
+	asc,
 	desc,
 	eq,
 	gt,
@@ -12,7 +13,11 @@ import {
 import { getCommitHistory as getCachedCommitHistory } from "#/lib/cache";
 import { db } from "#/lib/db";
 import { entities, lookups } from "#/lib/db/schema";
-import { type CommitHistory, GitHubError } from "#/lib/github";
+import {
+	type BuildProgress,
+	type CommitHistory,
+	GitHubError,
+} from "#/lib/github";
 
 /**
  * Server function: resolves a username's lifetime commit history.
@@ -84,6 +89,9 @@ export interface UserResult {
 	// Position on the public-commits leaderboard (1 = most public commits), among active entities.
 	// Null when there's no DB; suppressed in the UI for suspended profiles (hidden from the board).
 	publicRank: number | null;
+	// Non-null while the initial server-side build is still in progress — each poll of the loader
+	// advances it. Mutually exclusive with `error`: a building result is progress, not a failure.
+	building: BuildProgress | null;
 }
 
 export interface LeaderEntry {
@@ -158,6 +166,11 @@ async function queryLeaderboard(
 					sql`${entities.totalCommits} + coalesce(${entities.totalIssues}, 0) + coalesce(${entities.totalPullRequests}, 0) + coalesce(${entities.totalReviews}, 0) + coalesce(${entities.totalRepos}, 0) + ${entities.totalRestricted}`,
 				)
 			: sql`${rankCol} desc nulls last`;
+	// Deterministic tiebreaker. Without it, Postgres returns tied rows in arbitrary,
+	// query-to-query-different order — and since each scroll stop is a separate OFFSET query,
+	// a tie group straddling a page boundary gets shuffled between fetches: some users appear
+	// twice in the stitched list and others silently vanish from the board entirely.
+	const tiebreak = asc(entities.id);
 	const cols = {
 		login: entities.login,
 		name: entities.name,
@@ -187,7 +200,7 @@ async function queryLeaderboard(
 	const scoped = positive
 		? base.where(and(active, gt(positive, 0)))
 		: base.where(active);
-	return scoped.orderBy(order).limit(limit).offset(offset);
+	return scoped.orderBy(order, tiebreak).limit(limit).offset(offset);
 }
 
 async function queryRecent(limit: number): Promise<RecentEntry[]> {
@@ -330,12 +343,24 @@ export const getCommitHistories = createServerFn({ method: "GET" })
 				const isSuspended = suspended.has(login.toLowerCase());
 				if (outcome.status === "rejected") {
 					const e = outcome.reason;
+					// The 503 "still building" rejection carries progress — surface it as `building`
+					// (with error null) so the client polls to continue instead of showing a failure
+					// card. This mapping runs server-side, in-process, so instanceof sees the raw reason.
+					const building =
+						e instanceof GitHubError && e.status === 503 && e.progress
+							? e.progress
+							: null;
 					return {
 						login,
 						history: null,
-						error: e instanceof Error ? e.message : "Failed to load",
+						error: building
+							? null
+							: e instanceof Error
+								? e.message
+								: "Failed to load",
 						suspended: isSuspended,
 						publicRank: null,
+						building,
 					};
 				}
 				const history = outcome.value;
@@ -347,6 +372,7 @@ export const getCommitHistories = createServerFn({ method: "GET" })
 					error: null,
 					suspended: isSuspended,
 					publicRank,
+					building: null,
 				};
 			}),
 		);
