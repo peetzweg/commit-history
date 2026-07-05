@@ -26,6 +26,11 @@ export const Route = createFileRoute("/embed/$user")({
 							"content-type": "image/svg+xml; charset=utf-8",
 							// Long-ish cache: our data is monthly and the cache layer keeps it fresh.
 							"cache-control": "public, max-age=3600, s-maxage=3600",
+							// `durable` = one shared cache entry across all Netlify edge nodes instead of
+							// one per node, so Camo traffic stops invoking the function. Netlify-only
+							// header; other CDNs/servers ignore it.
+							"netlify-cdn-cache-control":
+								"public, durable, s-maxage=3600, stale-while-revalidate=86400",
 						},
 					});
 				} catch (e) {
@@ -36,6 +41,10 @@ export const Route = createFileRoute("/embed/$user")({
 						headers: {
 							"content-type": "image/svg+xml; charset=utf-8",
 							"cache-control": "public, max-age=60",
+							// Short durable cache so a rate-limit storm doesn't hammer the function,
+							// while real data still replaces the message card quickly.
+							"netlify-cdn-cache-control":
+								"public, durable, s-maxage=60, stale-while-revalidate=300",
 						},
 					});
 				}
