@@ -187,11 +187,11 @@ function RecentSection({ recent }: { recent: RecentEntry[] }) {
 const REBATES_VARIANTS = {
 	a: {
 		subtitle: "The ads in your terminal pay you",
-		utmContent: "slot5-test-78-a",
+		utmContent: "slot5-test-79-a",
 	},
 	b: {
 		subtitle: "Watch ads while coding. Get paid.",
-		utmContent: "slot5-test-78-b",
+		utmContent: "slot5-test-79-b",
 	},
 } as const;
 
