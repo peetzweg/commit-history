@@ -22,18 +22,6 @@ Type a username, get their entire coding career as a curve. It's a little hypnot
 👉 **[commit-history.com/torvalds](https://commit-history.com/torvalds)** · **[/gaearon](https://commit-history.com/gaearon)** · **[/sindresorhus](https://commit-history.com/sindresorhus)**
 
 
-## Star History
-
-<div align='center'>
-<a href="https://www.star-history.com/?repos=peetzweg%2Fcommit-history&type=timeline&legend=top-left">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=peetzweg/commit-history&type=timeline&theme=dark&logscale&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=peetzweg/commit-history&type=timeline&logscale&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=peetzweg/commit-history&type=timeline&logscale&legend=top-left" />
- </picture>
-</a>
-</div>
-
 ## ✨ What you get
 
 - **📈 Lifetime commit curve** — every public commit since the account was born, accumulated month by month. The same data as the green contribution graph, not the noisy issues/PRs calendar.
@@ -117,15 +105,14 @@ bun run refresh           # refresh only un-backfilled rows (followers is null)
 bun run refresh --all     # refresh every user
 ```
 
-## ☁️ Deploy (Netlify)
+## ☁️ Deploy (self-hosted)
 
-The app is wired for Netlify via [`@netlify/vite-plugin-tanstack-start`](https://www.npmjs.com/package/@netlify/vite-plugin-tanstack-start) (already in `vite.config.ts`). Settings (also in `netlify.toml`):
+The build emits a standalone Node server via [nitro](https://nitro.build) — `pnpm build && pnpm start` serves the whole app on port 3000. The multi-stage `Dockerfile` packages exactly that, so any Docker host works; production runs on [Coolify](https://coolify.io) (build pack: Dockerfile, port 3000) behind Cloudflare, which edge-caches `/embed/*` — the embeds already send `s-maxage` for any CDN.
 
 | Setting | Value |
 | --- | --- |
-| **Build command** | `vite build` |
-| **Publish directory** | `dist/client` |
-| **Functions directory** | _(leave blank — the plugin emits `.netlify/v1/functions/` automatically)_ |
+| **Build** | `docker build .` (or `pnpm build` for bare Node) |
+| **Run** | container `CMD` / `pnpm start` → listens on `:3000` (`PORT` overridable) |
 | **Environment variables** | `GITHUB_TOKEN` (required), `DATABASE_URL` (for the persistent cache + leaderboard) |
 
 ## 🛠️ Tech
