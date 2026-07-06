@@ -194,7 +194,7 @@ function SponsorRow({ ref }: { ref?: React.Ref<HTMLLIElement> }) {
 			className="border-border border-b bg-muted/40"
 		>
 			<a
-				href="https://rebates.ai/?utm_source=commit-history.com&utm_medium=leaderboard&utm_campaign=commit-history_sponsorship&utm_content=slot5"
+				href="https://rebates.ai/?utm_source=commit-history.com&utm_medium=leaderboard&utm_campaign=commit-history_sponsorship&utm_content=slot5&utm_term=test-pr-78"
 				target="_blank"
 				rel="sponsored nofollow noopener"
 				className="flex w-full items-center gap-3 py-2.5 text-left hover:bg-muted"
@@ -214,7 +214,7 @@ function SponsorRow({ ref }: { ref?: React.Ref<HTMLLIElement> }) {
 				<span className="min-w-0 flex-1">
 					<span className="block truncate">Rebates</span>
 					<span className="block truncate text-xs text-muted-foreground">
-						The ads in your terminal pay you
+						Watch ads while coding. Get paid.
 					</span>
 				</span>
 				<span className="shrink-0 text-right text-xs text-muted-foreground">
