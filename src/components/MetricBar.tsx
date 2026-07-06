@@ -5,11 +5,12 @@ import { ALL_METRICS, availableMetrics, METRIC_LABEL } from "#/lib/metrics";
 
 // The leaderboard offers every metric; the chart offers the subset a profile actually has data for.
 const LEADER_MODES: LeaderMode[] = [
-	"public",
+	"commits",
 	"prs",
 	"issues",
 	"reviews",
 	"repos",
+	"public",
 	"private",
 	"total",
 	"followers",
@@ -59,15 +60,15 @@ export function MetricBar() {
 		value: m,
 		label: METRIC_LABEL[m],
 	}));
-	const current = (metric ?? "public") as LeaderMode;
-	const value = options.some((o) => o.value === current) ? current : "public";
+	const current = (metric ?? "commits") as LeaderMode;
+	const value = options.some((o) => o.value === current) ? current : "commits";
 
 	const onChange = (m: LeaderMode) =>
 		navigate({
 			to: ".",
 			search: (prev) => ({
 				...prev,
-				metric: m === "public" ? undefined : m,
+				metric: m === "commits" ? undefined : m,
 			}),
 			replace: true,
 			resetScroll: false,

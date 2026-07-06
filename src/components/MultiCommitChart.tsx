@@ -82,7 +82,7 @@ function alignedStepLabel(i: number) {
 export function MultiCommitChart({
 	series,
 	mode,
-	chartMode = "public",
+	chartMode = "commits",
 	title = chartTitle(chartMode),
 }: {
 	series: ChartSeries[];

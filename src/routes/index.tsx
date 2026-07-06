@@ -13,13 +13,14 @@ import {
 } from "#/lib/commit-history";
 import { cn } from "#/lib/utils";
 
-// Leaderboard metrics that live in the URL as `?metric=…`. "public" (commits) is the default and
-// is omitted so the common case stays a clean, copy-pasteable URL.
+// Leaderboard metrics that live in the URL as `?metric=…`. "commits" (public commits) is the default
+// and is omitted so the common case stays a clean, copy-pasteable URL.
 const LB_METRIC_PARAMS: readonly LeaderMode[] = [
 	"prs",
 	"issues",
 	"reviews",
 	"repos",
+	"public",
 	"private",
 	"total",
 	"followers",
@@ -282,24 +283,32 @@ function SelfPromoRow({ ref }: { ref?: React.Ref<HTMLLIElement> }) {
 // Singular label for the heading chip ("All-time Commit leaderboard") — reads better as a
 // noun-modifier than the plural tab-bar labels.
 const HEADING_LABEL: Record<LeaderMode, string> = {
-	public: "Commit",
+	commits: "Commit",
 	prs: "PR",
 	issues: "Issue",
 	reviews: "Review",
 	repos: "Repo",
+	public: "Public",
 	private: "Private",
 	total: "Total",
 	followers: "Follower",
 };
 
 const LB_VALUE: Record<LeaderMode, (u: LeaderEntry) => number> = {
-	public: (u) => u.totalCommits,
+	commits: (u) => u.totalCommits,
 	prs: (u) => u.totalPullRequests ?? 0,
 	issues: (u) => u.totalIssues ?? 0,
 	reviews: (u) => u.totalReviews ?? 0,
 	repos: (u) => u.totalRepos ?? 0,
+	// Every public contribution type summed (null type totals coalesced to 0 until backfilled).
+	public: (u) =>
+		u.totalCommits +
+		(u.totalIssues ?? 0) +
+		(u.totalPullRequests ?? 0) +
+		(u.totalReviews ?? 0) +
+		(u.totalRepos ?? 0),
 	private: (u) => u.totalRestricted,
-	// Every contribution type summed (null type totals coalesced to 0 until backfilled).
+	// Every contribution type summed — same as public + private.
 	total: (u) =>
 		u.totalCommits +
 		(u.totalIssues ?? 0) +
@@ -312,11 +321,12 @@ const LB_VALUE: Record<LeaderMode, (u: LeaderEntry) => number> = {
 
 /** Singular-ish unit shown under each row's number, per mode. */
 const LB_UNIT: Record<LeaderMode, string> = {
-	public: "commits",
+	commits: "commits",
 	prs: "pull requests",
 	issues: "issues",
 	reviews: "reviews",
 	repos: "repos",
+	public: "contributions",
 	private: "private",
 	total: "contributions",
 	followers: "followers",
@@ -326,12 +336,12 @@ function Leaderboard({ initialPage }: { initialPage: LeaderEntry[] }) {
 	// The leaderboard metric lives in `?metric=` (written by the shared MetricBar); we just read it
 	// here to rank the list. Commits is the default and stays param-free.
 	const { metric } = Route.useSearch();
-	const mode = metric ?? "public";
+	const mode = metric ?? "commits";
 	const value = LB_VALUE[mode];
 	// Carry the selected metric into the profile links so a click keeps the current view. Commits is
 	// the profile default (clean URL, no param), and followers has no chart, so both omit it.
 	const linkMetric =
-		mode === "public" || mode === "followers" ? undefined : mode;
+		mode === "commits" || mode === "followers" ? undefined : mode;
 
 	const query = useInfiniteQuery({
 		queryKey: ["leaderboard", mode],
@@ -352,7 +362,7 @@ function Leaderboard({ initialPage }: { initialPage: LeaderEntry[] }) {
 		},
 		// Seed page 1 of the default (Public) mode from the SSR loader — no flash.
 		initialData:
-			mode === "public"
+			mode === "commits"
 				? {
 						pages: [initialPage],
 						pageParams: [{ offset: 0, limit: LEADERBOARD_PAGE_STOPS[0] }],
@@ -391,11 +401,13 @@ function Leaderboard({ initialPage }: { initialPage: LeaderEntry[] }) {
 	}, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
 	const subtitle = {
-		public: "Public commits.",
+		commits: "Public commits.",
 		prs: "Public pull requests opened.",
 		issues: "Public issues opened.",
 		reviews: "Public pull-request reviews.",
 		repos: "Public repositories created — forks don’t count.",
+		public:
+			"All public contributions — commits, PRs, issues, reviews, and repos.",
 		private: "Private contributions (only users who expose them).",
 		total:
 			"Every contribution type — commits, PRs, issues, reviews, repos, plus private.",

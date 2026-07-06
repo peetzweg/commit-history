@@ -28,13 +28,14 @@ import { availableMetrics, METRIC_TOTAL } from "#/lib/metrics";
 
 // ── Chart metrics ─────────────────────────────────────────────────────────────
 
-// Metrics that live in the URL as `?metric=…`. "public" (commits) is the default and is
+// Metrics that live in the URL as `?metric=…`. "commits" (public commits) is the default and is
 // deliberately omitted so the common case keeps a clean URL — only a non-default pick is stored.
 const METRIC_PARAMS: readonly ChartMode[] = [
 	"prs",
 	"issues",
 	"reviews",
 	"repos",
+	"public",
 	"private",
 	"total",
 ];
@@ -94,14 +95,14 @@ function useMetric(): [ChartMode, (m: ChartMode) => void] {
 	const navigate = Route.useNavigate();
 	const setMetric = (m: ChartMode) =>
 		navigate({
-			search: (prev) => ({ ...prev, metric: m === "public" ? undefined : m }),
+			search: (prev) => ({ ...prev, metric: m === "commits" ? undefined : m }),
 			replace: true,
 			// It's the same page with a different series — don't scroll to top like a fresh load,
 			// and keep the live thumb animation instead of a view-transition morph of the bar.
 			resetScroll: false,
 			viewTransition: false,
 		});
-	return [metric ?? "public", setMetric];
+	return [metric ?? "commits", setMetric];
 }
 
 // A generic rising curve, blurred behind the loading state — gives the page real shape while
@@ -172,7 +173,7 @@ function PendingUser() {
 
 			<div className="-mx-4 mt-3 pt-5 pb-1.5 sm:mx-0 sm:rounded-xl sm:border sm:border-border sm:p-4">
 				<div className="pointer-events-none opacity-40 blur-[6px]">
-					<CommitChart points={GENERIC_POINTS} mode="public" />
+					<CommitChart points={GENERIC_POINTS} mode="commits" />
 				</div>
 			</div>
 		</main>
@@ -369,7 +370,7 @@ function BuildingView({
 			</div>
 			<div className="-mx-4 mt-6 pt-5 pb-1.5 sm:mx-0 sm:rounded-xl sm:border sm:border-border sm:p-4">
 				<div className="pointer-events-none opacity-40 blur-[6px]">
-					<CommitChart points={GENERIC_POINTS} mode="public" />
+					<CommitChart points={GENERIC_POINTS} mode="commits" />
 				</div>
 			</div>
 			{failed.length > 0 && (
@@ -629,7 +630,7 @@ function SingleView({
 	const [requested] = useMetric();
 	const available = availableMetrics([history]);
 	// Fall back to commits if the requested metric isn't available for this user.
-	const effectiveMode = available.includes(requested) ? requested : "public";
+	const effectiveMode = available.includes(requested) ? requested : "commits";
 	const since = monthYear(user.createdAt);
 
 	return (
@@ -764,7 +765,7 @@ function ComparisonView({
 	const available = availableMetrics(histories);
 	const effectiveChartMode = available.includes(requested)
 		? requested
-		: "public";
+		: "commits";
 
 	const series: ChartSeries[] = results.map((r, i) => ({
 		login: r.login,

@@ -118,11 +118,12 @@ export interface StartPageData {
 }
 
 export type LeaderMode =
-	| "public"
+	| "commits"
 	| "prs"
 	| "issues"
 	| "reviews"
 	| "repos"
+	| "public"
 	| "private"
 	| "total"
 	| "followers";
@@ -147,13 +148,14 @@ async function queryLeaderboard(
 	if (!db) return [];
 	// The column each mode ranks by. `total` is the one that isn't a single column (see below).
 	const rankCol = {
-		public: entities.totalCommits,
+		commits: entities.totalCommits,
 		prs: entities.totalPullRequests,
 		issues: entities.totalIssues,
 		reviews: entities.totalReviews,
 		repos: entities.totalRepos,
 		private: entities.totalRestricted,
 		followers: entities.followers,
+		public: entities.totalCommits, // unused — `public` orders by a sum, handled below
 		total: entities.totalCommits, // unused — `total` orders by a sum, handled below
 	}[mode];
 	// `total` = every contribution type summed. The per-type columns are nullable (null until a
@@ -165,7 +167,11 @@ async function queryLeaderboard(
 			? desc(
 					sql`${entities.totalCommits} + coalesce(${entities.totalIssues}, 0) + coalesce(${entities.totalPullRequests}, 0) + coalesce(${entities.totalReviews}, 0) + coalesce(${entities.totalRepos}, 0) + ${entities.totalRestricted}`,
 				)
-			: sql`${rankCol} desc nulls last`;
+			: mode === "public"
+				? desc(
+						sql`${entities.totalCommits} + coalesce(${entities.totalIssues}, 0) + coalesce(${entities.totalPullRequests}, 0) + coalesce(${entities.totalReviews}, 0) + coalesce(${entities.totalRepos}, 0)`,
+					)
+				: sql`${rankCol} desc nulls last`;
 	// Deterministic tiebreaker. Without it, Postgres returns tied rows in arbitrary,
 	// query-to-query-different order — and since each scroll stop is a separate OFFSET query,
 	// a tie group straddling a page boundary gets shuffled between fetches: some users appear
@@ -187,8 +193,8 @@ async function queryLeaderboard(
 	// Suspended entities (gamed/under-investigation) are hidden from every mode.
 	const active = isNull(entities.suspendedAt);
 	// The per-type, private and followers boards only list users with a positive count — no point
-	// ranking a wall of zeros, and it naturally excludes not-yet-backfilled (null) rows. `public`
-	// and `both` list everyone active.
+	// ranking a wall of zeros, and it naturally excludes not-yet-backfilled (null) rows. `commits`,
+	// `public` and `total` list everyone active.
 	const positive = {
 		prs: entities.totalPullRequests,
 		issues: entities.totalIssues,
@@ -256,12 +262,12 @@ export const getRepoStars = createServerFn({ method: "GET" }).handler(
 	},
 );
 
-/** First-paint data for the start page: recent lookups + leaderboard page 1 (Both). */
+/** First-paint data for the start page: recent lookups + leaderboard page 1 (Commits). */
 export const getStartPageData = createServerFn({ method: "GET" }).handler(
 	async (): Promise<StartPageData> => {
 		const [recent, leaderboard] = await Promise.all([
 			queryRecent(RECENT_LIMIT),
-			queryLeaderboard("public", 0, LEADERBOARD_PAGE_STOPS[0]),
+			queryLeaderboard("commits", 0, LEADERBOARD_PAGE_STOPS[0]),
 		]);
 		return { recent, leaderboard };
 	},
