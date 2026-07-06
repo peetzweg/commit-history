@@ -214,7 +214,7 @@ function SponsorRow({ ref }: { ref?: React.Ref<HTMLLIElement> }) {
 				<span className="min-w-0 flex-1">
 					<span className="block truncate">Rebates</span>
 					<span className="block truncate text-xs text-muted-foreground">
-						The ads in your terminal pay you
+						Watch ads while coding. Get paid.
 					</span>
 				</span>
 				<span className="shrink-0 text-right text-xs text-muted-foreground">
