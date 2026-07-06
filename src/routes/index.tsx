@@ -182,7 +182,32 @@ function RecentSection({ recent }: { recent: RecentEntry[] }) {
  * but with no database — the creative is hardcoded for now. Uses the sponsor's own favicon and
  * page title, and links out with rel="sponsored nofollow".
  */
+// A/B test on the Rebates ad subtitle. "a" is the control (original copy), "b" the
+// challenger. utm_content carries the variant so clicks are attributable per arm.
+const REBATES_VARIANTS = {
+	a: {
+		subtitle: "The ads in your terminal pay you",
+		utmContent: "slot5-test-78-a",
+	},
+	b: {
+		subtitle: "Watch ads while coding. Get paid.",
+		utmContent: "slot5-test-78-b",
+	},
+} as const;
+
+function rebatesHref(utmContent: string): string {
+	return `https://rebates.ai/?utm_source=commit-history.com&utm_medium=leaderboard&utm_campaign=commit-history_sponsorship&utm_content=${utmContent}`;
+}
+
 function SponsorRow({ ref }: { ref?: React.Ref<HTMLLIElement> }) {
+	// Default to the control on the server/first paint so hydration matches, then flip
+	// to a random 50/50 arm on the client. Math.random() during render would desync SSR.
+	const [variant, setVariant] = useState<"a" | "b">("a");
+	useEffect(() => {
+		setVariant(Math.random() < 0.5 ? "a" : "b");
+	}, []);
+	const { subtitle, utmContent } = REBATES_VARIANTS[variant];
+
 	return (
 		<motion.li
 			ref={ref}
@@ -194,7 +219,7 @@ function SponsorRow({ ref }: { ref?: React.Ref<HTMLLIElement> }) {
 			className="border-border border-b bg-muted/40"
 		>
 			<a
-				href="https://rebates.ai/?utm_source=commit-history.com&utm_medium=leaderboard&utm_campaign=commit-history_sponsorship&utm_content=slot5&utm_term=test-pr-78"
+				href={rebatesHref(utmContent)}
 				target="_blank"
 				rel="sponsored nofollow noopener"
 				className="flex w-full items-center gap-3 py-2.5 text-left hover:bg-muted"
@@ -214,7 +239,7 @@ function SponsorRow({ ref }: { ref?: React.Ref<HTMLLIElement> }) {
 				<span className="min-w-0 flex-1">
 					<span className="block truncate">Rebates</span>
 					<span className="block truncate text-xs text-muted-foreground">
-						Watch ads while coding. Get paid.
+						{subtitle}
 					</span>
 				</span>
 				<span className="shrink-0 text-right text-xs text-muted-foreground">
