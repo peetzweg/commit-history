@@ -1,0 +1,66 @@
+---
+title: "What a GitHub pull-request count means"
+description: "GitHub counts pull requests you open, not ones that get merged. What PR counts reveal about how a developer collaborates across repositories."
+publishedAt: "2026-07-07"
+updatedAt: "2026-07-07"
+order: 2
+---
+
+The PR metric on commit-history.com counts the pull requests a user has
+**opened** in public repositories over their entire GitHub lifetime. Opened —
+not merged, not approved. A PR that gets closed without merging still counted
+the day it was opened.
+
+## What GitHub counts (and doesn't)
+
+- **Opening a pull request** in a public repository: +1, immediately.
+- Getting it merged: no extra credit — the merge shows up in the *author's*
+  [commit count](/metrics/commits) instead (if it lands on the default
+  branch).
+- Reviewing someone else's PR: counted separately, under
+  [reviews](/metrics/reviews).
+- PRs in private repositories: folded into the opaque
+  [private contributions](/metrics/private-contributions) count.
+
+## Reading the number
+
+PR count is the best single indicator of **collaboration across
+repositories**. Commits can be accumulated alone in one repo; a pull request
+implies a proposal made to a codebase — often someone else's. High lifetime PR
+counts usually belong to:
+
+- **Open-source regulars** who contribute fixes across many projects — each
+  drive-by fix is at least one PR.
+- **PR-workflow engineers** whose teams gate every change behind a pull
+  request, even one-line changes. Hundreds of working days × several PRs a day
+  compounds fast.
+- **Stacked-diff practitioners** who split every feature into a chain of
+  small PRs — great practice, and it multiplies the count.
+
+The **ratio of commits to PRs** is a workflow fingerprint. Fifty commits per
+PR suggests long-running branches or a merge-commit history; one or two
+commits per PR suggests squash merges or a small-change culture. Neither is
+better — but comparing raw PR counts between the two is comparing workflows,
+not people.
+
+## What it doesn't measure
+
+Whether the PRs were any good — or even accepted. The metric can't tell a
+carefully-scoped fix from an automated find-and-replace opened across a
+hundred repos. As with all contribution counts, volume is legible; judgment
+isn't.
+
+## How commit-history.com tracks it
+
+We accumulate GitHub's monthly pull-request contributions from account
+creation to today into the cumulative curve, and rank the leaderboard by the
+lifetime total. Switch any profile's chart to **PRs** to see when someone's
+collaboration era actually started — it's often years after their first
+commit.
+
+## See it in action
+
+[Look up a profile](/) and flip the metric to PRs, or
+[compare two developers](/torvalds,gaearon) — a kernel maintainer who
+receives patches by mail and a web-ecosystem author who lives in pull
+requests make for very different curves.

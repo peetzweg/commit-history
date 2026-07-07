@@ -1,0 +1,60 @@
+---
+title: "Pull-request reviews: GitHub's most invisible work, counted"
+description: "GitHub counts every pull-request review you submit. Why review counts surface senior engineers whose commit graphs look quiet."
+publishedAt: "2026-07-07"
+updatedAt: "2026-07-07"
+order: 4
+---
+
+Reviews are the contribution type most likely to make you re-rank the
+developers you think you know. The metric counts **pull-request reviews
+submitted** in public repositories — every time a user approves, requests
+changes, or submits a review comment on someone else's PR.
+
+## What GitHub counts
+
+- **Submitting a review** on a pull request (approve, request changes, or a
+  comment review): +1 per review.
+- Plain inline comments outside a review, issue discussions, or mentoring in
+  chat: not counted.
+- Reviews in private repositories: folded into
+  [private contributions](/metrics/private-contributions).
+
+## Why this number matters more than it looks
+
+Reviewing is the classic case of engineering work that's essential and
+invisible. A thorough review of a complex change can take longer than writing
+it — reading the diff, checking the edge cases, testing locally, writing
+feedback that lands well. None of that produces a commit under the reviewer's
+name. The author gets the [commit](/metrics/commits) and the
+[PR](/metrics/pull-requests); the reviewer gets… this number.
+
+That's why review counts skew toward a specific profile: **senior engineers
+and maintainers**. As people grow in a codebase, their output shifts from
+writing changes to vetting them. A profile with a flattening commit curve and
+a steepening review curve isn't slowing down — it's a promotion, drawn as a
+chart.
+
+Sheer volume has a mundane driver too: **required-review workflows**. In
+projects where every PR needs an approval, active maintainers accumulate
+thousands of reviews as a structural consequence of the process.
+
+## What it doesn't measure
+
+Depth. A rubber-stamp "LGTM" and a forty-comment security review both count
+once. And it misses review-shaped work that never becomes a formal review —
+pairing, design docs, architectural pushback in the comments.
+
+## How commit-history.com tracks it
+
+Monthly review contributions accumulated from account creation into the
+cumulative curve; the leaderboard ranks lifetime totals. Flip a few famous
+profiles to **Reviews** — the shape of the curve tells you when they stopped
+being mostly-author and became mostly-editor.
+
+## See it in action
+
+[Look up a profile](/) and switch to Reviews, or
+[compare an author-heavy and a reviewer-heavy developer](/torvalds,gaearon) —
+then check [Total](/metrics/total-contributions), which is where
+review-heavy engineers finally get full credit.

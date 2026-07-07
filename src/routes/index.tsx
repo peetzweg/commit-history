@@ -2,6 +2,7 @@ import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
+import { ExplainerLink } from "#/components/ExplainerLink";
 import {
 	getLeaderboard,
 	getRecentLookups,
@@ -99,6 +100,15 @@ function Home() {
 			{initial.leaderboard.length > 0 && (
 				<Leaderboard initialPage={initial.leaderboard} />
 			)}
+			<p className="mt-14 text-center text-sm text-muted-foreground">
+				Wondering what these numbers mean?{" "}
+				<Link
+					to="/metrics/explained"
+					className="underline hover:text-foreground"
+				>
+					The metrics, explained
+				</Link>
+			</p>
 		</main>
 	);
 }
@@ -444,7 +454,9 @@ function Leaderboard({ initialPage }: { initialPage: LeaderEntry[] }) {
 					</span>
 					leaderboard
 				</h2>
-				<p className="mt-1.5 text-xs text-muted-foreground">{subtitle}</p>
+				<p className="mt-1.5 text-xs text-muted-foreground">
+					{subtitle} <ExplainerLink metric={mode} />
+				</p>
 			</div>
 			<ol>
 				<AnimatePresence initial={false} mode="popLayout">

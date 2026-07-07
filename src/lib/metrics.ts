@@ -16,6 +16,19 @@ export const METRIC_LABEL: Record<LeaderMode, string> = {
 	followers: "Followers",
 };
 
+// The /metrics/<slug> explainer article for each metric (src/content/metrics/) — surfaced
+// as a tertiary "What is this?" link next to the leaderboard subtitle and chart captions.
+export const METRIC_EXPLAINER: Record<LeaderMode, string> = {
+	public: "commits",
+	prs: "pull-requests",
+	issues: "issues",
+	reviews: "reviews",
+	repos: "repositories",
+	private: "private-contributions",
+	total: "total-contributions",
+	followers: "followers",
+};
+
 export const METRIC_TOTAL: Record<ChartMode, (h: CommitHistory) => number> = {
 	public: (h) => h.total,
 	prs: (h) => h.totalPullRequests,

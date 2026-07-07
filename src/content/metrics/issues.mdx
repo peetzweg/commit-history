@@ -1,0 +1,61 @@
+---
+title: "What a GitHub issue count says about a developer"
+description: "GitHub counts issues you open. Why high issue counts belong to maintainers, testers, and power users — and why zero issues isn't zero contribution."
+publishedAt: "2026-07-07"
+updatedAt: "2026-07-07"
+order: 3
+---
+
+The Issues metric counts the issues a user has **opened** in public
+repositories across their whole GitHub lifetime. Just opening them — comments,
+triage labels, and closing issues don't add to it, and neither does having
+your issue fixed.
+
+## What GitHub counts
+
+- **Opening an issue** in a public repository: +1.
+- Commenting on issues, closing them, or being assigned: not counted.
+- Issues in private repositories: absorbed into
+  [private contributions](/metrics/private-contributions).
+
+That narrowness makes the metric easy to read literally: it measures how often
+someone *starts* a written conversation about a problem.
+
+## Who racks up issues
+
+High lifetime issue counts cluster around a few recognisable profiles:
+
+- **Maintainers** filing issues in their own projects — roadmap items, bug
+  trackers, release checklists. Many maintainers are their own biggest issue
+  reporters.
+- **Serious users of other people's software** — the people who take twenty
+  minutes to write a reproducible bug report instead of shrugging. Every
+  ecosystem quietly depends on them.
+- **QA-minded engineers and technical writers**, whose whole job produces
+  issues rather than commits.
+
+That's the key insight: **a high issue count with a modest
+[commit count](/metrics/commits) is not a red flag.** It often marks someone
+whose contribution is finding and describing problems precisely — which is
+frequently harder than fixing them.
+
+## What it doesn't measure
+
+Quality of the reports, whether they were valid, or whether they were ever
+resolved. A hundred careful reproductions and a hundred "doesn't work, plz
+fix" weigh the same. It also misses all the issue *work* that isn't opening:
+triaging, deduplicating, and answering — labor that currently has no number
+anywhere on GitHub except partially in [reviews](/metrics/reviews).
+
+## How commit-history.com tracks it
+
+Monthly issue contributions, accumulated from account creation to today into
+the cumulative chart, ranked by lifetime total on the leaderboard. The Issues
+curve often shows a distinctive shape: flat for years, then a sharp ramp when
+someone becomes a maintainer and the issue tracker becomes their desk.
+
+## See it in action
+
+[Look up a maintainer you know](/) and switch the chart to **Issues** — then
+check their [Total](/metrics/total-contributions) to see how the types stack
+together.

@@ -13,6 +13,7 @@ import {
 	chartTitle,
 	metricDelta,
 } from "#/components/CommitChart";
+import { ExplainerLink } from "#/components/ExplainerLink";
 import {
 	type ChartSeries,
 	MultiCommitChart,
@@ -638,7 +639,8 @@ function SingleView({
 			{/* Caption sits on its own line so the chart + subtitle stay clean to screenshot; the
 			    Compare input drops to its own centered row below (desktop and mobile). */}
 			<p className="mt-2 text-xs text-muted-foreground sm:mt-4">
-				{chartCaption(effectiveMode)} attributed by GitHub since {since}.
+				{chartCaption(effectiveMode)} attributed by GitHub since {since}.{" "}
+				<ExplainerLink metric={effectiveMode} />
 			</p>
 			<div className="mt-10 flex justify-center">
 				<AddUser currentLogins={otherLogins} label="Compare with…" />
@@ -795,7 +797,8 @@ function ComparisonView({
 			</motion.div>
 
 			<p className="mt-2 text-xs text-muted-foreground sm:mt-4">
-				{chartCaption(effectiveChartMode)}.
+				{chartCaption(effectiveChartMode)}.{" "}
+				<ExplainerLink metric={effectiveChartMode} />
 			</p>
 			{mode === "aligned" && (
 				<p className="mt-1 text-xs text-muted-foreground">

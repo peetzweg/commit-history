@@ -18,5 +18,8 @@ todos.json
 # Local DB backups — never commit
 backups/
 
+# OG cards generated at build time by scripts/generate-og.ts
+public/og/
+
 # Script runtime logs (e.g. `bun run backfill > backfill.log`)
 *.log
