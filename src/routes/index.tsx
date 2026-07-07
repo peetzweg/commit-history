@@ -59,6 +59,15 @@ function Home() {
 	});
 	const [login, setLogin] = useState("");
 
+	// Autofocus the username input on desktop only. Same media query as the CSS `desktop:`
+	// variant (styles.css) — on touch devices focusing would pop the keyboard over half the page.
+	const inputRef = useRef<HTMLInputElement>(null);
+	useEffect(() => {
+		if (window.matchMedia("(hover: hover)").matches) {
+			inputRef.current?.focus();
+		}
+	}, []);
+
 	function go(user: string) {
 		navigate({ to: "/$user", params: { user } });
 	}
@@ -82,8 +91,7 @@ function Home() {
 				<div className="flex min-w-0 flex-1 items-center rounded-md border shadow-inner focus-within:shadow-[0_0_0_0.125em_var(--ring)]">
 					<span className="pl-3 text-muted-foreground">github.com/</span>
 					<input
-						// biome-ignore lint/a11y/noAutofocus: single-purpose landing page; focusing the one input is the intent
-						autoFocus
+						ref={inputRef}
 						value={login}
 						onChange={(e) => setLogin(e.target.value)}
 						placeholder="peetzweg"
