@@ -5,10 +5,14 @@ const SITE = "https://commit-history.com";
 const TITLE = "GitHub contribution metrics, explained";
 const DESCRIPTION =
 	"What the numbers on a commit-history.com profile actually mean: commits, pull requests, reviews, repositories, and private contributions — in detail.";
-const URL = `${SITE}/metrics`;
-const OG_IMAGE = `${SITE}/og/metrics/index.png`;
+// URL policy: content sections never own their bare prefix — /metrics (one segment)
+// falls through to the $user route, so the GitHub account "metrics" isn't locked out
+// (same reason bare /embed doesn't exist). The hub lives at /metrics/explained; the
+// slug "explained" is therefore reserved (don't create src/content/metrics/explained.mdx).
+const URL = `${SITE}/metrics/explained`;
+const OG_IMAGE = `${SITE}/og/metrics/explained.png`;
 
-export const Route = createFileRoute("/metrics/")({
+export const Route = createFileRoute("/metrics/explained")({
 	head: () => ({
 		meta: [
 			{ title: `${TITLE} · Commit History` },

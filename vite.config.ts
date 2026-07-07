@@ -52,8 +52,12 @@ const config = defineConfig({
 				// the whole build (a page relying on the schema default doesn't). And
 				// `crawlLinks` (default true) must be off, or in-article links to live pages
 				// (e.g. /torvalds,gaearon) get baked into stale static HTML at build time.
+				//
+				// The hub is /metrics/explained, NOT bare /metrics: content sections never
+				// own their bare prefix, so single-segment paths keep falling through to
+				// the $user route and no GitHub username is ever locked out.
 				{
-					path: "/metrics",
+					path: "/metrics/explained",
 					prerender: { enabled: true, crawlLinks: false },
 					sitemap: { changefreq: "monthly", priority: 0.8 },
 				},

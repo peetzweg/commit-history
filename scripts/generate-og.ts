@@ -190,9 +190,9 @@ function frontmatterOf(file: string): Frontmatter {
 
 mkdirSync(outDir, { recursive: true });
 
-// The /metrics hub itself — keep in sync with src/routes/metrics.index.tsx.
+// The /metrics/explained hub itself — keep in sync with src/routes/metrics.explained.tsx.
 await renderCard(
-	"index",
+	"explained",
 	"GitHub contribution metrics, explained",
 	"What the numbers on a commit-history.com profile actually mean: commits, pull requests, reviews, repositories, and private contributions.",
 );

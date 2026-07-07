@@ -101,8 +101,8 @@ export const Route = createFileRoute("/metrics/$slug")({
 								{
 									"@type": "ListItem",
 									position: 2,
-									name: "Metrics",
-									item: `${SITE}/metrics`,
+									name: "Metrics, explained",
+									item: `${SITE}/metrics/explained`,
 								},
 								{ "@type": "ListItem", position: 3, name: meta.title },
 							],
@@ -122,7 +122,7 @@ function ArticlePage() {
 		<main className="mx-auto max-w-3xl px-6 py-12">
 			<nav aria-label="Breadcrumb">
 				<Link
-					to="/metrics"
+					to="/metrics/explained"
 					className="text-sm text-muted-foreground hover:text-foreground"
 				>
 					← metrics, explained

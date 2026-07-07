@@ -101,7 +101,10 @@ function Home() {
 			)}
 			<p className="mt-14 text-center text-sm text-muted-foreground">
 				Wondering what these numbers mean?{" "}
-				<Link to="/metrics" className="underline hover:text-foreground">
+				<Link
+					to="/metrics/explained"
+					className="underline hover:text-foreground"
+				>
 					The metrics, explained
 				</Link>
 			</p>
