@@ -249,13 +249,13 @@ function SponsorRow({ ref }: { ref?: React.Ref<HTMLLIElement> }) {
 				</span>
 				<img
 					src="https://rebates.ai/brand/rebates-bandit.svg"
-					alt="Rebates"
+					alt="Rebates.ai"
 					className="h-8 w-8 shrink-0 rounded-full border border-border object-cover"
 				/>
 				{/* Title + tagline on two lines in a lighter weight than the usernames, so the block
 				    matches the logo height and doesn't shout as loud as a real leaderboard entry. */}
 				<span className="min-w-0 flex-1">
-					<span className="block truncate">Rebates</span>
+					<span className="block truncate">Rebates.ai</span>
 					<span className="block truncate text-xs text-muted-foreground">
 						{subtitle}
 					</span>
