@@ -1,0 +1,79 @@
+---
+title: "What “private contributions” means on GitHub"
+description: "Why some GitHub profiles show thousands of private contributions and others show none — how the opt-in works, what the count includes, and how commit-history.com tracks it."
+publishedAt: "2026-07-07"
+updatedAt: "2026-07-07"
+---
+
+When you look up a developer on commit-history.com, some profiles show a
+**Private contributions** stat next to their public commits — often dwarfing
+them — while other profiles show nothing at all. That difference isn't about
+how much someone codes. It's about a single GitHub profile setting.
+
+## What GitHub counts as a private contribution
+
+GitHub exposes one opaque number per time window:
+`restrictedContributionsCount`. It is the sum of **all** contribution types —
+commits, issues, pull requests, and reviews — made in **private repositories**
+the viewer can't see into.
+
+Unlike public activity, GitHub never breaks this number down. There is no way
+to tell, from the outside, whether 10,000 private contributions are commits to
+one company monorepo or code reviews across fifty client projects. That's
+deliberate: the count proves activity without leaking anything about where it
+happened.
+
+## Why many developers show zero
+
+Private contributions are **opt-in**. GitHub only reports the count if the
+user has enabled it themselves:
+
+> **Settings → Public profile → Contributions & Activity → ✅ Include private
+> contributions on my profile**
+
+If that box is unchecked (the default), GitHub's API reports `0` — to us and to
+everyone else. So a profile showing no private contributions usually means the
+developer simply hasn't flipped the switch, not that they do all their work in
+public.
+
+This is the most common question we get: *"I commit to private repos all day,
+why does my chart show nothing?"* Enable the setting on GitHub, then revisit
+your commit-history page — the next refresh picks it up.
+
+## How commit-history.com tracks it
+
+We fetch each user's contribution calendar month by month over their entire
+GitHub lifetime, storing public commits and private contributions as separate
+series. On your page:
+
+- The **Private contributions** stat and chart metric only appear when the
+  count is greater than zero — profiles that haven't opted in just don't show
+  the row.
+- The **Total** metric adds public commits and private contributions together,
+  which is often the fairest picture for developers who work mostly in private
+  company repositories.
+- Your **public rank** on the leaderboard uses public commits only, since
+  private counts aren't comparable across users (one person's "contribution"
+  may be a review, another's a commit).
+
+## Things to keep in mind when reading the number
+
+**It's not just commits.** A developer doing heavy code review in private
+repos accrues private contributions without pushing a single commit. Comparing
+someone's private contributions against another person's public *commits* is
+apples to oranges.
+
+**History appears retroactively.** When someone enables the setting, GitHub
+exposes their whole private history at once — so a chart can suddenly gain
+years of activity overnight. That jump is the setting changing, not a
+10x-engineer awakening.
+
+**It can disappear again.** Turning the setting off zeroes the reported count.
+If a profile you compared against last month now shows no private activity,
+that's usually why.
+
+## See it in action
+
+Look up any user on [commit-history.com](/) and switch the metric to
+**Private** or **Total** — or [compare two developers](/torvalds,gaearon) to
+see how public and private activity differ across careers.

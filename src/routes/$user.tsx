@@ -510,10 +510,13 @@ function Stat({
 	label,
 	value,
 	hint,
+	explainerSlug,
 }: {
 	label: string;
 	value: string;
 	hint?: string;
+	/** Slug of a /metrics/<slug> article explaining this stat — makes the label a link. */
+	explainerSlug?: string;
 }) {
 	return (
 		<div>
@@ -526,7 +529,18 @@ function Stat({
 				{value}
 			</motion.div>
 			<div className="text-xs uppercase tracking-wide text-muted-foreground">
-				{label}
+				{explainerSlug ? (
+					<Link
+						to="/metrics/$slug"
+						params={{ slug: explainerSlug }}
+						className="underline decoration-dotted underline-offset-2 hover:text-foreground"
+						title={`What does “${label}” mean?`}
+					>
+						{label}
+					</Link>
+				) : (
+					label
+				)}
 			</div>
 			{hint && (
 				<div className="text-xs tabular-nums text-muted-foreground">{hint}</div>
@@ -599,6 +613,7 @@ function ProfilePanel({
 					<Stat
 						label="Private contributions"
 						value={totalRestricted.toLocaleString()}
+						explainerSlug="private-contributions"
 					/>
 				)}
 				<Stat label="Followers" value={user.followers.toLocaleString()} />

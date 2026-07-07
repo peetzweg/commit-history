@@ -99,6 +99,12 @@ function Home() {
 			{initial.leaderboard.length > 0 && (
 				<Leaderboard initialPage={initial.leaderboard} />
 			)}
+			<p className="mt-14 text-center text-sm text-muted-foreground">
+				Wondering what these numbers mean?{" "}
+				<Link to="/metrics" className="underline hover:text-foreground">
+					The metrics, explained
+				</Link>
+			</p>
 		</main>
 	);
 }
