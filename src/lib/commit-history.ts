@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import {
+	type AnyColumn,
 	and,
 	asc,
 	desc,
@@ -10,6 +11,7 @@ import {
 	isNull,
 	sql,
 } from "drizzle-orm";
+import type { ChartMode } from "#/components/CommitChart";
 import { getCommitHistory as getCachedCommitHistory } from "#/lib/cache";
 import { db } from "#/lib/db";
 import { entities, lookups } from "#/lib/db/schema";
@@ -18,6 +20,7 @@ import {
 	type CommitHistory,
 	GitHubError,
 } from "#/lib/github";
+import { availableMetrics, METRIC_TOTAL } from "#/lib/metrics";
 
 /**
  * Server function: resolves a username's lifetime commit history.
@@ -86,9 +89,10 @@ export interface UserResult {
 	// True when the entity is suspended (under investigation) — the profile is still shown, but
 	// with an under-review notice. The internal reason is never sent to the client.
 	suspended: boolean;
-	// Position on the public-commits leaderboard (1 = most public commits), among active entities.
-	// Null when there's no DB; suppressed in the UI for suspended profiles (hidden from the board).
-	publicRank: number | null;
+	// Leaderboard position per metric (1 = top), among active entities, mirroring each metric's
+	// board ordering. Keyed by the metrics this profile has data for (always includes "public").
+	// Empty without a DB; suppressed in the UI for suspended profiles (hidden from every board).
+	ranks: Partial<Record<ChartMode, number | null>>;
 	// Non-null while the initial server-side build is still in progress — each poll of the loader
 	// advances it. Mutually exclusive with `error`: a building result is progress, not a failure.
 	building: BuildProgress | null;
@@ -294,24 +298,56 @@ async function suspendedSet(logins: string[]): Promise<Set<string>> {
 	return new Set(rows.map((r) => r.login.toLowerCase()));
 }
 
+// The column each single-column metric ranks by — mirrors the leaderboard ordering in
+// `queryLeaderboard`. "total" isn't a single column (it's a sum) and is handled inline below.
+const RANK_COL: Record<Exclude<ChartMode, "total">, AnyColumn> = {
+	public: entities.totalCommits,
+	prs: entities.totalPullRequests,
+	issues: entities.totalIssues,
+	reviews: entities.totalReviews,
+	repos: entities.totalRepos,
+	private: entities.totalRestricted,
+};
+
 /**
- * Public-leaderboard position for a user with `publicCommits` public commits: how many active
- * entities sit ahead of them, plus one. Same ordering as the "public" leaderboard (`total_commits`
- * DESC), so the number matches where you'd land on the start page. Ties share a rank — two users
- * with equal commits both count the same crowd ahead. Null without a DB.
+ * Leaderboard position for a user with `value` in `mode`: how many active entities sit ahead of
+ * them, plus one — same ordering as that metric's leaderboard, so the number matches where you'd
+ * land on the board. Ties share a rank. Nullable per-type columns COALESCE to 0 (a not-yet-
+ * backfilled row can't be "ahead"), and `total` compares the same summed expression the board does.
+ * Null without a DB.
  */
-async function publicRankFor(publicCommits: number): Promise<number | null> {
+async function metricRankFor(
+	mode: ChartMode,
+	value: number,
+): Promise<number | null> {
 	if (!db) return null;
+	const ahead =
+		mode === "total"
+			? sql`${entities.totalCommits} + coalesce(${entities.totalIssues}, 0) + coalesce(${entities.totalPullRequests}, 0) + coalesce(${entities.totalReviews}, 0) + coalesce(${entities.totalRepos}, 0) + ${entities.totalRestricted} > ${value}`
+			: gt(RANK_COL[mode], value);
 	const [row] = await db
 		.select({ ahead: sql<number>`count(*)` })
 		.from(entities)
-		.where(
-			and(
-				isNull(entities.suspendedAt),
-				gt(entities.totalCommits, publicCommits),
-			),
-		);
+		.where(and(isNull(entities.suspendedAt), ahead));
 	return Number(row?.ahead ?? 0) + 1;
+}
+
+/** Rank in every metric this profile has data for (always includes "public"), computed in one
+ *  fan-out so the client can switch metrics without a refetch. Ranking failures degrade to null. */
+async function ranksFor(
+	history: CommitHistory,
+): Promise<Partial<Record<ChartMode, number | null>>> {
+	const modes = availableMetrics([history]);
+	const entries = await Promise.all(
+		modes.map(
+			async (m) =>
+				[
+					m,
+					await metricRankFor(m, METRIC_TOTAL[m](history)).catch(() => null),
+				] as const,
+		),
+	);
+	return Object.fromEntries(entries);
 }
 
 /**
@@ -359,19 +395,19 @@ export const getCommitHistories = createServerFn({ method: "GET" })
 								? e.message
 								: "Failed to load",
 						suspended: isSuspended,
-						publicRank: null,
+						ranks: {},
 						building,
 					};
 				}
 				const history = outcome.value;
-				// Rank is supplementary — never let a ranking-query failure drop a loaded profile.
-				const publicRank = await publicRankFor(history.total).catch(() => null);
+				// Ranks are supplementary — never let a ranking-query failure drop a loaded profile.
+				const ranks = await ranksFor(history).catch(() => ({}));
 				return {
 					login,
 					history,
 					error: null,
 					suspended: isSuspended,
-					publicRank,
+					ranks,
 					building: null,
 				};
 			}),

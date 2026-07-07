@@ -11,6 +11,7 @@ import {
 	CommitChart,
 	chartCaption,
 	chartTitle,
+	metricDelta,
 } from "#/components/CommitChart";
 import {
 	type ChartSeries,
@@ -24,7 +25,7 @@ import {
 	type UserResult,
 } from "#/lib/commit-history";
 import type { BuildProgress, CommitPoint } from "#/lib/github";
-import { availableMetrics, METRIC_TOTAL } from "#/lib/metrics";
+import { availableMetrics, METRIC_LABEL, METRIC_TOTAL } from "#/lib/metrics";
 
 // ── Chart metrics ─────────────────────────────────────────────────────────────
 
@@ -42,6 +43,12 @@ const METRIC_PARAMS: readonly ChartMode[] = [
 function isMetricParam(v: unknown): v is ChartMode {
 	return typeof v === "string" && (METRIC_PARAMS as string[]).includes(v);
 }
+
+// Metrics that have a /metrics/<slug> explainer article (src/content/metrics/) — the
+// stat label links there. Fill in as more explainers are written (#82).
+const METRIC_EXPLAINER: Partial<Record<ChartMode, string>> = {
+	private: "private-contributions",
+};
 
 interface UserSearch {
 	/** Selected chart metric; absent = the default (commits). */
@@ -132,12 +139,8 @@ const GENERIC_POINTS: CommitPoint[] = (() => {
 function PendingUser() {
 	const { user } = Route.useParams();
 	const login = user.split(",")[0];
-	const labels = [
-		"Public rank",
-		"Public commits",
-		"Followers",
-		"Busiest month",
-	];
+	// Mirror the default-metric (commits) stat layout so nothing jumps when data lands.
+	const labels = ["Commits rank", "Commits", "Busiest month"];
 	return (
 		<main className="mx-auto max-w-4xl px-6 py-12">
 			<Link
@@ -160,12 +163,11 @@ function PendingUser() {
 			<div className="mx-auto mt-8 grid max-w-xl grid-cols-3 gap-x-4 gap-y-5 text-center sm:mx-0 sm:flex sm:max-w-none sm:flex-wrap sm:gap-10 sm:text-left">
 				{labels.map((label) => (
 					<div key={label}>
-						{/* reserve value + hint heights; they animate in once data arrives */}
+						{/* reserve the value height; it animates in once data arrives */}
 						<div className="h-7" />
 						<div className="text-xs uppercase tracking-wide text-muted-foreground">
 							{label}
 						</div>
-						<div className="h-4" />
 					</div>
 				))}
 			</div>
@@ -509,18 +511,19 @@ function SuspendedNotice() {
 function Stat({
 	label,
 	value,
-	hint,
 	explainerSlug,
 }: {
 	label: string;
 	value: string;
-	hint?: string;
 	/** Slug of a /metrics/<slug> article explaining this stat — makes the label a link. */
 	explainerSlug?: string;
 }) {
 	return (
 		<div>
 			<motion.div
+				// Re-key on the value so switching metric re-plays the drop-in — the numbers read as
+				// "refreshed for this metric", not stale.
+				key={value}
 				initial={{ opacity: 0, y: -4 }}
 				animate={{ opacity: 1, y: 0 }}
 				transition={{ duration: 0.35 }}
@@ -542,34 +545,38 @@ function Stat({
 					label
 				)}
 			</div>
-			{hint && (
-				<div className="text-xs tabular-nums text-muted-foreground">{hint}</div>
-			)}
 		</div>
 	);
 }
 
 /** Avatar + name + joined line + the headline stats. Shared by the single
- *  view and (stacked) by the comparison view, so profiles look identical. */
+ *  view and (stacked) by the comparison view, so profiles look identical. The
+ *  stats track `mode` — rank, count and busiest month all reflect the metric the
+ *  chart is currently showing, so they stay in sync as you toggle the metric bar. */
 function ProfilePanel({
 	result,
+	mode,
 	color,
 }: {
 	result: UserResult;
+	mode: ChartMode;
 	color?: string;
 }) {
 	// biome-ignore lint/style/noNonNullAssertion: ok results always have history
-	const { user, points, total, totalRestricted } = result.history!;
-	const hasPrivate = totalRestricted > 0;
+	const history = result.history!;
+	const { user, points } = history;
 	const since = monthYear(user.createdAt);
-	// Public-leaderboard rank — hidden for suspended profiles, which are off the board entirely.
-	const rank = result.suspended ? null : result.publicRank;
-	// Busiest month by total activity (public + private), so it's meaningful for private-heavy users.
+	const label = METRIC_LABEL[mode];
+	const total = METRIC_TOTAL[mode](history);
+	// Leaderboard rank in the selected metric — hidden for suspended profiles (off every board) and
+	// for metrics with no board position (e.g. the profile has none of this contribution type).
+	const rank = result.suspended ? null : (result.ranks[mode] ?? null);
+	// Busiest month in the selected metric.
 	const busiest = points.reduce(
-		(best, p) =>
-			p.commits + p.restricted > best.commits + best.restricted ? p : best,
+		(best, p) => (metricDelta(p, mode) > metricDelta(best, mode) ? p : best),
 		points[0],
 	);
+	const busiestCount = busiest ? metricDelta(busiest, mode) : 0;
 
 	return (
 		<div>
@@ -606,24 +613,19 @@ function ProfilePanel({
 
 			<div className="mx-auto mt-6 grid max-w-xl grid-cols-3 gap-x-4 gap-y-5 text-center sm:mx-0 sm:flex sm:max-w-none sm:flex-wrap sm:gap-10 sm:text-left">
 				{rank !== null && (
-					<Stat label="Public rank" value={`#${rank.toLocaleString()}`} />
+					<Stat label={`${label} rank`} value={`#${rank.toLocaleString()}`} />
 				)}
-				<Stat label="Public commits" value={total.toLocaleString()} />
-				{hasPrivate && (
-					<Stat
-						label="Private contributions"
-						value={totalRestricted.toLocaleString()}
-						explainerSlug="private-contributions"
-					/>
-				)}
-				<Stat label="Followers" value={user.followers.toLocaleString()} />
+				<Stat
+					label={label}
+					value={total.toLocaleString()}
+					explainerSlug={METRIC_EXPLAINER[mode]}
+				/>
 				<Stat
 					label="Busiest month"
-					value={busiest ? monthYear(busiest.date) : "—"}
-					hint={
-						busiest
-							? `${(busiest.commits + busiest.restricted).toLocaleString()} ${hasPrivate ? "contributions" : "commits"}`
-							: undefined
+					value={
+						busiest && busiestCount > 0
+							? `${monthYear(busiest.date)} (+${busiestCount.toLocaleString()})`
+							: "—"
 					}
 				/>
 			</div>
@@ -651,7 +653,7 @@ function SingleView({
 		<>
 			{result.suspended && <SuspendedNotice />}
 			<div className="mt-6">
-				<ProfilePanel result={result} />
+				<ProfilePanel result={result} mode={effectiveMode} />
 			</div>
 
 			<motion.div
@@ -880,6 +882,7 @@ function ComparisonView({
 						<div key={r.login} className="py-6 first:pt-0 last:pb-0">
 							<ProfilePanel
 								result={r}
+								mode={effectiveChartMode}
 								color={SERIES_COLORS[i % SERIES_COLORS.length]}
 							/>
 							{r.suspended && <SuspendedNotice />}
