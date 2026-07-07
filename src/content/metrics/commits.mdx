@@ -1,0 +1,69 @@
+---
+title: "What GitHub commit counts actually measure"
+description: "How GitHub decides which commits count — default branches, linked emails, squash merges, forks — and what a big commit count does and doesn't tell you."
+publishedAt: "2026-07-07"
+updatedAt: "2026-07-07"
+order: 1
+---
+
+Commits are the headline number on commit-history.com — the default chart, the
+default leaderboard, the thing the whole site is named after. They're also the
+most misread metric on GitHub. Two equally productive developers can differ by
+**10× in commit count** purely because of how their teams merge code.
+
+## Which commits GitHub counts
+
+GitHub doesn't count every commit you make. A commit becomes a *contribution*
+only when all of these hold:
+
+- It lands on the repository's **default branch** (or the `gh-pages` branch).
+  Commits sitting on a feature branch don't count until they're merged.
+- The commit's author email is **linked to your GitHub account**. Commits made
+  with an unlinked work email vanish from your graph — a common reason counts
+  look too low.
+- It's in a **standalone repository, not a fork**. Commits in a fork only
+  count after they're merged upstream.
+
+The count we show is the public one; work in private repositories shows up
+separately as [private contributions](/metrics/private-contributions), if the
+user has enabled that.
+
+## Why workflow dominates the number
+
+How a team merges is worth more commits than how much it codes:
+
+- **Squash-merge teams** compress a 30-commit pull request into a single
+  commit on the default branch. One contribution.
+- **Merge-commit or rebase teams** land all 30, plus maybe a merge commit.
+  Thirty-one contributions for the same work.
+- **Direct pushers** — solo maintainers, dotfiles enthusiasts, people who
+  commit generated files or notes daily — accrue steadily without any review
+  overhead.
+
+So a huge commit count can mean a prolific engineer — or a granular committer,
+a monorepo bot operator, or someone whose repo gets an automated commit every
+night. Cross-check it against [pull requests](/metrics/pull-requests) and
+[reviews](/metrics/reviews): a human pattern usually shows activity across
+several types.
+
+## What it doesn't measure
+
+A commit is one line of shell config or a 4,000-line refactor — the count
+weighs them the same. It says nothing about quality, difficulty, or impact.
+And it's not permanent: deleting a repository retroactively removes its
+contributions, so lifetime counts can go *down*.
+
+## How commit-history.com tracks it
+
+We ask GitHub for every month of a user's life on the platform — from account
+creation to today — and accumulate the monthly commit contributions into the
+cumulative curve you see on the chart. The leaderboard ranks by that lifetime
+public total; the "busiest month" stat is the single biggest month in the
+selected metric.
+
+## See it in action
+
+Look up [your own profile](/) — or compare workflow extremes: try a
+squash-merge monorepo dweller against a granular open-source maintainer with
+a [side-by-side comparison](/torvalds,gaearon), and watch the slopes diverge
+for reasons that have little to do with effort.

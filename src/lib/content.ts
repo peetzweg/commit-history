@@ -19,6 +19,8 @@ export interface ArticleFrontmatter {
 	/** ISO date strings ("2026-07-07") — kept as strings by the YAML core schema. */
 	publishedAt: string;
 	updatedAt: string;
+	/** Position in the /metrics/explained hub list (unset sorts last, then by title). */
+	order?: number;
 }
 
 type MDXContent = ComponentType<{ components?: MDXComponents }>;
@@ -42,10 +44,14 @@ export interface ArticleMeta extends ArticleFrontmatter {
 	slug: string;
 }
 
-/** All articles, newest first — for the /metrics index and sitemap-ish listings. */
+/** All articles in curated reading order — for the /metrics/explained hub. */
 export const articles: ArticleMeta[] = Object.entries(frontmatters)
 	.map(([path, fm]) => ({ slug: slugOf(path), ...fm }))
-	.sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
+	.sort(
+		(a, b) =>
+			(a.order ?? Number.MAX_SAFE_INTEGER) -
+				(b.order ?? Number.MAX_SAFE_INTEGER) || a.title.localeCompare(b.title),
+	);
 
 export function getArticleMeta(slug: string): ArticleMeta | undefined {
 	return articles.find((a) => a.slug === slug);

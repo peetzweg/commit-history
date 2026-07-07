@@ -8,6 +8,7 @@ declare module "*.mdx" {
 		description: string;
 		publishedAt: string;
 		updatedAt: string;
+		order?: number;
 	};
 
 	const MDXContent: ComponentType<{ components?: MDXComponents }>;

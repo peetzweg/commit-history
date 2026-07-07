@@ -1,0 +1,59 @@
+---
+title: "What GitHub follower counts mean (and don't)"
+description: "Followers measure reach, not contribution. Why follower counts and commit counts tell independent stories, and how the followers leaderboard works."
+publishedAt: "2026-07-07"
+updatedAt: "2026-07-07"
+order: 8
+---
+
+Followers are the odd one out among our metrics: every other number counts
+something a developer *did*, while followers count people who chose to watch.
+It's a measure of **reach**, not contribution — which is exactly why it's
+worth having next to the others.
+
+## What the number is
+
+The current follower count on a user's GitHub profile — a snapshot, not a
+history. GitHub doesn't expose when each follow happened, so unlike
+[commits](/metrics/commits) there's no lifetime curve to draw; followers
+appear on the [leaderboard](/?metric=followers) but have no chart on profile
+pages. We refresh the count when a profile's data is refreshed.
+
+## How people actually get followers
+
+Follower counts obey attention dynamics, not effort dynamics:
+
+- **A hit repository** converts stars into follows for years after the fact.
+- **Teaching** — courses, books, conference talks, YouTube — reliably builds
+  followings that dwarf typical maintainer numbers.
+- **Being early or central in an ecosystem**: framework authors and core
+  maintainers accumulate followers as a side effect of being upstream of
+  everyone's stack traces.
+
+The result is that followers and contribution counts are **nearly independent
+axes**. There are engineers with tens of thousands of
+[total contributions](/metrics/total-contributions) and three hundred
+followers, and developer-educators with the inverse. Neither number debunks
+the other; together they locate someone on a builder ↔ broadcaster map.
+
+## What it doesn't measure
+
+Skill, output, or even present activity — follower counts essentially never
+go down, so they encode *peak* visibility, including that of people who left
+the platform years ago. And like every social count, they compound: visible
+people get more visible. Treat large gaps between two people's follower
+counts as differences in audience, not ability.
+
+## Why we include it anyway
+
+Because the contrast is informative. Sorting the same population of
+developers by followers and then by [reviews](/metrics/reviews) produces
+almost comically different leaderboards — one is who you've *heard of*, the
+other is who keeps the code flowing. Having both on one site is the point.
+
+## See it in action
+
+Open the [followers leaderboard](/?metric=followers), then flip the same
+board to Commits or Total and watch it reshuffle — or
+[look up someone famous](/) and check whether their fame is
+builder-shaped or broadcaster-shaped.

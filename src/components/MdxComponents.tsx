@@ -9,6 +9,15 @@ import type { ComponentProps } from "react";
  */
 function MdxAnchor({ href = "", children, ...rest }: ComponentProps<"a">) {
 	if (href.startsWith("/")) {
+		// Links with a query string (e.g. /?metric=followers) can't ride the typed router
+		// `to` (it treats the whole string as a path) — let the browser navigate those.
+		if (href.includes("?")) {
+			return (
+				<a href={href} {...rest}>
+					{children}
+				</a>
+			);
+		}
 		// Author-supplied path, not a statically-known route — bypass typed routing.
 		return (
 			<Link to={href as never} {...rest}>

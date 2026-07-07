@@ -1,0 +1,65 @@
+---
+title: "How “Total contributions” is calculated"
+description: "How Total sums commits, issues, PRs, reviews, repos created, and private contributions into one lifetime number — the exact recipe and its caveats."
+publishedAt: "2026-07-07"
+updatedAt: "2026-07-07"
+order: 7
+---
+
+Every other metric on commit-history.com shows one slice of a developer's
+activity. **Total** stacks all of them into a single lifetime number — the
+closest thing to "how much has this person done on GitHub, all told."
+
+## The exact recipe
+
+Total is the sum of six non-overlapping buckets:
+
+| Bucket | What it counts |
+| --- | --- |
+| [Commits](/metrics/commits) | public commits on default branches |
+| [Issues](/metrics/issues) | public issues opened |
+| [Pull requests](/metrics/pull-requests) | public PRs opened |
+| [Reviews](/metrics/reviews) | public PR reviews submitted |
+| [Repositories](/metrics/repositories) | public repos created (no forks) |
+| [Private contributions](/metrics/private-contributions) | everything above, in private repos — if the user exposes it |
+
+The buckets are disjoint, so nothing is double-counted: a pull request counts
+once as a PR, and its commits count as commits only when they land on the
+default branch. If you know the "1,234 contributions in the last year" number
+GitHub shows on profiles, Total is the same idea — computed over a whole
+GitHub lifetime instead of a rolling year.
+
+## Why it's often the fairest metric
+
+Each individual metric has a workflow bias. Commit counts reward granular
+committers and punish squash-mergers. PR counts reward multi-repo
+collaborators. Review counts reward seniors. And developers who work mostly
+in private company repositories look like ghosts on every public metric.
+
+Total absorbs those biases into one number: the squash-merge engineer gets
+their PRs and reviews counted, the reviewer gets their reviews, the
+private-repo engineer gets their private count (once they
+[enable it](/metrics/private-contributions)). It's the metric we'd suggest
+for comparing two developers with *different* working styles.
+
+## The honest caveat
+
+Total mixes units. Creating an empty repository, approving a PR, and landing
+a month-long refactor as one squashed commit each add exactly **+1**. Summing
+them is democratic and a little absurd — the number is a measure of sustained
+activity, not of value delivered. For any serious read of a profile, look at
+the *composition*: flip through the individual metrics and see what kind of
++1s a career is made of.
+
+## How commit-history.com tracks it
+
+All six buckets are fetched per month since account creation and summed into
+the cumulative Total curve. On profiles it only appears when there's
+something beyond commits to add — otherwise it would just duplicate the
+commits line.
+
+## See it in action
+
+[Look up any profile](/) and switch to **Total** — or compare a public-OSS
+career against a private-heavy one, where Total is usually the only metric
+that makes the comparison fair.

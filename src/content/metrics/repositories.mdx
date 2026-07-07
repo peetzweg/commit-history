@@ -1,0 +1,65 @@
+---
+title: "What a high repository count means on GitHub"
+description: "GitHub counts repositories you create — forks don't count. Why this differs from the profile page number, and what a high repo count signals."
+publishedAt: "2026-07-07"
+updatedAt: "2026-07-07"
+order: 5
+---
+
+The Repos metric counts the public repositories a user has **created** over
+their GitHub lifetime. It's the simplest-sounding metric on the site and the
+one whose number most often surprises people — usually because it doesn't
+match what their profile page shows.
+
+## What GitHub counts
+
+- **Creating a public repository**: +1.
+- **Forking does not count.** A fork is a copy, not a creation — so prolific
+  forkers can show a much lower number here than their profile suggests.
+- Repositories created inside private accounts or orgs you can't see:
+  invisible here (creation events in private contexts are part of
+  [private contributions](/metrics/private-contributions)).
+
+This is also why our number can differ from the repository count on a GitHub
+profile: the profile's "Repositories" tab shows what a user currently *owns*
+(including forks, minus deletions and transfers), while this metric reflects
+creations GitHub attributed as contributions.
+
+## Reading the number
+
+A large repository count is a personality signal more than a productivity
+one. It tends to mark:
+
+- **Experimenters** — a repo per idea, most of them three commits deep. This
+  is a perfectly honorable way to use GitHub.
+- **Teachers and content creators** — one repo per lesson, workshop, or
+  video, created on a schedule.
+- **Tool authors** — people who publish everything as its own installable
+  package rather than a folder in a monorepo.
+
+The inverse profile is just as meaningful: some of the most prolific
+engineers on GitHub have a *tiny* repo count, because a decade of their work
+lives inside two or three big projects. Check the
+[commit count](/metrics/commits) next to it — thousands of commits across few
+repos reads very differently from few commits across a thousand repos.
+
+## What it doesn't measure
+
+Whether anything happened after `git init`. Creating a repository is the
+cheapest contribution GitHub counts — it weighs the same as a commit or a
+[review](/metrics/reviews) in the
+[Total](/metrics/total-contributions) sum, while representing the least
+guaranteed work.
+
+## How commit-history.com tracks it
+
+Monthly repository-creation contributions accumulated since account creation;
+the leaderboard ranks lifetime totals. Repo curves are often *stepped* —
+flurries of creation around job changes, course launches, or hackathon
+seasons, with long plateaus between.
+
+## See it in action
+
+[Look up a serial project-starter](/) and switch the chart to **Repos** —
+then compare against a monorepo dweller to see two opposite ways of living on
+GitHub.

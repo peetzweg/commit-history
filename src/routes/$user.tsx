@@ -13,6 +13,7 @@ import {
 	chartTitle,
 	metricDelta,
 } from "#/components/CommitChart";
+import { ExplainerLink } from "#/components/ExplainerLink";
 import {
 	type ChartSeries,
 	MultiCommitChart,
@@ -43,12 +44,6 @@ const METRIC_PARAMS: readonly ChartMode[] = [
 function isMetricParam(v: unknown): v is ChartMode {
 	return typeof v === "string" && (METRIC_PARAMS as string[]).includes(v);
 }
-
-// Metrics that have a /metrics/<slug> explainer article (src/content/metrics/) — the
-// stat label links there. Fill in as more explainers are written (#82).
-const METRIC_EXPLAINER: Partial<Record<ChartMode, string>> = {
-	private: "private-contributions",
-};
 
 interface UserSearch {
 	/** Selected chart metric; absent = the default (commits). */
@@ -508,16 +503,7 @@ function SuspendedNotice() {
 
 // ── Single user: the detailed view ──────────────────────────────────────────
 
-function Stat({
-	label,
-	value,
-	explainerSlug,
-}: {
-	label: string;
-	value: string;
-	/** Slug of a /metrics/<slug> article explaining this stat — makes the label a link. */
-	explainerSlug?: string;
-}) {
+function Stat({ label, value }: { label: string; value: string }) {
 	return (
 		<div>
 			<motion.div
@@ -532,18 +518,7 @@ function Stat({
 				{value}
 			</motion.div>
 			<div className="text-xs uppercase tracking-wide text-muted-foreground">
-				{explainerSlug ? (
-					<Link
-						to="/metrics/$slug"
-						params={{ slug: explainerSlug }}
-						className="underline decoration-dotted underline-offset-2 hover:text-foreground"
-						title={`What does “${label}” mean?`}
-					>
-						{label}
-					</Link>
-				) : (
-					label
-				)}
+				{label}
 			</div>
 		</div>
 	);
@@ -615,11 +590,7 @@ function ProfilePanel({
 				{rank !== null && (
 					<Stat label={`${label} rank`} value={`#${rank.toLocaleString()}`} />
 				)}
-				<Stat
-					label={label}
-					value={total.toLocaleString()}
-					explainerSlug={METRIC_EXPLAINER[mode]}
-				/>
+				<Stat label={label} value={total.toLocaleString()} />
 				<Stat
 					label="Busiest month"
 					value={
@@ -668,7 +639,8 @@ function SingleView({
 			{/* Caption sits on its own line so the chart + subtitle stay clean to screenshot; the
 			    Compare input drops to its own centered row below (desktop and mobile). */}
 			<p className="mt-2 text-xs text-muted-foreground sm:mt-4">
-				{chartCaption(effectiveMode)} attributed by GitHub since {since}.
+				{chartCaption(effectiveMode)} attributed by GitHub since {since}.{" "}
+				<ExplainerLink metric={effectiveMode} />
 			</p>
 			<div className="mt-10 flex justify-center">
 				<AddUser currentLogins={otherLogins} label="Compare with…" />
@@ -825,7 +797,8 @@ function ComparisonView({
 			</motion.div>
 
 			<p className="mt-2 text-xs text-muted-foreground sm:mt-4">
-				{chartCaption(effectiveChartMode)}.
+				{chartCaption(effectiveChartMode)}.{" "}
+				<ExplainerLink metric={effectiveChartMode} />
 			</p>
 			{mode === "aligned" && (
 				<p className="mt-1 text-xs text-muted-foreground">
