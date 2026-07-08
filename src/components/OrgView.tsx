@@ -229,19 +229,14 @@ function LoadedOrg({
 				Lifetime contributions of {org.membersTracked.toLocaleString()} public
 				member{org.membersTracked === 1 ? "" : "s"} to {org.login}’s
 				repositories, as attributed by GitHub. Private members and private
-				contributions aren’t included.
-			</p>
-
-			<p className="mt-2 text-xs text-muted-foreground">
-				See how {org.login} ranks on the{" "}
+				contributions aren’t included.{" "}
 				<Link
-					to="/"
-					search={{ kind: "org" }}
-					className="underline hover:text-foreground"
+					to="/company/$slug"
+					params={{ slug: "stats" }}
+					className="whitespace-nowrap underline decoration-dotted underline-offset-2 hover:text-foreground"
 				>
-					company leaderboard
+					How is this calculated?
 				</Link>
-				.
 			</p>
 
 			{members.length > 0 && <MemberBoard org={org} members={members} />}
@@ -269,7 +264,14 @@ function MemberBoard({
 				</h2>
 				<p className="mt-1.5 text-xs text-muted-foreground">
 					Public members ranked by their lifetime commits to {org.login}’s
-					repositories.
+					repositories.{" "}
+					<Link
+						to="/company/$slug"
+						params={{ slug: "members" }}
+						className="whitespace-nowrap underline decoration-dotted underline-offset-2 hover:text-foreground"
+					>
+						Why am I not on this list?
+					</Link>
 				</p>
 			</div>
 			<ol>

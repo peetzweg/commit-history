@@ -656,7 +656,14 @@ function CompanyBoard({ rows }: { rows: CompanyLeaderEntry[] }) {
 					leaderboard
 				</h2>
 				<p className="mt-1.5 text-xs text-muted-foreground">
-					Public members’ lifetime commits to the organization’s repositories.
+					Public members’ lifetime commits to the organization’s repositories.{" "}
+					<Link
+						to="/company/$slug"
+						params={{ slug: "stats" }}
+						className="whitespace-nowrap underline decoration-dotted underline-offset-2 hover:text-foreground"
+					>
+						What is this?
+					</Link>
 				</p>
 			</div>
 			<ol>
