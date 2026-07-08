@@ -7,8 +7,9 @@ import { type CompanyLeaderEntry, getCompanyLeaderboard } from "#/lib/org";
  * The company leaderboard: GitHub orgs ranked by their public members' lifetime commits *to
  * that org* (org-scoped, so a member's unrelated side projects don't count). Deliberately a
  * standalone route rather than a mode of the home Leaderboard — that component is coupled to
- * user metrics, /$user links and sponsor-row interleaving. The search form here is how new
- * companies enter the board: it navigates to /org/$login, which builds the org on first visit.
+ * user metrics and sponsor-row interleaving. The search form here is how new companies enter
+ * the board: it navigates to /$login (logins are one namespace on GitHub, so the user route
+ * resolves orgs too), which builds the org on first visit.
  */
 
 // v1 serves a single page — plenty while the board populates. Swap for the
@@ -70,7 +71,7 @@ function Companies() {
 	);
 }
 
-/** Mirrors the home search form, but for orgs — submits to /org/$login (the ingestion point). */
+/** Mirrors the home search form, but for orgs — submits to /$login (the ingestion point). */
 function OrgSearch() {
 	const navigate = useNavigate();
 	const [login, setLogin] = useState("");
@@ -78,7 +79,7 @@ function OrgSearch() {
 	function submit(e: React.FormEvent) {
 		e.preventDefault();
 		const org = login.trim();
-		if (org) navigate({ to: "/org/$login", params: { login: org } });
+		if (org) navigate({ to: "/$user", params: { user: org } });
 	}
 
 	return (
@@ -119,8 +120,8 @@ function CompanyBoard({ rows }: { rows: CompanyLeaderEntry[] }) {
 				{rows.map((org, i) => (
 					<li key={org.login} className="border-border border-b">
 						<Link
-							to="/org/$login"
-							params={{ login: org.login }}
+							to="/$user"
+							params={{ user: org.login }}
 							preload={false}
 							className="group flex w-full items-center gap-3 py-2.5 text-left hover:bg-muted"
 						>

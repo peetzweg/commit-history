@@ -1,7 +1,8 @@
 import { useMatch, useNavigate, useRouterState } from "@tanstack/react-router";
 import { SegmentedControl } from "#/components/SegmentedControl";
-import type { LeaderMode, UserResult } from "#/lib/commit-history";
+import type { LeaderMode } from "#/lib/commit-history";
 import { ALL_METRICS, availableMetrics, METRIC_LABEL } from "#/lib/metrics";
+import type { LookupResult } from "#/lib/org";
 
 // The leaderboard offers every metric; the chart offers the subset a profile actually has data for.
 const LEADER_MODES: LeaderMode[] = [
@@ -35,22 +36,27 @@ export function MetricBar() {
 	// Defined only while the /$user route is active and its loader has resolved (undefined elsewhere
 	// and during loading).
 	const userMatch = useMatch({ from: "/$user", shouldThrow: false });
-	const userData = userMatch?.loaderData as UserResult[] | undefined;
+	const lookup = userMatch?.loaderData as LookupResult | undefined;
 
 	let modes: LeaderMode[] | null = null;
 	if (routeId === "/") {
 		modes = LEADER_MODES;
 	} else if (routeId === "/$user") {
-		const histories = (userData ?? [])
-			.map((r) => r.history)
-			.filter((h) => h != null);
-		if (histories.length === 0) {
-			// Loader still pending — show the full set so the bar is present during loading.
-			modes = ALL_METRICS;
+		if (lookup?.kind === "org") {
+			// Org pages have a single number set — nothing to pick (no per-metric boards yet).
+			modes = null;
 		} else {
-			const avail = availableMetrics(histories);
-			// A lone metric (commits only) isn't worth a picker.
-			modes = avail.length > 1 ? avail : null;
+			const histories = (lookup?.users ?? [])
+				.map((r) => r.history)
+				.filter((h) => h != null);
+			if (histories.length === 0) {
+				// Loader still pending — show the full set so the bar is present during loading.
+				modes = ALL_METRICS;
+			} else {
+				const avail = availableMetrics(histories);
+				// A lone metric (commits only) isn't worth a picker.
+				modes = avail.length > 1 ? avail : null;
+			}
 		}
 	}
 

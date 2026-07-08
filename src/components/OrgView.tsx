@@ -1,41 +1,16 @@
-import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { BadgeCheck } from "lucide-react";
 import { motion } from "motion/react";
 import type { BuildProgress } from "#/lib/github";
-import { getOrg } from "#/lib/org";
+import type { OrgResult } from "#/lib/org";
 import type { OrgSummary } from "#/lib/org-cache";
-import { useBuildPolling } from "#/lib/use-build-polling";
 
 /**
- * Org ("company") page: profile header + lifetime totals of the members' contributions *to this
- * org*. This route is also the ingestion point — visiting an unknown org starts its build, with
- * the same poll-to-continue contract as user pages. No chart yet: orgs have no monthly data
- * until the background worker lands (issue #84 follow-up).
+ * Org ("company") views rendered by the /$user route when a login resolves to an organization
+ * (GitHub logins share one namespace, so /paritytech IS the org page). Header + lifetime totals
+ * of the members' contributions *to this org*, plus the building/error states. No chart yet:
+ * orgs have no monthly data until the background worker lands (issue #84 follow-up).
  */
-export const Route = createFileRoute("/org/$login")({
-	loader: ({ params }) => getOrg({ data: params.login }),
-	head: ({ params }) => {
-		const title = `${params.login} — company commit history`;
-		const description = `Lifetime GitHub contributions of ${params.login}'s public members to the organization — commits, pull requests, reviews and issues.`;
-		const url = `https://commit-history.com/org/${params.login}`;
-		return {
-			meta: [
-				{ title },
-				{ name: "description", content: description },
-				{ property: "og:title", content: title },
-				{ property: "og:description", content: description },
-				{ property: "og:url", content: url },
-				{ name: "twitter:title", content: title },
-				{ name: "twitter:description", content: description },
-			],
-			links: [{ rel: "canonical", href: url }],
-		};
-	},
-	component: OrgView,
-	errorComponent: OrgError,
-	pendingComponent: PendingOrg,
-	pendingMs: 150,
-});
 
 function monthYear(date: string) {
 	return new Date(date).toLocaleDateString("en-US", {
@@ -65,16 +40,6 @@ function HeaderSkeleton({ login }: { login: string }) {
 				<span className="text-sm text-muted-foreground">@{login}</span>
 			</div>
 		</header>
-	);
-}
-
-function PendingOrg() {
-	const { login } = Route.useParams();
-	return (
-		<main className="mx-auto max-w-4xl px-6 py-12">
-			<BackLink />
-			<HeaderSkeleton login={login} />
-		</main>
 	);
 }
 
@@ -143,17 +108,17 @@ function Stat({ label, value }: { label: string; value: string }) {
 	);
 }
 
-function OrgView() {
-	const result = Route.useLoaderData();
-	const { login } = Route.useParams();
-	const { gaveUp, retry } = useBuildPolling({
-		routeId: "/org/$login",
-		resetKey: login,
-		data: result,
-		building: result.building != null,
-		fetched: result.building?.monthsFetched ?? 0,
-	});
-
+/** Full-page org result: loaded profile, building progress, or failure — driven by the
+ *  /$user loader's org branch and its useBuildPolling state. */
+export function OrgResultView({
+	result,
+	gaveUp,
+	retry,
+}: {
+	result: OrgResult;
+	gaveUp: boolean;
+	retry: () => void;
+}) {
 	if (result.org) return <LoadedOrg org={result.org} />;
 
 	if (result.building && !gaveUp) {
@@ -258,28 +223,14 @@ function LoadedOrg({ org }: { org: OrgSummary }) {
 				repositories, as attributed by GitHub. Private members and private
 				contributions aren’t included.
 			</p>
-		</main>
-	);
-}
 
-function OrgError({ error }: { error: Error }) {
-	const router = useRouter();
-	return (
-		<main className="mx-auto max-w-md px-6 py-24 text-center">
-			<h1 className="text-xl font-semibold">Couldn’t load that organization</h1>
-			<p className="mt-3 text-sm text-muted-foreground">{error.message}</p>
-			<button
-				type="button"
-				onClick={() => router.invalidate()}
-				className="mt-6 rounded-md border border-border px-4 py-2 text-sm hover:bg-muted"
-			>
-				Retry
-			</button>
-			<div className="mt-4">
-				<Link to="/" className="text-sm text-muted-foreground hover:underline">
-					← Back to search
+			<p className="mt-2 text-xs text-muted-foreground">
+				See how {org.login} ranks on the{" "}
+				<Link to="/companies" className="underline hover:text-foreground">
+					company leaderboard
 				</Link>
-			</div>
+				.
+			</p>
 		</main>
 	);
 }

@@ -367,6 +367,66 @@ async function ranksFor(
 }
 
 /**
+ * Resolve several users' histories, tolerating partial failure so one bad username doesn't sink
+ * the whole comparison. Plain server-side function — exported for getLookup (org.ts), which
+ * composes it with the org fallback. Server functions must NOT call each other (a server-side
+ * call turns into an HTTP self-fetch), so shared logic lives here.
+ */
+export async function lookupUsers(rawLogins: string[]): Promise<UserResult[]> {
+	// Normalize even when called server-side, so the cap/dedupe can never be bypassed.
+	const logins = normalizeLogins(rawLogins);
+	const token = serverToken();
+	// allSettled (not all): one user's failed GitHub fetch must not reject the whole batch and
+	// blank out the others. suspendedSet is fetched alongside and is best-effort — a DB hiccup
+	// there shouldn't drop already-loaded profiles, so it falls back to "none suspended".
+	const [settled, suspended] = await Promise.all([
+		Promise.allSettled(
+			logins.map((login) => getCachedCommitHistory(login, token)),
+		),
+		suspendedSet(logins).catch(() => new Set<string>()),
+	]);
+	return Promise.all(
+		settled.map(async (outcome, i): Promise<UserResult> => {
+			const login = logins[i];
+			const isSuspended = suspended.has(login.toLowerCase());
+			if (outcome.status === "rejected") {
+				const e = outcome.reason;
+				// The 503 "still building" rejection carries progress — surface it as `building`
+				// (with error null) so the client polls to continue instead of showing a failure
+				// card. This mapping runs server-side, in-process, so instanceof sees the raw reason.
+				const building =
+					e instanceof GitHubError && e.status === 503 && e.progress
+						? e.progress
+						: null;
+				return {
+					login,
+					history: null,
+					error: building
+						? null
+						: e instanceof Error
+							? e.message
+							: "Failed to load",
+					suspended: isSuspended,
+					ranks: {},
+					building,
+				};
+			}
+			const history = outcome.value;
+			// Ranks are supplementary — never let a ranking-query failure drop a loaded profile.
+			const ranks = await ranksFor(history).catch(() => ({}));
+			return {
+				login,
+				history,
+				error: null,
+				suspended: isSuspended,
+				ranks,
+				building: null,
+			};
+		}),
+	);
+}
+
+/**
  * Resolve several users' histories in one round-trip, tolerating partial failure so one bad
  * username doesn't sink the whole comparison.
  */
@@ -378,54 +438,4 @@ export const getCommitHistories = createServerFn({ method: "GET" })
 	.validator((logins: string[]) =>
 		normalizeLogins(Array.isArray(logins) ? logins : []),
 	)
-	.handler(async ({ data: logins }): Promise<UserResult[]> => {
-		const token = serverToken();
-		// allSettled (not all): one user's failed GitHub fetch must not reject the whole batch and
-		// blank out the others. suspendedSet is fetched alongside and is best-effort — a DB hiccup
-		// there shouldn't drop already-loaded profiles, so it falls back to "none suspended".
-		const [settled, suspended] = await Promise.all([
-			Promise.allSettled(
-				logins.map((login) => getCachedCommitHistory(login, token)),
-			),
-			suspendedSet(logins).catch(() => new Set<string>()),
-		]);
-		return Promise.all(
-			settled.map(async (outcome, i): Promise<UserResult> => {
-				const login = logins[i];
-				const isSuspended = suspended.has(login.toLowerCase());
-				if (outcome.status === "rejected") {
-					const e = outcome.reason;
-					// The 503 "still building" rejection carries progress — surface it as `building`
-					// (with error null) so the client polls to continue instead of showing a failure
-					// card. This mapping runs server-side, in-process, so instanceof sees the raw reason.
-					const building =
-						e instanceof GitHubError && e.status === 503 && e.progress
-							? e.progress
-							: null;
-					return {
-						login,
-						history: null,
-						error: building
-							? null
-							: e instanceof Error
-								? e.message
-								: "Failed to load",
-						suspended: isSuspended,
-						ranks: {},
-						building,
-					};
-				}
-				const history = outcome.value;
-				// Ranks are supplementary — never let a ranking-query failure drop a loaded profile.
-				const ranks = await ranksFor(history).catch(() => ({}));
-				return {
-					login,
-					history,
-					error: null,
-					suspended: isSuspended,
-					ranks,
-					building: null,
-				};
-			}),
-		);
-	});
+	.handler(({ data: logins }): Promise<UserResult[]> => lookupUsers(logins));

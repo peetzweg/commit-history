@@ -1,6 +1,11 @@
 import { createServerFn } from "@tanstack/react-start";
-import { and, asc, desc, eq, isNotNull, isNull } from "drizzle-orm";
-import { LEADERBOARD_MAX, serverToken } from "#/lib/commit-history";
+import { and, asc, desc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
+import {
+	LEADERBOARD_MAX,
+	lookupUsers,
+	serverToken,
+	type UserResult,
+} from "#/lib/commit-history";
 import { db } from "#/lib/db";
 import { entities } from "#/lib/db/schema";
 import { type BuildProgress, GitHubError } from "#/lib/github";
@@ -21,32 +26,93 @@ export interface OrgResult {
 	building: BuildProgress | null;
 }
 
+/** Plain server-side resolution — shared by getOrg and getLookup (server functions must not
+ *  call each other: a server-side call turns into an HTTP self-fetch). */
+async function resolveOrg(login: string): Promise<OrgResult> {
+	try {
+		const org = await getOrgSummary(login, serverToken());
+		return { login, org, error: null, building: null };
+	} catch (e) {
+		// The 503 "still building" rejection carries progress — surface it as `building` so the
+		// client polls to continue instead of showing a failure card (same mapping as the user
+		// results in getCommitHistories).
+		const building =
+			e instanceof GitHubError && e.status === 503 && e.progress
+				? e.progress
+				: null;
+		return {
+			login,
+			org: null,
+			error: building
+				? null
+				: e instanceof Error
+					? e.message
+					: "Failed to load",
+			building,
+		};
+	}
+}
+
 export const getOrg = createServerFn({ method: "GET" })
 	// Same coercion rationale as getCommitHistory: never trust the wire type.
 	.validator((login: string) => (typeof login === "string" ? login : ""))
-	.handler(async ({ data: login }): Promise<OrgResult> => {
-		try {
-			const org = await getOrgSummary(login, serverToken());
-			return { login, org, error: null, building: null };
-		} catch (e) {
-			// The 503 "still building" rejection carries progress — surface it as `building` so the
-			// client polls to continue instead of showing a failure card (same mapping as the user
-			// results in getCommitHistories).
-			const building =
-				e instanceof GitHubError && e.status === 503 && e.progress
-					? e.progress
-					: null;
-			return {
-				login,
-				org: null,
-				error: building
-					? null
-					: e instanceof Error
-						? e.message
-						: "Failed to load",
-				building,
-			};
+	.handler(({ data: login }): Promise<OrgResult> => resolveOrg(login));
+
+export type LookupResult =
+	| { kind: "users"; users: UserResult[] }
+	| { kind: "org"; org: OrgResult };
+
+/** Which kinds this login's entity rows already have in the DB (no GitHub calls). */
+async function knownKinds(login: string): Promise<Set<string>> {
+	if (!db) return new Set();
+	const key = login.trim().toLowerCase();
+	try {
+		const rows = await db
+			.select({ kind: entities.kind })
+			.from(entities)
+			.where(inArray(entities.id, [`user:${key}`, `org:${key}`]));
+		return new Set(rows.map((r) => r.kind));
+	} catch {
+		return new Set(); // best-effort — fall through to the user-first path
+	}
+}
+
+/**
+ * Resolve what a /$user path segment actually is. GitHub logins share ONE namespace across
+ * users and organizations, so /paritytech can be the org page — no /org/ prefix needed.
+ *
+ * Resolution order: a login already stored as an org (and not as a user) goes straight to the
+ * org path — without this, every poll of a building org would burn a doomed user lookup on
+ * GitHub first. Unknown logins try the user path (the overwhelmingly common case) and fall back
+ * to the org path only on GitHub's "not a User" rejection, so a brand-new org costs exactly one
+ * extra request on its very first sighting. Multi-login comparisons stay users-only.
+ */
+export const getLookup = createServerFn({ method: "GET" })
+	// The loader sends parseLogins output, but the RPC endpoint is public — coerce defensively;
+	// getCommitHistories re-normalizes (dedupes/caps) the list itself.
+	.validator((logins: string[]) =>
+		Array.isArray(logins) ? logins.filter((l) => typeof l === "string") : [],
+	)
+	.handler(async ({ data: logins }): Promise<LookupResult> => {
+		const solo = logins.length === 1 ? logins[0] : null;
+		if (solo) {
+			const kinds = await knownKinds(solo);
+			// Both kinds existing at once means a login changed hands across a rename — prefer the
+			// user row (the historical default) and let the org stay reachable via /companies.
+			if (kinds.has("org") && !kinds.has("user")) {
+				return { kind: "org", org: await resolveOrg(solo) };
+			}
 		}
+		const users = await lookupUsers(logins);
+		if (
+			solo &&
+			users[0]?.error &&
+			/could not resolve to a user/i.test(users[0].error)
+		) {
+			const org = await resolveOrg(solo);
+			if (org.org || org.building) return { kind: "org", org };
+		}
+		return { kind: "users", users };
 	});
 
 export interface CompanyLeaderEntry {

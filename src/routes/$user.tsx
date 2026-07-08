@@ -20,13 +20,11 @@ import {
 	SERIES_COLORS,
 	type TimelineMode,
 } from "#/components/MultiCommitChart";
-import {
-	getCommitHistories,
-	parseLogins,
-	type UserResult,
-} from "#/lib/commit-history";
+import { OrgResultView } from "#/components/OrgView";
+import { parseLogins, type UserResult } from "#/lib/commit-history";
 import type { BuildProgress, CommitPoint } from "#/lib/github";
 import { availableMetrics, METRIC_LABEL, METRIC_TOTAL } from "#/lib/metrics";
+import { getLookup } from "#/lib/org";
 import { useBuildPolling } from "#/lib/use-build-polling";
 
 // ── Chart metrics ─────────────────────────────────────────────────────────────
@@ -55,16 +53,20 @@ export const Route = createFileRoute("/$user")({
 	// `?metric=` selects the chart contribution type; invalid/absent → default (commits).
 	validateSearch: (search: Record<string, unknown>): UserSearch =>
 		isMetricParam(search.metric) ? { metric: search.metric } : {},
-	loader: ({ params }) =>
-		getCommitHistories({ data: parseLogins(params.user) }),
-	head: ({ params }) => {
+	// GitHub logins are one namespace across users and orgs, so this route serves both:
+	// /paritytech renders the org view, /peetzweg the user view (see getLookup).
+	loader: ({ params }) => getLookup({ data: parseLogins(params.user) }),
+	head: ({ params, loaderData }) => {
 		const logins = parseLogins(params.user);
-		const title =
-			logins.length > 1
+		const isOrg = loaderData?.kind === "org";
+		const title = isOrg
+			? `${logins[0]} — company commit history`
+			: logins.length > 1
 				? `${logins.join(" vs ")} — commit history`
 				: `${logins[0] ?? "GitHub user"}’s commit history`;
-		const description =
-			logins.length > 1
+		const description = isOrg
+			? `Lifetime GitHub contributions of ${logins[0]}'s public members to the organization — commits, pull requests, reviews and issues.`
+			: logins.length > 1
 				? `Compare the cumulative GitHub commits of ${logins.join(", ")} over time.`
 				: `${logins[0]}’s cumulative GitHub commits over their whole lifetime.`;
 		const url = `https://commit-history.com/${logins.join(",")}`;
@@ -314,19 +316,28 @@ function BuildingView({
 }
 
 function View() {
-	const results = Route.useLoaderData();
+	const data = Route.useLoaderData();
 	const { user } = Route.useParams();
+	// One polling session covers both kinds — for orgs the progress counts members.
+	const results = data.kind === "users" ? data.users : [];
 	const { gaveUp, retry } = useBuildPolling({
 		routeId: "/$user",
 		// A different login set is a fresh polling session.
 		resetKey: user,
-		data: results,
-		building: results.some((r) => r.building),
-		fetched: results.reduce(
-			(sum, r) => sum + (r.building?.monthsFetched ?? 0),
-			0,
-		),
+		data,
+		building:
+			data.kind === "org"
+				? data.org.building != null
+				: results.some((r) => r.building),
+		fetched:
+			data.kind === "org"
+				? (data.org.building?.monthsFetched ?? 0)
+				: results.reduce((sum, r) => sum + (r.building?.monthsFetched ?? 0), 0),
 	});
+
+	if (data.kind === "org") {
+		return <OrgResultView result={data.org} gaveUp={gaveUp} retry={retry} />;
+	}
 	const ok = results.filter((r) => r.history);
 	const building = gaveUp ? [] : results.filter((r) => r.building);
 	// Once polling gives up, building entries degrade to failures with a retryable message.
