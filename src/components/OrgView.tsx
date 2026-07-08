@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { BadgeCheck } from "lucide-react";
 import { motion } from "motion/react";
 import type { BuildProgress } from "#/lib/github";
-import type { OrgResult } from "#/lib/org";
+import type { OrgMemberEntry, OrgResult } from "#/lib/org";
 import type { OrgSummary } from "#/lib/org-cache";
 
 /**
@@ -119,7 +119,8 @@ export function OrgResultView({
 	gaveUp: boolean;
 	retry: () => void;
 }) {
-	if (result.org) return <LoadedOrg org={result.org} />;
+	if (result.org)
+		return <LoadedOrg org={result.org} members={result.members} />;
 
 	if (result.building && !gaveUp) {
 		return (
@@ -160,7 +161,13 @@ export function OrgResultView({
 	);
 }
 
-function LoadedOrg({ org }: { org: OrgSummary }) {
+function LoadedOrg({
+	org,
+	members,
+}: {
+	org: OrgSummary;
+	members: OrgMemberEntry[];
+}) {
 	const facts = [
 		`Created ${monthYear(org.createdAt)}`,
 		`${org.memberCount.toLocaleString()} public member${org.memberCount === 1 ? "" : "s"}`,
@@ -236,6 +243,80 @@ function LoadedOrg({ org }: { org: OrgSummary }) {
 				</Link>
 				.
 			</p>
+
+			{members.length > 0 && <MemberBoard org={org} members={members} />}
 		</main>
+	);
+}
+
+/** The within-org member leaderboard: public members ranked by commits to this org's repos —
+ *  the same rows the headline totals are summed from. Rows link to the member's own page. */
+function MemberBoard({
+	org,
+	members,
+}: {
+	org: OrgSummary;
+	members: OrgMemberEntry[];
+}) {
+	return (
+		<section className="mt-12">
+			<div className="border-border border-b pb-3">
+				<h2 className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-2xl font-bold tracking-tight">
+					<span className="font-hand font-normal text-3xl text-primary leading-none">
+						Member
+					</span>
+					leaderboard
+				</h2>
+				<p className="mt-1.5 text-xs text-muted-foreground">
+					Public members ranked by their lifetime commits to {org.login}’s
+					repositories.
+				</p>
+			</div>
+			<ol>
+				{members.map((m, i) => (
+					<li key={m.login} className="border-border border-b">
+						<Link
+							to="/$user"
+							params={{ user: m.login }}
+							preload={false}
+							className="group flex w-full items-center gap-3 py-2.5 text-left hover:bg-muted"
+						>
+							<span className="flex w-6 items-center justify-center text-sm tabular-nums text-muted-foreground">
+								{i === 0 ? (
+									<img
+										src="/crown.svg"
+										alt="1st place"
+										className="h-4 w-auto"
+									/>
+								) : (
+									i + 1
+								)}
+							</span>
+							<img
+								src={m.avatarUrl ?? ""}
+								alt=""
+								className="h-8 w-8 rounded-full border border-border"
+							/>
+							<span className="min-w-0 flex-1 truncate font-medium">
+								{m.login}
+								{m.name && (
+									<span className="ml-2 hidden font-normal text-muted-foreground opacity-0 transition-opacity duration-200 sm:inline desktop:group-hover:opacity-100 desktop:group-focus-within:opacity-100">
+										{m.name}
+									</span>
+								)}
+							</span>
+							<span className="text-right">
+								<span className="block font-semibold tabular-nums">
+									{m.commits.toLocaleString()}
+								</span>
+								<span className="block text-xs text-muted-foreground tabular-nums">
+									commits
+								</span>
+							</span>
+						</Link>
+					</li>
+				))}
+			</ol>
+		</section>
 	);
 }

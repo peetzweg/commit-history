@@ -7,9 +7,9 @@ import {
 	type UserResult,
 } from "#/lib/commit-history";
 import { db } from "#/lib/db";
-import { entities } from "#/lib/db/schema";
+import { entities, orgMembers } from "#/lib/db/schema";
 import { type BuildProgress, GitHubError } from "#/lib/github";
-import { getOrgSummary, type OrgSummary } from "#/lib/org-cache";
+import { getOrgSummary, type OrgSummary, orgEntityId } from "#/lib/org-cache";
 
 /**
  * Server functions for org ("company") pages and the company leaderboard. Split from
@@ -17,13 +17,57 @@ import { getOrgSummary, type OrgSummary } from "#/lib/org-cache";
  * same "don't rename to *.server.ts" caveat documented there).
  */
 
+export interface OrgMemberEntry {
+	login: string;
+	name: string | null;
+	avatarUrl: string | null;
+	// Org-scoped lifetime contributions (to this org's repos only — see org_members in schema.ts).
+	commits: number;
+	pullRequests: number;
+	reviews: number;
+	issues: number;
+}
+
 export interface OrgResult {
 	login: string;
 	org: OrgSummary | null;
+	// The within-org member leaderboard, ranked by org-scoped commits. Populated only alongside
+	// a loaded `org` (empty while building / on error).
+	members: OrgMemberEntry[];
 	error: string | null;
 	// Non-null while the initial server-side build is still in progress — each poll of the loader
 	// advances it (progress counts *members*, not months). Mutually exclusive with `error`.
 	building: BuildProgress | null;
+}
+
+/**
+ * A company's members ranked by their commits *to that org* — the same rows the org's totals
+ * are summed from, so the list always reconciles with the headline numbers. Suspended members
+ * are hidden (consistent with every other board); not-yet-fetched members (mid-build) carry
+ * no numbers yet and are skipped.
+ */
+async function queryOrgMembers(orgId: string): Promise<OrgMemberEntry[]> {
+	if (!db) return [];
+	return db
+		.select({
+			login: entities.login,
+			name: entities.name,
+			avatarUrl: entities.avatarUrl,
+			commits: orgMembers.commits,
+			pullRequests: orgMembers.pullRequests,
+			reviews: orgMembers.reviews,
+			issues: orgMembers.issues,
+		})
+		.from(orgMembers)
+		.innerJoin(entities, eq(entities.id, orgMembers.memberId))
+		.where(
+			and(
+				eq(orgMembers.orgId, orgId),
+				isNotNull(orgMembers.lastFetched),
+				isNull(entities.suspendedAt),
+			),
+		)
+		.orderBy(desc(orgMembers.commits), asc(orgMembers.memberId));
 }
 
 /** Plain server-side resolution — shared by getOrg and getLookup (server functions must not
@@ -31,7 +75,9 @@ export interface OrgResult {
 async function resolveOrg(login: string): Promise<OrgResult> {
 	try {
 		const org = await getOrgSummary(login, serverToken());
-		return { login, org, error: null, building: null };
+		// Best-effort: a members-query hiccup must not drop an already-loaded org page.
+		const members = await queryOrgMembers(orgEntityId(login)).catch(() => []);
+		return { login, org, members, error: null, building: null };
 	} catch (e) {
 		// The 503 "still building" rejection carries progress — surface it as `building` so the
 		// client polls to continue instead of showing a failure card (same mapping as the user
@@ -43,6 +89,7 @@ async function resolveOrg(login: string): Promise<OrgResult> {
 		return {
 			login,
 			org: null,
+			members: [],
 			error: building
 				? null
 				: e instanceof Error
@@ -98,7 +145,7 @@ export const getLookup = createServerFn({ method: "GET" })
 		if (solo) {
 			const kinds = await knownKinds(solo);
 			// Both kinds existing at once means a login changed hands across a rename — prefer the
-			// user row (the historical default) and let the org stay reachable via /companies.
+			// user row (the historical default); the org stays reachable via the company board.
 			if (kinds.has("org") && !kinds.has("user")) {
 				return { kind: "org", org: await resolveOrg(solo) };
 			}
