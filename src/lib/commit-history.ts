@@ -188,8 +188,14 @@ async function queryLeaderboard(
 		followers: entities.followers,
 	};
 	const base = db.select(cols).from(entities);
-	// Suspended entities (gamed/under-investigation) are hidden from every mode.
-	const active = isNull(entities.suspendedAt);
+	// Suspended entities (gamed/under-investigation) are hidden from every mode. Only users:
+	// org rows rank on their own board, and the org build creates not-yet-built user *stubs*
+	// (builtAt null, zero months) which must not pad the bottom of the board — hence builtAt.
+	const active = and(
+		isNull(entities.suspendedAt),
+		eq(entities.kind, "user"),
+		isNotNull(entities.builtAt),
+	);
 	// The per-type, private and followers boards only list users with a positive count — no point
 	// ranking a wall of zeros, and it naturally excludes not-yet-backfilled (null) rows. `public`
 	// and `both` list everyone active.
@@ -218,7 +224,9 @@ async function queryRecent(limit: number): Promise<RecentEntry[]> {
 		})
 		.from(lookups)
 		.innerJoin(entities, eq(entities.id, lookups.entityId))
-		.where(isNull(entities.suspendedAt))
+		// kind filter is defensive — org lookups aren't recorded (v1), but the strip links every
+		// entry to /$user, which for an org login would kick off a bogus user build.
+		.where(and(isNull(entities.suspendedAt), eq(entities.kind, "user")))
 		.groupBy(entities.id)
 		.orderBy(desc(sql`max(${lookups.searchedAt})`))
 		.limit(limit);
@@ -328,7 +336,15 @@ async function metricRankFor(
 	const [row] = await db
 		.select({ ahead: sql<number>`count(*)` })
 		.from(entities)
-		.where(and(isNull(entities.suspendedAt), ahead));
+		// Same population as queryLeaderboard's `active` — rank numbers must match the board.
+		.where(
+			and(
+				isNull(entities.suspendedAt),
+				eq(entities.kind, "user"),
+				isNotNull(entities.builtAt),
+				ahead,
+			),
+		);
 	return Number(row?.ahead ?? 0) + 1;
 }
 
