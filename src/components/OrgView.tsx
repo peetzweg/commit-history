@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { BadgeCheck } from "lucide-react";
 import { motion } from "motion/react";
+import { CommitChart } from "#/components/CommitChart";
 import type { BuildProgress } from "#/lib/github";
 import type { OrgMemberEntry, OrgResult } from "#/lib/org";
 import type { OrgSummary } from "#/lib/org-cache";
@@ -240,6 +241,18 @@ function LoadedOrg({
 				<Stat label="Repos" value={org.publicRepos.toLocaleString()} />
 				<Stat label="Members" value={org.memberCount.toLocaleString()} />
 			</div>
+
+			{/* The company chart appears once the refresh-orgs worker has written monthly rows. */}
+			{org.points.length > 0 && (
+				<motion.div
+					initial={{ opacity: 0, filter: "blur(8px)" }}
+					animate={{ opacity: 1, filter: "blur(0px)" }}
+					transition={{ duration: 0.5 }}
+					className="-mx-4 mt-8 pt-5 pb-1.5 sm:mx-0 sm:rounded-xl sm:border sm:border-border sm:p-4"
+				>
+					<CommitChart points={org.points} mode="public" label={org.login} />
+				</motion.div>
+			)}
 
 			<p className="mt-8 text-xs text-muted-foreground">
 				Lifetime contributions of {org.membersTracked.toLocaleString()} public

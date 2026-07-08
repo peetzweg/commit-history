@@ -1,11 +1,15 @@
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { type DB, db } from "#/lib/db";
-import { entities, orgMembers } from "#/lib/db/schema";
+import { entities, monthlyCommits, orgMembers } from "#/lib/db/schema";
 import {
+	buildPoints,
+	type CommitPoint,
 	fetchOrgMemberContributions,
 	fetchOrgMembers,
 	fetchOrgProfile,
 	GitHubError,
+	type MonthlyCount,
+	monthlyWindows,
 	type OrgMember,
 	type OrgProfile,
 	yearlyWindows,
@@ -68,6 +72,12 @@ export interface OrgSummary {
 	totalPullRequests: number;
 	totalReviews: number;
 	totalIssues: number;
+	/**
+	 * Cumulative monthly series for the company chart — built from the org's own
+	 * monthly_commits rows, which only exist once the refresh-orgs worker has run.
+	 * Empty until then (the page simply shows no chart).
+	 */
+	points: CommitPoint[];
 }
 
 export function orgEntityId(login: string) {
@@ -98,9 +108,59 @@ export async function getOrgSummary(
 
 type EntityRow = typeof entities.$inferSelect;
 
+const EMPTY_MONTH: MonthlyCount = {
+	commits: 0,
+	restricted: 0,
+	issues: 0,
+	pullRequests: 0,
+	reviews: 0,
+	repos: 0,
+};
+
+/**
+ * Assemble the org's cumulative chart series from its monthly_commits rows (written by the
+ * refresh-orgs worker; the worker skips inactive months, so gaps read as zero). Empty — and
+ * cheap — until the worker has run. Best-effort: a failure here must not sink the page.
+ */
+async function orgPoints(
+	database: DB,
+	id: string,
+	createdAt: Date | null,
+	now: Date,
+): Promise<CommitPoint[]> {
+	try {
+		const rows = await database
+			.select()
+			.from(monthlyCommits)
+			.where(eq(monthlyCommits.entityId, id));
+		if (rows.length === 0 || !createdAt) return [];
+		const byMonth = new Map<string, MonthlyCount>(
+			rows.map((r) => [
+				r.month,
+				{
+					commits: r.commits,
+					restricted: r.restricted,
+					issues: r.issues,
+					pullRequests: r.pullRequests,
+					reviews: r.reviews,
+					repos: r.repos,
+				},
+			]),
+		);
+		const windows = monthlyWindows(createdAt, now);
+		return buildPoints(
+			windows,
+			windows.map((w) => byMonth.get(w.label) ?? EMPTY_MONTH),
+		);
+	} catch {
+		return [];
+	}
+}
+
 function summaryFromRow(
 	row: EntityRow,
 	membersTracked: number,
+	points: CommitPoint[],
 	now: Date,
 ): OrgSummary {
 	return {
@@ -121,6 +181,7 @@ function summaryFromRow(
 		totalPullRequests: row.totalPullRequests ?? 0,
 		totalReviews: row.totalReviews ?? 0,
 		totalIssues: row.totalIssues ?? 0,
+		points,
 	};
 }
 
@@ -141,18 +202,24 @@ async function getFromDb(
 
 	if (!row) {
 		// First sighting: the profile fetch validates the login and yields the node id (keys every
-		// org-scoped contribution query) + createdAt (caps member windows). Refuse oversized orgs
-		// BEFORE writing anything — a half-enumerated mega-org would burn quota on every poll.
+		// org-scoped contribution query) + createdAt (caps member windows). An oversized org is
+		// still recorded (profile row, builtAt null, no member rows) so the refresh-orgs worker
+		// picks it up — the request path just refuses to build it live.
 		const profile = await fetchOrgProfile(login, token);
-		assertBuildable(profile);
 		row = await upsertOrgProfile(database, id, profile, now);
+		assertBuildable(profile);
 	}
 
 	const complete = row.builtAt != null;
 	const fresh = row.lastFetched && nowMs - row.lastFetched.getTime() < ORG_TTL;
 
 	if (complete && fresh) {
-		return summaryFromRow(row, await memberRowCount(database, id), now);
+		return summaryFromRow(
+			row,
+			await memberRowCount(database, id),
+			await orgPoints(database, id, row.createdAt, now),
+			now,
+		);
 	}
 
 	if (complete) {
@@ -165,7 +232,12 @@ async function getFromDb(
 		} catch {
 			/* keep the stored profile — totals still serve */
 		}
-		return summaryFromRow(row, await memberRowCount(database, id), now);
+		return summaryFromRow(
+			row,
+			await memberRowCount(database, id),
+			await orgPoints(database, id, row.createdAt, now),
+			now,
+		);
 	}
 
 	// ── Initial build (builtAt null) — resumes here on every poll ──────────────
@@ -259,11 +331,13 @@ async function getFromDb(
 	}
 
 	// Every member stored — roll up and stamp builtAt (same "only a finished build may look
-	// finished" rule as persistEntity in cache.ts).
+	// finished" rule as persistEntity in cache.ts). No chart points yet: monthly rows only
+	// exist once the refresh-orgs worker has visited this org.
 	const totals = await rollUpTotals(database, id, now);
 	return summaryFromRow(
 		{ ...row, ...totals, builtAt: now, lastFetched: now },
 		membersTotal,
+		[],
 		now,
 	);
 }
