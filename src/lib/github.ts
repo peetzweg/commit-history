@@ -274,10 +274,21 @@ async function graphqlOnce<T>(
 		};
 	}
 
-	const json = (await res.json()) as {
+	let json: {
 		data?: T;
 		errors?: Array<{ message: string; type?: string }>;
 	};
+	try {
+		json = await res.json();
+	} catch {
+		// GitHub occasionally 200s with an empty/truncated body. Left uncaught, res.json()'s raw
+		// SyntaxError ("Unexpected end of JSON input") would bypass the retry loop and surface to
+		// the user — map it to a transient 502 so it retries like any other server hiccup.
+		return {
+			error: new GitHubError("GitHub returned a malformed response.", 502),
+			retryAfterMs: null,
+		};
+	}
 	if (json.errors?.length) {
 		const msg = json.errors.map((e) => e.message).join("; ");
 		// A missing user/org is a hard 404; anything else (incl. heavy-query timeouts) is a transient 502.
