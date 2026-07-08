@@ -43,6 +43,11 @@ interface HomeSearch {
 // LEADERBOARD_PAGE_STOPS infinite-scroll pattern when it outgrows this.
 const COMPANY_PAGE_SIZE = 100;
 
+// Feature flag: the company board ships dark — fully working but only reachable via a direct
+// `/?kind=org` URL, so the board can be filled and checked in production before it's
+// advertised. Flip to true to show the Developers/Companies switch to everyone.
+const SHOW_BOARD_TOGGLE = false;
+
 export const Route = createFileRoute("/")({
 	// `?metric=` selects the leaderboard type so a view can be shared; invalid/absent → commits.
 	// `?kind=org` flips the board to companies (same clean-URL convention: default is absent).
@@ -131,9 +136,11 @@ function Home() {
 			</form>
 
 			{recent.length > 0 && <RecentSection recent={recent} />}
-			<div className="mt-14 flex justify-center">
-				<BoardKindToggle />
-			</div>
+			{SHOW_BOARD_TOGGLE && (
+				<div className="mt-14 flex justify-center">
+					<BoardKindToggle />
+				</div>
+			)}
 			{kind === "org" ? (
 				<CompanyBoard rows={initial.companies} />
 			) : (
@@ -524,7 +531,7 @@ function Leaderboard({ initialPage }: { initialPage: LeaderEntry[] }) {
 	}[mode];
 
 	return (
-		<section className="mt-6">
+		<section className="mt-14">
 			{/* Sticky heading: pins to the top of the window while the list scrolls, so deep in the
 			    board you (and any screenshot) still see which metric is ranked. Solid background —
 			    no translucency/blur — so passing rows never bleed through a capture. z sits above
@@ -639,13 +646,13 @@ function Leaderboard({ initialPage }: { initialPage: LeaderEntry[] }) {
 function CompanyBoard({ rows }: { rows: CompanyLeaderEntry[] }) {
 	if (rows.length === 0) {
 		return (
-			<p className="mt-8 text-center text-sm text-muted-foreground">
+			<p className="mt-14 text-center text-sm text-muted-foreground">
 				No companies on the board yet — look up an organization above to add it.
 			</p>
 		);
 	}
 	return (
-		<section className="mt-6">
+		<section className="mt-14">
 			{/* Same sticky-heading treatment as the developer board (see Leaderboard above). */}
 			<div className="sticky top-0 z-20 border-border border-b bg-background pt-3 pb-3">
 				<h2 className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-2xl font-bold tracking-tight">
