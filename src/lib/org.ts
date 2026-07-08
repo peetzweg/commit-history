@@ -111,6 +111,13 @@ export const getLookup = createServerFn({ method: "GET" })
 		) {
 			const org = await resolveOrg(solo);
 			if (org.org || org.building) return { kind: "org", org };
+			// The login isn't a user. If the org path failed for any reason other than "no such
+			// org" (token scopes, a GitHub hiccup mid-build), that error is the truthful one —
+			// surface it instead of the misleading user 404. A login that is neither keeps the
+			// user message, the right default for someone who typed a username.
+			if (org.error && !/not found/i.test(org.error)) {
+				return { kind: "org", org };
+			}
 		}
 		return { kind: "users", users };
 	});

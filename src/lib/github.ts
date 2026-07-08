@@ -539,12 +539,24 @@ export interface OrgMemberTotals {
 // strings — validate the alphabet anyway so a corrupted row can't inject query syntax.
 const NODE_ID_RE = /^[A-Za-z0-9_=+/-]+$/;
 
+/** Server-side hiccup (5xx / GraphQL "Something went wrong") — as opposed to rate limits or
+ *  hard 4xx, which must propagate. */
+function isServerHiccup(e: unknown): e is GitHubError {
+	return e instanceof GitHubError && RETRYABLE_STATUS.has(e.status);
+}
+
 /**
  * Fetch one member's lifetime contributions *to one org*: aliased org-scoped
  * `contributionsCollection(organizationID: …)` windows, batched like `fetchMonthlyCommits`,
  * summed into a single totals tuple (per-window resolution is the later worker's job).
  * Batches run sequentially — the org build already processes members concurrently, and
  * nesting concurrency would burst past the global CONCURRENCY cap.
+ *
+ * GitHub 500s *deterministically* on some (account, window) combos — a single corrupted year
+ * fails the same way on every attempt. A batch that still fails after graphql()'s retries is
+ * therefore re-fetched window-by-window, and only a window that fails alone is counted as
+ * zero. Without this, one poisoned window wedges its member — and the whole org build —
+ * forever. Rate limits and hard 4xx still propagate.
  */
 export async function fetchOrgMemberContributions(
 	rawLogin: string,
@@ -556,14 +568,8 @@ export async function fetchOrgMemberContributions(
 	if (!NODE_ID_RE.test(orgNodeId)) {
 		throw new GitHubError(`Invalid organization node id.`, 400);
 	}
-	const totals: OrgMemberTotals = {
-		commits: 0,
-		issues: 0,
-		pullRequests: 0,
-		reviews: 0,
-	};
-	for (let i = 0; i < windows.length; i += BATCH) {
-		const batch = windows.slice(i, i + BATCH);
+
+	async function fetchBatch(batch: MonthWindow[]): Promise<OrgMemberTotals> {
 		const aliases = batch
 			.map(
 				(w, j) =>
@@ -582,12 +588,50 @@ export async function fetchOrgMemberContributions(
 			> | null;
 		}>(token, `query { user(login: "${login}") { ${aliases} } }`);
 		if (!data.user) throw new GitHubError(`User "${login}" not found.`, 404);
+		const sums: OrgMemberTotals = {
+			commits: 0,
+			issues: 0,
+			pullRequests: 0,
+			reviews: 0,
+		};
 		for (let j = 0; j < batch.length; j++) {
 			const w = data.user[`w${j}`];
-			totals.commits += w?.totalCommitContributions ?? 0;
-			totals.issues += w?.totalIssueContributions ?? 0;
-			totals.pullRequests += w?.totalPullRequestContributions ?? 0;
-			totals.reviews += w?.totalPullRequestReviewContributions ?? 0;
+			sums.commits += w?.totalCommitContributions ?? 0;
+			sums.issues += w?.totalIssueContributions ?? 0;
+			sums.pullRequests += w?.totalPullRequestContributions ?? 0;
+			sums.reviews += w?.totalPullRequestReviewContributions ?? 0;
+		}
+		return sums;
+	}
+
+	const totals: OrgMemberTotals = {
+		commits: 0,
+		issues: 0,
+		pullRequests: 0,
+		reviews: 0,
+	};
+	const add = (t: OrgMemberTotals) => {
+		totals.commits += t.commits;
+		totals.issues += t.issues;
+		totals.pullRequests += t.pullRequests;
+		totals.reviews += t.reviews;
+	};
+
+	for (let i = 0; i < windows.length; i += BATCH) {
+		const batch = windows.slice(i, i + BATCH);
+		try {
+			add(await fetchBatch(batch));
+		} catch (err) {
+			if (!isServerHiccup(err)) throw err;
+			// Isolate the poisoned window: the healthy windows keep their real counts.
+			for (const w of batch) {
+				try {
+					add(await fetchBatch([w]));
+				} catch (e) {
+					if (!isServerHiccup(e)) throw e;
+					// This window alone still 500s — GitHub can't serve it; count it as zero.
+				}
+			}
 		}
 	}
 	return totals;

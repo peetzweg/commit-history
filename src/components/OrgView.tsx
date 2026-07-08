@@ -146,11 +146,11 @@ export function OrgResultView({
 			<p className="mt-3 text-sm text-muted-foreground">
 				<span className="font-medium">{result.login}</span>: {message}
 			</p>
-			{gaveUp && (
-				<button type="button" onClick={retry} className="btn-primary mt-6">
-					Retry
-				</button>
-			)}
+			{/* Always offer Retry: org builds are resumable, so even a hard GitHub hiccup
+			    mid-build continues from the last persisted member. */}
+			<button type="button" onClick={retry} className="btn-primary mt-6">
+				Retry
+			</button>
 			<div className="mt-6">
 				<Link to="/" className="text-sm text-muted-foreground hover:underline">
 					← Try another lookup
