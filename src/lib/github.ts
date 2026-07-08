@@ -556,12 +556,20 @@ function isServerHiccup(e: unknown): e is GitHubError {
 	return e instanceof GitHubError && RETRYABLE_STATUS.has(e.status);
 }
 
+const ZERO_TOTALS: OrgMemberTotals = {
+	commits: 0,
+	issues: 0,
+	pullRequests: 0,
+	reviews: 0,
+};
+
 /**
- * Fetch one member's lifetime contributions *to one org*: aliased org-scoped
- * `contributionsCollection(organizationID: …)` windows, batched like `fetchMonthlyCommits`,
- * summed into a single totals tuple (per-window resolution is the later worker's job).
- * Batches run sequentially — the org build already processes members concurrently, and
- * nesting concurrency would burst past the global CONCURRENCY cap.
+ * Fetch one member's org-scoped contributions per window: aliased
+ * `contributionsCollection(organizationID: …)` fields, batched like `fetchMonthlyCommits`,
+ * returned aligned 1:1 with `windows`. The request path sums yearly windows (lifetime totals);
+ * the refresh-orgs worker stores monthly windows as-is. Batches run sequentially — callers
+ * already parallelize across members, and nesting concurrency would burst past the global
+ * CONCURRENCY cap.
  *
  * GitHub 500s *deterministically* on some (account, window) combos — a single corrupted year
  * fails the same way on every attempt. A batch that still fails after graphql()'s retries is
@@ -569,18 +577,18 @@ function isServerHiccup(e: unknown): e is GitHubError {
  * zero. Without this, one poisoned window wedges its member — and the whole org build —
  * forever. Rate limits and hard 4xx still propagate.
  */
-export async function fetchOrgMemberContributions(
+export async function fetchOrgMemberWindows(
 	rawLogin: string,
 	orgNodeId: string,
 	token: string,
 	windows: MonthWindow[],
-): Promise<OrgMemberTotals> {
+): Promise<OrgMemberTotals[]> {
 	const login = assertLogin(rawLogin);
 	if (!NODE_ID_RE.test(orgNodeId)) {
 		throw new GitHubError(`Invalid organization node id.`, 400);
 	}
 
-	async function fetchBatch(batch: MonthWindow[]): Promise<OrgMemberTotals> {
+	async function fetchBatch(batch: MonthWindow[]): Promise<OrgMemberTotals[]> {
 		const aliases = batch
 			.map(
 				(w, j) =>
@@ -599,53 +607,61 @@ export async function fetchOrgMemberContributions(
 			> | null;
 		}>(token, `query { user(login: "${login}") { ${aliases} } }`);
 		if (!data.user) throw new GitHubError(`User "${login}" not found.`, 404);
-		const sums: OrgMemberTotals = {
-			commits: 0,
-			issues: 0,
-			pullRequests: 0,
-			reviews: 0,
-		};
-		for (let j = 0; j < batch.length; j++) {
-			const w = data.user[`w${j}`];
-			sums.commits += w?.totalCommitContributions ?? 0;
-			sums.issues += w?.totalIssueContributions ?? 0;
-			sums.pullRequests += w?.totalPullRequestContributions ?? 0;
-			sums.reviews += w?.totalPullRequestReviewContributions ?? 0;
-		}
-		return sums;
+		return batch.map((_, j) => {
+			const w = data.user?.[`w${j}`];
+			return {
+				commits: w?.totalCommitContributions ?? 0,
+				issues: w?.totalIssueContributions ?? 0,
+				pullRequests: w?.totalPullRequestContributions ?? 0,
+				reviews: w?.totalPullRequestReviewContributions ?? 0,
+			};
+		});
 	}
 
-	const totals: OrgMemberTotals = {
-		commits: 0,
-		issues: 0,
-		pullRequests: 0,
-		reviews: 0,
-	};
-	const add = (t: OrgMemberTotals) => {
-		totals.commits += t.commits;
-		totals.issues += t.issues;
-		totals.pullRequests += t.pullRequests;
-		totals.reviews += t.reviews;
-	};
-
+	const results: OrgMemberTotals[] = [];
 	for (let i = 0; i < windows.length; i += BATCH) {
 		const batch = windows.slice(i, i + BATCH);
 		try {
-			add(await fetchBatch(batch));
+			results.push(...(await fetchBatch(batch)));
 		} catch (err) {
 			if (!isServerHiccup(err)) throw err;
 			// Isolate the poisoned window: the healthy windows keep their real counts.
 			for (const w of batch) {
 				try {
-					add(await fetchBatch([w]));
+					results.push(...(await fetchBatch([w])));
 				} catch (e) {
 					if (!isServerHiccup(e)) throw e;
 					// This window alone still 500s — GitHub can't serve it; count it as zero.
+					results.push({ ...ZERO_TOTALS });
 				}
 			}
 		}
 	}
-	return totals;
+	return results;
+}
+
+/** One member's summed lifetime contributions to one org — the request path's shape. */
+export async function fetchOrgMemberContributions(
+	rawLogin: string,
+	orgNodeId: string,
+	token: string,
+	windows: MonthWindow[],
+): Promise<OrgMemberTotals> {
+	const perWindow = await fetchOrgMemberWindows(
+		rawLogin,
+		orgNodeId,
+		token,
+		windows,
+	);
+	return perWindow.reduce(
+		(acc, w) => ({
+			commits: acc.commits + w.commits,
+			issues: acc.issues + w.issues,
+			pullRequests: acc.pullRequests + w.pullRequests,
+			reviews: acc.reviews + w.reviews,
+		}),
+		{ ...ZERO_TOTALS },
+	);
 }
 
 /**

@@ -104,6 +104,30 @@ export const orgMembers = pgTable(
 	],
 );
 
+/**
+ * Per-month resolution of org_members — one row per (org, member, month), written by the
+ * refresh-orgs worker (the request path stores lifetime totals only). Summed across members
+ * per month these produce the org's own monthly_commits rows (the company chart); per-row
+ * they enable member-level charts and precise incremental refresh later.
+ */
+export const orgMemberMonthly = pgTable(
+	"org_member_monthly",
+	{
+		orgId: text("org_id")
+			.notNull()
+			.references(() => entities.id),
+		memberId: text("member_id")
+			.notNull()
+			.references(() => entities.id),
+		month: date("month").notNull(), // YYYY-MM-01
+		commits: integer("commits").notNull().default(0),
+		pullRequests: integer("pull_requests").notNull().default(0),
+		reviews: integer("reviews").notNull().default(0),
+		issues: integer("issues").notNull().default(0),
+	},
+	(t) => [primaryKey({ columns: [t.orgId, t.memberId, t.month] })],
+);
+
 /** Every search — powers "recent lookups" and the all-time leaderboard. */
 export const lookups = pgTable("lookups", {
 	id: serial("id").primaryKey(),

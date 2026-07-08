@@ -43,6 +43,13 @@
       "when": 1783493299385,
       "tag": "0005_clammy_bloodaxe",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1783535721021,
+      "tag": "0006_sudden_demogoblin",
+      "breakpoints": true
     }
   ]
 }
