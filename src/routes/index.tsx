@@ -43,11 +43,6 @@ interface HomeSearch {
 // LEADERBOARD_PAGE_STOPS infinite-scroll pattern when it outgrows this.
 const COMPANY_PAGE_SIZE = 100;
 
-// Feature flag: the company board ships dark — fully working but only reachable via a direct
-// `/?kind=org` URL, so the board can be filled and checked in production before it's
-// advertised. Flip to true to show the Developers/Companies switch to everyone.
-const SHOW_BOARD_TOGGLE = false;
-
 export const Route = createFileRoute("/")({
 	// `?metric=` selects the leaderboard type so a view can be shared; invalid/absent → commits.
 	// `?kind=org` flips the board to companies (same clean-URL convention: default is absent).
@@ -136,11 +131,9 @@ function Home() {
 			</form>
 
 			{recent.length > 0 && <RecentSection recent={recent} />}
-			{SHOW_BOARD_TOGGLE && (
-				<div className="mt-14 flex justify-center">
-					<BoardKindToggle />
-				</div>
-			)}
+			<div className="mt-14 flex justify-center">
+				<BoardKindToggle />
+			</div>
 			{kind === "org" ? (
 				<CompanyBoard rows={initial.companies} />
 			) : (
