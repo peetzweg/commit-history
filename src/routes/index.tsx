@@ -1,5 +1,6 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { BadgeCheck } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { ExplainerLink } from "#/components/ExplainerLink";
@@ -12,6 +13,7 @@ import {
 	type LeaderMode,
 	type RecentEntry,
 } from "#/lib/commit-history";
+import { type CompanyLeaderEntry, getCompanyLeaderboard } from "#/lib/org";
 import { cn } from "#/lib/utils";
 
 // Leaderboard metrics that live in the URL as `?metric=…`. "public" (commits) is the default and
@@ -33,22 +35,51 @@ function isLeaderMetricParam(v: unknown): v is LeaderMode {
 interface HomeSearch {
 	/** Selected leaderboard metric; absent = the default (commits). */
 	metric?: LeaderMode;
+	/** Which board is shown; absent = developers, "org" = the company board. */
+	kind?: "org";
 }
+
+// Company board page size — a single page for now (the board is young); swap for the
+// LEADERBOARD_PAGE_STOPS infinite-scroll pattern when it outgrows this.
+const COMPANY_PAGE_SIZE = 100;
+
+// Feature flag: the company board ships dark — fully working but only reachable via a direct
+// `/?kind=org` URL, so the board can be filled and checked in production before it's
+// advertised. Flip to true to show the Developers/Companies switch to everyone.
+const SHOW_BOARD_TOGGLE = false;
 
 export const Route = createFileRoute("/")({
 	// `?metric=` selects the leaderboard type so a view can be shared; invalid/absent → commits.
-	validateSearch: (search: Record<string, unknown>): HomeSearch =>
-		isLeaderMetricParam(search.metric) ? { metric: search.metric } : {},
+	// `?kind=org` flips the board to companies (same clean-URL convention: default is absent).
+	validateSearch: (search: Record<string, unknown>): HomeSearch => ({
+		...(isLeaderMetricParam(search.metric) ? { metric: search.metric } : {}),
+		...(search.kind === "org" ? { kind: "org" as const } : {}),
+	}),
 	head: () => ({
 		links: [{ rel: "canonical", href: "https://commit-history.com/" }],
 	}),
-	loader: () => getStartPageData(),
+	// The board kind changes what the loader fetches, so it's a loader dep — toggling re-runs it.
+	loaderDeps: ({ search }) => ({ kind: search.kind }),
+	loader: async ({ deps }) => {
+		if (deps.kind === "org") {
+			const [recent, companies] = await Promise.all([
+				getRecentLookups(),
+				getCompanyLeaderboard({
+					data: { offset: 0, limit: COMPANY_PAGE_SIZE },
+				}),
+			]);
+			return { recent, leaderboard: [] as LeaderEntry[], companies };
+		}
+		const start = await getStartPageData();
+		return { ...start, companies: [] as CompanyLeaderEntry[] };
+	},
 	component: Home,
 });
 
 function Home() {
 	const navigate = useNavigate();
 	const initial = Route.useLoaderData();
+	const { kind } = Route.useSearch();
 	// Live "Recently looked up": poll every 16s, seeded by the SSR loader. Kept deliberately
 	// gentle to stay easy on the server-function call budget.
 	const { data: recent } = useQuery({
@@ -105,8 +136,17 @@ function Home() {
 			</form>
 
 			{recent.length > 0 && <RecentSection recent={recent} />}
-			{initial.leaderboard.length > 0 && (
-				<Leaderboard initialPage={initial.leaderboard} />
+			{SHOW_BOARD_TOGGLE && (
+				<div className="mt-14 flex justify-center">
+					<BoardKindToggle />
+				</div>
+			)}
+			{kind === "org" ? (
+				<CompanyBoard rows={initial.companies} />
+			) : (
+				initial.leaderboard.length > 0 && (
+					<Leaderboard initialPage={initial.leaderboard} />
+				)
 			)}
 			<p className="mt-14 text-center text-sm text-muted-foreground">
 				Wondering what these numbers mean?{" "}
@@ -118,6 +158,51 @@ function Home() {
 				</Link>
 			</p>
 		</main>
+	);
+}
+
+/**
+ * Centered tab bar above the leaderboard heading, switching between the developer and company
+ * boards via `?kind=`. Switching also drops `?metric=` — the company board ranks by commits
+ * only (per-metric company boards can follow), so a stale metric param would be meaningless.
+ */
+function BoardKindToggle() {
+	const { kind } = Route.useSearch();
+	const navigate = useNavigate();
+	const set = (next: "user" | "org") =>
+		navigate({
+			to: ".",
+			search: (prev) => ({
+				...prev,
+				kind: next === "org" ? ("org" as const) : undefined,
+				metric: undefined,
+			}),
+			replace: true,
+			resetScroll: false,
+		});
+	return (
+		<div className="inline-flex overflow-hidden rounded-md border text-sm">
+			{(
+				[
+					["user", "Developers"],
+					["org", "Companies"],
+				] as const
+			).map(([k, label]) => (
+				<button
+					key={k}
+					type="button"
+					aria-pressed={(kind ?? "user") === k}
+					onClick={() => set(k)}
+					className={
+						(kind ?? "user") === k
+							? "bg-foreground px-4 leading-9 text-background"
+							: "px-4 leading-9 text-muted-foreground hover:bg-muted"
+					}
+				>
+					{label}
+				</button>
+			))}
+		</div>
 	);
 }
 
@@ -548,6 +633,97 @@ function Leaderboard({ initialPage }: { initialPage: LeaderEntry[] }) {
 					Loading more…
 				</p>
 			)}
+		</section>
+	);
+}
+
+/**
+ * The company board: orgs ranked by their public members' lifetime commits *to that org*
+ * (org-scoped — members' unrelated side projects don't count). Rows come straight from the
+ * loader (`?kind=` is a loader dep, so toggling refetches); new companies enter the board via
+ * the search box above — /$login resolves orgs too and builds unknown ones on first visit.
+ */
+function CompanyBoard({ rows }: { rows: CompanyLeaderEntry[] }) {
+	if (rows.length === 0) {
+		return (
+			<p className="mt-14 text-center text-sm text-muted-foreground">
+				No companies on the board yet — look up an organization above to add it.
+			</p>
+		);
+	}
+	return (
+		<section className="mt-14">
+			{/* Same sticky-heading treatment as the developer board (see Leaderboard above). */}
+			<div className="sticky top-0 z-20 border-border border-b bg-background pt-3 pb-3">
+				<h2 className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-2xl font-bold tracking-tight">
+					All-time
+					<span className="font-hand font-normal text-3xl text-primary leading-none">
+						Company
+					</span>
+					leaderboard
+				</h2>
+				<p className="mt-1.5 text-xs text-muted-foreground">
+					Public members’ lifetime commits to the organization’s repositories.{" "}
+					<Link
+						to="/company/$slug"
+						params={{ slug: "stats" }}
+						className="whitespace-nowrap underline decoration-dotted underline-offset-2 hover:text-foreground"
+					>
+						What is this?
+					</Link>
+				</p>
+			</div>
+			<ol>
+				{rows.map((org, i) => (
+					<li key={org.login} className="border-border border-b">
+						<Link
+							to="/$user"
+							params={{ user: org.login }}
+							preload={false}
+							className="group flex w-full items-center gap-3 py-2.5 text-left hover:bg-muted"
+						>
+							<span className="flex w-6 items-center justify-center text-sm tabular-nums text-muted-foreground">
+								{i === 0 ? (
+									<img
+										src="/crown.svg"
+										alt="1st place"
+										className="h-4 w-auto"
+									/>
+								) : (
+									i + 1
+								)}
+							</span>
+							<img
+								src={org.avatarUrl ?? ""}
+								alt=""
+								className="h-8 w-8 rounded-lg border border-border"
+							/>
+							<span className="flex min-w-0 flex-1 items-center gap-1.5 truncate font-medium">
+								{org.login}
+								{org.isVerified && (
+									<BadgeCheck
+										className="h-4 w-4 shrink-0 text-primary"
+										aria-label="Verified organization"
+									/>
+								)}
+								{org.name && (
+									<span className="hidden truncate font-normal text-muted-foreground opacity-0 transition-opacity duration-200 sm:inline desktop:group-hover:opacity-100 desktop:group-focus-within:opacity-100">
+										{org.name}
+									</span>
+								)}
+							</span>
+							<span className="text-right">
+								<span className="block font-semibold tabular-nums">
+									{org.totalCommits.toLocaleString()}
+								</span>
+								<span className="block text-xs text-muted-foreground tabular-nums">
+									commits
+								</span>
+							</span>
+						</Link>
+					</li>
+				))}
+			</ol>
 		</section>
 	);
 }

@@ -1,13 +1,17 @@
 /**
- * The MDX content collection: src/content/metrics/<slug>.mdx → /metrics/<slug>.
+ * The MDX content collections:
+ * - src/content/metrics/<slug>.mdx → /metrics/<slug> (individual metrics, /metrics/explained hub)
+ * - src/content/company/<slug>.mdx → /company/<slug> (company/org context — deliberately its own
+ *   collection, NOT mixed into the individuals' hub: the definitions differ, e.g. org-scoped vs
+ *   global contributions)
  *
- * Two globs over the same files with different costs:
+ * Two globs per collection with different costs:
  * - an eager, frontmatter-only glob (tiny — just the exported metadata objects), used
  *   synchronously by route `head()`s and the /metrics index, and
  * - a lazy component glob, so each article's compiled body is its own code-split chunk
  *   loaded only on its page.
  *
- * Adding an article = dropping an .mdx file into src/content/metrics/. The vite config
+ * Adding an article = dropping an .mdx file into its collection directory. The vite config
  * picks it up for prerender + sitemap; everything here picks it up via the globs.
  */
 import type { MDXComponents } from "mdx/types";
@@ -62,5 +66,39 @@ export function loadArticle(
 	slug: string,
 ): Promise<{ default: MDXContent }> | undefined {
 	const load = components[`../content/metrics/${slug}.mdx`];
+	return load?.();
+}
+
+// ── Company collection (/company/<slug>) ─────────────────────────────────────
+
+const companyFrontmatters = import.meta.glob<ArticleFrontmatter>(
+	"../content/company/*.mdx",
+	{ eager: true, import: "frontmatter" },
+);
+
+const companyComponents = import.meta.glob<{ default: MDXContent }>(
+	"../content/company/*.mdx",
+);
+
+/** All company articles in curated reading order. */
+export const companyArticles: ArticleMeta[] = Object.entries(
+	companyFrontmatters,
+)
+	.map(([path, fm]) => ({ slug: slugOf(path), ...fm }))
+	.sort(
+		(a, b) =>
+			(a.order ?? Number.MAX_SAFE_INTEGER) -
+				(b.order ?? Number.MAX_SAFE_INTEGER) || a.title.localeCompare(b.title),
+	);
+
+export function getCompanyArticleMeta(slug: string): ArticleMeta | undefined {
+	return companyArticles.find((a) => a.slug === slug);
+}
+
+/** Lazily import a company article's compiled MDX module (shape fits React.lazy). */
+export function loadCompanyArticle(
+	slug: string,
+): Promise<{ default: MDXContent }> | undefined {
+	const load = companyComponents[`../content/company/${slug}.mdx`];
 	return load?.();
 }

@@ -12,14 +12,18 @@ import remarkGfm from "remark-gfm";
 import remarkMdxFrontmatter from "remark-mdx-frontmatter";
 import { defineConfig } from "vite";
 
-// Static MDX articles: every src/content/metrics/<slug>.mdx becomes /metrics/<slug>.
+// Static MDX articles: every src/content/<collection>/<slug>.mdx becomes /<collection>/<slug>.
 // Listed here so the build prerenders them to plain HTML (no SSR invocation per crawl —
 // see #70's cost concern) and emits them into the generated sitemap.
-const metricSlugs = readdirSync(
-	fileURLToPath(new URL("./src/content/metrics", import.meta.url)),
-)
-	.filter((f) => f.endsWith(".mdx"))
-	.map((f) => f.replace(/\.mdx$/, ""));
+function contentSlugs(collection: string): string[] {
+	return readdirSync(
+		fileURLToPath(new URL(`./src/content/${collection}`, import.meta.url)),
+	)
+		.filter((f) => f.endsWith(".mdx"))
+		.map((f) => f.replace(/\.mdx$/, ""));
+}
+const metricSlugs = contentSlugs("metrics");
+const companySlugs = contentSlugs("company");
 
 const config = defineConfig({
 	resolve: { tsconfigPaths: true },
@@ -63,6 +67,12 @@ const config = defineConfig({
 				},
 				...metricSlugs.map((slug) => ({
 					path: `/metrics/${slug}`,
+					prerender: { enabled: true, crawlLinks: false },
+					sitemap: { changefreq: "monthly" as const, priority: 0.7 },
+				})),
+				// Company-context explainers — same policy (bare /company stays a login).
+				...companySlugs.map((slug) => ({
+					path: `/company/${slug}`,
 					prerender: { enabled: true, crawlLinks: false },
 					sitemap: { changefreq: "monthly" as const, priority: 0.7 },
 				})),

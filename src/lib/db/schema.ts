@@ -1,5 +1,7 @@
 import {
+	boolean,
 	date,
+	index,
 	integer,
 	pgTable,
 	primaryKey,
@@ -39,6 +41,10 @@ export const entities = pgTable("entities", {
 	location: text("location"),
 	websiteUrl: text("website_url"),
 	twitterUsername: text("twitter_username"),
+	// Org-only metadata (null on user rows — same "unknown vs not applicable" convention).
+	isVerified: boolean("is_verified"), // org domain-verified badge
+	githubNodeId: text("github_node_id"), // GraphQL node id — keys contributionsCollection(organizationID:) without a profile round-trip
+	memberCount: integer("member_count"), // membersWithRole.totalCount (includes private members) — display only
 	lastFetched: timestamp("last_fetched", { withTimezone: true }), // staleness / trailing refresh; also "profile last updated"
 	builtAt: timestamp("built_at", { withTimezone: true }), // initial build completed; null = months still being fetched incrementally
 	// Moderation: null = active. When set, the entity is hidden from the leaderboard and
@@ -65,6 +71,37 @@ export const monthlyCommits = pgTable(
 		repos: integer("repos").notNull().default(0), // public repositories created
 	},
 	(t) => [primaryKey({ columns: [t.entityId, t.month] })],
+);
+
+/**
+ * Org membership + each member's lifetime contributions *to that org* (org-scoped
+ * `contributionsCollection(organizationID: …)` sums — a different number from the member's
+ * global totals on `entities`). Summed per org these produce the org row's entity totals;
+ * per-row they power the future within-org member leaderboard.
+ */
+export const orgMembers = pgTable(
+	"org_members",
+	{
+		orgId: text("org_id")
+			.notNull()
+			.references(() => entities.id), // 'org:<login>'
+		memberId: text("member_id")
+			.notNull()
+			.references(() => entities.id), // 'user:<login>'
+		role: text("role"), // 'MEMBER' | 'ADMIN' (membersWithRole edge role)
+		source: text("source").notNull().default("public_member"), // 'public_member' | 'tracked_attribution'
+		commits: integer("commits").notNull().default(0),
+		pullRequests: integer("pull_requests").notNull().default(0),
+		reviews: integer("reviews").notNull().default(0),
+		issues: integer("issues").notNull().default(0),
+		// null = member enumerated but contributions not yet fetched — the org build's resume marker.
+		lastFetched: timestamp("last_fetched", { withTimezone: true }),
+	},
+	(t) => [
+		primaryKey({ columns: [t.orgId, t.memberId] }),
+		// Reverse lookup: "which orgs did this user contribute to" on personal profiles.
+		index("org_members_member_idx").on(t.memberId),
+	],
 );
 
 /** Every search — powers "recent lookups" and the all-time leaderboard. */

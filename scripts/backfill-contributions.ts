@@ -21,7 +21,7 @@
  * resumes on whatever is left. Highest-commit accounts are processed first, so the leaderboard and
  * most-viewed profiles are correct within the first stretch of a long run.
  */
-import { desc, eq, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { db } from "#/lib/db";
 import { entities, monthlyCommits } from "#/lib/db/schema";
 import { fetchCommitHistory } from "#/lib/github";
@@ -199,14 +199,17 @@ if (arg1 && !arg1.startsWith("--")) {
 	await processUser(row.id, row.login);
 } else if (!arg1 || arg1 === "--all") {
 	// Highest-commit accounts first, so the most relevant profiles land early.
+	// Users only — feeding an org row to fetchCommitHistory would just 404.
 	const base = database
 		.select({ id: entities.id, login: entities.login })
 		.from(entities);
 	const rows =
 		arg1 === "--all"
-			? await base.orderBy(desc(entities.totalCommits))
+			? await base
+					.where(eq(entities.kind, "user"))
+					.orderBy(desc(entities.totalCommits))
 			: await base
-					.where(isNull(entities.totalIssues))
+					.where(and(eq(entities.kind, "user"), isNull(entities.totalIssues)))
 					.orderBy(desc(entities.totalCommits));
 
 	console.log(

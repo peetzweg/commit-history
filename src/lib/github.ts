@@ -222,6 +222,32 @@ export function monthlyWindows(start: Date, now: Date): MonthWindow[] {
 	return windows;
 }
 
+// Milliseconds in a flat 365-day span. Used instead of calendar-year arithmetic so a window can
+// never exceed GraphQL's "from/to at most one year apart" cap (a Feb-29 + 1 calendar year span
+// would be 366 days).
+const YEAR_MS = 365 * 24 * 60 * 60 * 1000;
+
+/**
+ * Generate consecutive ≤1-year windows from `start` up to the first instant of the current
+ * month — the same "exclude the in-progress month" convention as `monthlyWindows`, so totals
+ * built from these stay stable within a month. Used for org-scoped *lifetime* sums, where
+ * per-month resolution isn't needed and yearly windows cost ~1/12th the aliases.
+ */
+export function yearlyWindows(start: Date, now: Date): MonthWindow[] {
+	const end = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1);
+	const windows: MonthWindow[] = [];
+	for (let from = start.getTime(); from < end; from += YEAR_MS) {
+		// Windows abut at 1-second gaps, mirroring monthlyWindows' 23:59:59 month ends.
+		const to = Math.min(from + YEAR_MS - 1000, end - 1000);
+		windows.push({
+			from: new Date(from).toISOString(),
+			to: new Date(to).toISOString(),
+			label: new Date(from).toISOString().slice(0, 10),
+		});
+	}
+	return windows;
+}
+
 /** One GitHub GraphQL request, no retries. `retryAfterMs` carries a parsed Retry-After (if any). */
 async function graphqlOnce<T>(
 	token: string,
@@ -248,14 +274,25 @@ async function graphqlOnce<T>(
 		};
 	}
 
-	const json = (await res.json()) as {
+	let json: {
 		data?: T;
 		errors?: Array<{ message: string; type?: string }>;
 	};
+	try {
+		json = await res.json();
+	} catch {
+		// GitHub occasionally 200s with an empty/truncated body. Left uncaught, res.json()'s raw
+		// SyntaxError ("Unexpected end of JSON input") would bypass the retry loop and surface to
+		// the user — map it to a transient 502 so it retries like any other server hiccup.
+		return {
+			error: new GitHubError("GitHub returned a malformed response.", 502),
+			retryAfterMs: null,
+		};
+	}
 	if (json.errors?.length) {
 		const msg = json.errors.map((e) => e.message).join("; ");
-		// A missing user is a hard 404; anything else (incl. heavy-query timeouts) is a transient 502.
-		if (/could not resolve to a user/i.test(msg)) {
+		// A missing user/org is a hard 404; anything else (incl. heavy-query timeouts) is a transient 502.
+		if (/could not resolve to an? (user|organization)/i.test(msg)) {
 			throw new GitHubError(msg, 404);
 		}
 		// The primary GraphQL rate limit arrives as HTTP 200 + RATE_LIMITED — map it to 429 so it
@@ -362,6 +399,253 @@ export async function fetchProfile(
 		following: u.following.totalCount,
 		publicRepos: u.repositories.totalCount,
 	};
+}
+
+// ── Organizations ────────────────────────────────────────────────────────────
+
+export interface OrgProfile {
+	/** GraphQL node id — keys `contributionsCollection(organizationID: …)` queries. */
+	nodeId: string;
+	login: string;
+	name: string | null;
+	avatarUrl: string;
+	htmlUrl: string;
+	createdAt: string;
+	description: string | null;
+	websiteUrl: string | null;
+	location: string | null;
+	twitterUsername: string | null;
+	/** Domain-verified organization badge. */
+	isVerified: boolean;
+	/** Members visible to the token (public members only for a non-member token). */
+	memberCount: number;
+	/** Public repos owned by the org. */
+	publicRepos: number;
+}
+
+export interface OrgMember {
+	login: string;
+	name: string | null;
+	avatarUrl: string;
+	/** Account creation — bounds the member's contribution windows with no extra request. */
+	createdAt: string;
+	/** 'MEMBER' | 'ADMIN' (membersWithRole edge role). */
+	role: string | null;
+}
+
+interface RawOrgProfile {
+	id: string;
+	login: string;
+	name: string | null;
+	avatarUrl: string;
+	url: string;
+	createdAt: string;
+	description: string | null;
+	websiteUrl: string | null;
+	location: string | null;
+	twitterUsername: string | null;
+	isVerified: boolean;
+	membersWithRole: { totalCount: number };
+	repositories: { totalCount: number };
+}
+
+/** Fetch an org's profile + node id (window anchor + org-scoped query key) in one request. */
+export async function fetchOrgProfile(
+	rawLogin: string,
+	token: string,
+): Promise<OrgProfile> {
+	// Org logins obey the same rules as usernames.
+	const login = assertLogin(rawLogin);
+	const data = await graphql<{ organization: RawOrgProfile | null }>(
+		token,
+		`query { organization(login: "${login}") {
+			id login name avatarUrl url createdAt description websiteUrl location twitterUsername isVerified
+			membersWithRole { totalCount }
+			repositories(privacy: PUBLIC) { totalCount }
+		} }`,
+	);
+	if (!data.organization)
+		throw new GitHubError(`Organization "${login}" not found.`, 404);
+	const o = data.organization;
+	return {
+		nodeId: o.id,
+		login: o.login,
+		name: o.name,
+		avatarUrl: o.avatarUrl,
+		htmlUrl: o.url,
+		createdAt: o.createdAt,
+		description: o.description,
+		websiteUrl: o.websiteUrl,
+		location: o.location,
+		twitterUsername: o.twitterUsername,
+		isVerified: o.isVerified,
+		memberCount: o.membersWithRole.totalCount,
+		publicRepos: o.repositories.totalCount,
+	};
+}
+
+// Hard stop for the members pagination loop (pages of 100). The org build enforces its own,
+// lower member cap before fetching contributions — this is just a runaway/mega-org backstop.
+const MAX_MEMBER_PAGES = 10;
+
+/**
+ * Enumerate an org's members visible to the token — public members only unless the token itself
+ * belongs to the org. Each node carries `createdAt`, so the caller can window every member's
+ * contribution fetch without per-member profile requests.
+ */
+export async function fetchOrgMembers(
+	rawLogin: string,
+	token: string,
+): Promise<OrgMember[]> {
+	const login = assertLogin(rawLogin);
+	const members: OrgMember[] = [];
+	let cursor: string | null = null;
+	for (let page = 0; page < MAX_MEMBER_PAGES; page++) {
+		const after: string = cursor ? `, after: "${cursor}"` : "";
+		const data = await graphql<{
+			organization: {
+				membersWithRole: {
+					pageInfo: { hasNextPage: boolean; endCursor: string | null };
+					edges: Array<{
+						role: string | null;
+						node: {
+							login: string;
+							name: string | null;
+							avatarUrl: string;
+							createdAt: string;
+						} | null;
+					}>;
+				};
+			} | null;
+		}>(
+			token,
+			`query { organization(login: "${login}") {
+				membersWithRole(first: 100${after}) {
+					pageInfo { hasNextPage endCursor }
+					edges { role node { login name avatarUrl createdAt } }
+				}
+			} }`,
+		);
+		const conn = data.organization?.membersWithRole;
+		if (!conn) throw new GitHubError(`Organization "${login}" not found.`, 404);
+		for (const edge of conn.edges) {
+			if (!edge.node) continue;
+			members.push({ ...edge.node, role: edge.role });
+		}
+		if (!conn.pageInfo.hasNextPage) return members;
+		cursor = conn.pageInfo.endCursor;
+	}
+	return members;
+}
+
+/** A member's summed lifetime contributions to one org (org-scoped, not their global totals). */
+export interface OrgMemberTotals {
+	commits: number;
+	issues: number;
+	pullRequests: number;
+	reviews: number;
+}
+
+// GraphQL node ids come from GitHub itself (via our DB), but they get interpolated into query
+// strings — validate the alphabet anyway so a corrupted row can't inject query syntax.
+const NODE_ID_RE = /^[A-Za-z0-9_=+/-]+$/;
+
+/** Server-side hiccup (5xx / GraphQL "Something went wrong") — as opposed to rate limits or
+ *  hard 4xx, which must propagate. */
+function isServerHiccup(e: unknown): e is GitHubError {
+	return e instanceof GitHubError && RETRYABLE_STATUS.has(e.status);
+}
+
+/**
+ * Fetch one member's lifetime contributions *to one org*: aliased org-scoped
+ * `contributionsCollection(organizationID: …)` windows, batched like `fetchMonthlyCommits`,
+ * summed into a single totals tuple (per-window resolution is the later worker's job).
+ * Batches run sequentially — the org build already processes members concurrently, and
+ * nesting concurrency would burst past the global CONCURRENCY cap.
+ *
+ * GitHub 500s *deterministically* on some (account, window) combos — a single corrupted year
+ * fails the same way on every attempt. A batch that still fails after graphql()'s retries is
+ * therefore re-fetched window-by-window, and only a window that fails alone is counted as
+ * zero. Without this, one poisoned window wedges its member — and the whole org build —
+ * forever. Rate limits and hard 4xx still propagate.
+ */
+export async function fetchOrgMemberContributions(
+	rawLogin: string,
+	orgNodeId: string,
+	token: string,
+	windows: MonthWindow[],
+): Promise<OrgMemberTotals> {
+	const login = assertLogin(rawLogin);
+	if (!NODE_ID_RE.test(orgNodeId)) {
+		throw new GitHubError(`Invalid organization node id.`, 400);
+	}
+
+	async function fetchBatch(batch: MonthWindow[]): Promise<OrgMemberTotals> {
+		const aliases = batch
+			.map(
+				(w, j) =>
+					`w${j}: contributionsCollection(organizationID: "${orgNodeId}", from: "${w.from}", to: "${w.to}") { totalCommitContributions totalIssueContributions totalPullRequestContributions totalPullRequestReviewContributions }`,
+			)
+			.join("\n");
+		const data = await graphql<{
+			user: Record<
+				string,
+				{
+					totalCommitContributions: number;
+					totalIssueContributions: number;
+					totalPullRequestContributions: number;
+					totalPullRequestReviewContributions: number;
+				}
+			> | null;
+		}>(token, `query { user(login: "${login}") { ${aliases} } }`);
+		if (!data.user) throw new GitHubError(`User "${login}" not found.`, 404);
+		const sums: OrgMemberTotals = {
+			commits: 0,
+			issues: 0,
+			pullRequests: 0,
+			reviews: 0,
+		};
+		for (let j = 0; j < batch.length; j++) {
+			const w = data.user[`w${j}`];
+			sums.commits += w?.totalCommitContributions ?? 0;
+			sums.issues += w?.totalIssueContributions ?? 0;
+			sums.pullRequests += w?.totalPullRequestContributions ?? 0;
+			sums.reviews += w?.totalPullRequestReviewContributions ?? 0;
+		}
+		return sums;
+	}
+
+	const totals: OrgMemberTotals = {
+		commits: 0,
+		issues: 0,
+		pullRequests: 0,
+		reviews: 0,
+	};
+	const add = (t: OrgMemberTotals) => {
+		totals.commits += t.commits;
+		totals.issues += t.issues;
+		totals.pullRequests += t.pullRequests;
+		totals.reviews += t.reviews;
+	};
+
+	for (let i = 0; i < windows.length; i += BATCH) {
+		const batch = windows.slice(i, i + BATCH);
+		try {
+			add(await fetchBatch(batch));
+		} catch (err) {
+			if (!isServerHiccup(err)) throw err;
+			// Isolate the poisoned window: the healthy windows keep their real counts.
+			for (const w of batch) {
+				try {
+					add(await fetchBatch([w]));
+				} catch (e) {
+					if (!isServerHiccup(e)) throw e;
+					// This window alone still 500s — GitHub can't serve it; count it as zero.
+				}
+			}
+		}
+	}
+	return totals;
 }
 
 /**

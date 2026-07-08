@@ -5,7 +5,7 @@ import {
 	useRouter,
 } from "@tanstack/react-router";
 import { motion } from "motion/react";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import {
 	type ChartMode,
 	CommitChart,
@@ -20,13 +20,12 @@ import {
 	SERIES_COLORS,
 	type TimelineMode,
 } from "#/components/MultiCommitChart";
-import {
-	getCommitHistories,
-	parseLogins,
-	type UserResult,
-} from "#/lib/commit-history";
+import { OrgResultView } from "#/components/OrgView";
+import { parseLogins, type UserResult } from "#/lib/commit-history";
 import type { BuildProgress, CommitPoint } from "#/lib/github";
 import { availableMetrics, METRIC_LABEL, METRIC_TOTAL } from "#/lib/metrics";
+import { getLookup } from "#/lib/org";
+import { useBuildPolling } from "#/lib/use-build-polling";
 
 // ── Chart metrics ─────────────────────────────────────────────────────────────
 
@@ -54,16 +53,20 @@ export const Route = createFileRoute("/$user")({
 	// `?metric=` selects the chart contribution type; invalid/absent → default (commits).
 	validateSearch: (search: Record<string, unknown>): UserSearch =>
 		isMetricParam(search.metric) ? { metric: search.metric } : {},
-	loader: ({ params }) =>
-		getCommitHistories({ data: parseLogins(params.user) }),
-	head: ({ params }) => {
+	// GitHub logins are one namespace across users and orgs, so this route serves both:
+	// /paritytech renders the org view, /peetzweg the user view (see getLookup).
+	loader: ({ params }) => getLookup({ data: parseLogins(params.user) }),
+	head: ({ params, loaderData }) => {
 		const logins = parseLogins(params.user);
-		const title =
-			logins.length > 1
+		const isOrg = loaderData?.kind === "org";
+		const title = isOrg
+			? `${logins[0]} — company commit history`
+			: logins.length > 1
 				? `${logins.join(" vs ")} — commit history`
 				: `${logins[0] ?? "GitHub user"}’s commit history`;
-		const description =
-			logins.length > 1
+		const description = isOrg
+			? `Lifetime GitHub contributions of ${logins[0]}'s public members to the organization — commits, pull requests, reviews and issues.`
+			: logins.length > 1
 				? `Compare the cumulative GitHub commits of ${logins.join(", ")} over time.`
 				: `${logins[0]}’s cumulative GitHub commits over their whole lifetime.`;
 		const url = `https://commit-history.com/${logins.join(",")}`;
@@ -215,73 +218,6 @@ function useGoToLogins() {
 	};
 }
 
-// ── Build polling: keep an in-progress server-side build moving ───────────────
-
-const BUILD_POLL_MS = 3_000;
-const BUILD_POLL_TIMEOUT_MS = 5 * 60_000;
-// Consecutive polls with no monthsFetched growth before giving up. Each healthy poll fetches
-// a chunk or more, so this many stalls means something is genuinely stuck (quota, DB writes).
-const BUILD_MAX_STALLED_POLLS = 5;
-
-/**
- * While any result is `building`, re-run this route's loader every few seconds — each run
- * advances the build server-side (there are no background workers; requests ARE the worker).
- * Polls chain off loaderData identity, so they never overlap: period ≈ loader time + delay.
- * `router.invalidate` keeps the current view rendered (no pending flash) and keeps loaderData
- * the single source of truth, which MetricBar reads directly.
- */
-function useBuildPolling(results: UserResult[]) {
-	const router = useRouter();
-	const { user } = Route.useParams();
-	const [gaveUp, setGaveUp] = useState(false);
-	const startedAt = useRef<number | null>(null);
-	const lastFetched = useRef(-1);
-	const stalls = useRef(0);
-
-	const anyBuilding = results.some((r) => r.building);
-
-	// A different login set is a fresh polling session.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: reset exactly when the route param changes
-	useEffect(() => {
-		startedAt.current = null;
-		lastFetched.current = -1;
-		stalls.current = 0;
-		setGaveUp(false);
-	}, [user]);
-
-	useEffect(() => {
-		if (!anyBuilding || gaveUp) return;
-		startedAt.current ??= Date.now();
-		const fetched = results.reduce(
-			(sum, r) => sum + (r.building?.monthsFetched ?? 0),
-			0,
-		);
-		stalls.current = fetched > lastFetched.current ? 0 : stalls.current + 1;
-		lastFetched.current = fetched;
-		if (
-			Date.now() - startedAt.current > BUILD_POLL_TIMEOUT_MS ||
-			stalls.current >= BUILD_MAX_STALLED_POLLS
-		) {
-			setGaveUp(true);
-			return;
-		}
-		const t = setTimeout(() => {
-			router.invalidate({ filter: (m) => m.routeId === "/$user" });
-		}, BUILD_POLL_MS);
-		return () => clearTimeout(t);
-	}, [results, anyBuilding, gaveUp, router]);
-
-	const retry = () => {
-		startedAt.current = null;
-		lastFetched.current = -1;
-		stalls.current = 0;
-		setGaveUp(false);
-		router.invalidate({ filter: (m) => m.routeId === "/$user" });
-	};
-
-	return { gaveUp, retry };
-}
-
 function BuildProgressCard({
 	login,
 	progress,
@@ -380,8 +316,28 @@ function BuildingView({
 }
 
 function View() {
-	const results = Route.useLoaderData();
-	const { gaveUp, retry } = useBuildPolling(results);
+	const data = Route.useLoaderData();
+	const { user } = Route.useParams();
+	// One polling session covers both kinds — for orgs the progress counts members.
+	const results = data.kind === "users" ? data.users : [];
+	const { gaveUp, retry } = useBuildPolling({
+		routeId: "/$user",
+		// A different login set is a fresh polling session.
+		resetKey: user,
+		data,
+		building:
+			data.kind === "org"
+				? data.org.building != null
+				: results.some((r) => r.building),
+		fetched:
+			data.kind === "org"
+				? (data.org.building?.monthsFetched ?? 0)
+				: results.reduce((sum, r) => sum + (r.building?.monthsFetched ?? 0), 0),
+	});
+
+	if (data.kind === "org") {
+		return <OrgResultView result={data.org} gaveUp={gaveUp} retry={retry} />;
+	}
 	const ok = results.filter((r) => r.history);
 	const building = gaveUp ? [] : results.filter((r) => r.building);
 	// Once polling gives up, building entries degrade to failures with a retryable message.

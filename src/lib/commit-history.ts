@@ -35,7 +35,7 @@ import { availableMetrics, METRIC_TOTAL } from "#/lib/metrics";
  * "points.map is not iterable". `createServerFn` already strips the handler from the client bundle
  * on its own, so the server-only deps (cache, github, process.env) never reach the browser.
  */
-function serverToken(): string {
+export function serverToken(): string {
 	const token = process.env.GITHUB_TOKEN;
 	if (!token) {
 		throw new GitHubError(
@@ -188,8 +188,14 @@ async function queryLeaderboard(
 		followers: entities.followers,
 	};
 	const base = db.select(cols).from(entities);
-	// Suspended entities (gamed/under-investigation) are hidden from every mode.
-	const active = isNull(entities.suspendedAt);
+	// Suspended entities (gamed/under-investigation) are hidden from every mode. Only users:
+	// org rows rank on their own board, and the org build creates not-yet-built user *stubs*
+	// (builtAt null, zero months) which must not pad the bottom of the board — hence builtAt.
+	const active = and(
+		isNull(entities.suspendedAt),
+		eq(entities.kind, "user"),
+		isNotNull(entities.builtAt),
+	);
 	// The per-type, private and followers boards only list users with a positive count — no point
 	// ranking a wall of zeros, and it naturally excludes not-yet-backfilled (null) rows. `public`
 	// and `both` list everyone active.
@@ -218,7 +224,9 @@ async function queryRecent(limit: number): Promise<RecentEntry[]> {
 		})
 		.from(lookups)
 		.innerJoin(entities, eq(entities.id, lookups.entityId))
-		.where(isNull(entities.suspendedAt))
+		// kind filter is defensive — org lookups aren't recorded (v1), but the strip links every
+		// entry to /$user, which for an org login would kick off a bogus user build.
+		.where(and(isNull(entities.suspendedAt), eq(entities.kind, "user")))
 		.groupBy(entities.id)
 		.orderBy(desc(sql`max(${lookups.searchedAt})`))
 		.limit(limit);
@@ -328,7 +336,15 @@ async function metricRankFor(
 	const [row] = await db
 		.select({ ahead: sql<number>`count(*)` })
 		.from(entities)
-		.where(and(isNull(entities.suspendedAt), ahead));
+		// Same population as queryLeaderboard's `active` — rank numbers must match the board.
+		.where(
+			and(
+				isNull(entities.suspendedAt),
+				eq(entities.kind, "user"),
+				isNotNull(entities.builtAt),
+				ahead,
+			),
+		);
 	return Number(row?.ahead ?? 0) + 1;
 }
 
@@ -351,6 +367,66 @@ async function ranksFor(
 }
 
 /**
+ * Resolve several users' histories, tolerating partial failure so one bad username doesn't sink
+ * the whole comparison. Plain server-side function — exported for getLookup (org.ts), which
+ * composes it with the org fallback. Server functions must NOT call each other (a server-side
+ * call turns into an HTTP self-fetch), so shared logic lives here.
+ */
+export async function lookupUsers(rawLogins: string[]): Promise<UserResult[]> {
+	// Normalize even when called server-side, so the cap/dedupe can never be bypassed.
+	const logins = normalizeLogins(rawLogins);
+	const token = serverToken();
+	// allSettled (not all): one user's failed GitHub fetch must not reject the whole batch and
+	// blank out the others. suspendedSet is fetched alongside and is best-effort — a DB hiccup
+	// there shouldn't drop already-loaded profiles, so it falls back to "none suspended".
+	const [settled, suspended] = await Promise.all([
+		Promise.allSettled(
+			logins.map((login) => getCachedCommitHistory(login, token)),
+		),
+		suspendedSet(logins).catch(() => new Set<string>()),
+	]);
+	return Promise.all(
+		settled.map(async (outcome, i): Promise<UserResult> => {
+			const login = logins[i];
+			const isSuspended = suspended.has(login.toLowerCase());
+			if (outcome.status === "rejected") {
+				const e = outcome.reason;
+				// The 503 "still building" rejection carries progress — surface it as `building`
+				// (with error null) so the client polls to continue instead of showing a failure
+				// card. This mapping runs server-side, in-process, so instanceof sees the raw reason.
+				const building =
+					e instanceof GitHubError && e.status === 503 && e.progress
+						? e.progress
+						: null;
+				return {
+					login,
+					history: null,
+					error: building
+						? null
+						: e instanceof Error
+							? e.message
+							: "Failed to load",
+					suspended: isSuspended,
+					ranks: {},
+					building,
+				};
+			}
+			const history = outcome.value;
+			// Ranks are supplementary — never let a ranking-query failure drop a loaded profile.
+			const ranks = await ranksFor(history).catch(() => ({}));
+			return {
+				login,
+				history,
+				error: null,
+				suspended: isSuspended,
+				ranks,
+				building: null,
+			};
+		}),
+	);
+}
+
+/**
  * Resolve several users' histories in one round-trip, tolerating partial failure so one bad
  * username doesn't sink the whole comparison.
  */
@@ -362,54 +438,4 @@ export const getCommitHistories = createServerFn({ method: "GET" })
 	.validator((logins: string[]) =>
 		normalizeLogins(Array.isArray(logins) ? logins : []),
 	)
-	.handler(async ({ data: logins }): Promise<UserResult[]> => {
-		const token = serverToken();
-		// allSettled (not all): one user's failed GitHub fetch must not reject the whole batch and
-		// blank out the others. suspendedSet is fetched alongside and is best-effort — a DB hiccup
-		// there shouldn't drop already-loaded profiles, so it falls back to "none suspended".
-		const [settled, suspended] = await Promise.all([
-			Promise.allSettled(
-				logins.map((login) => getCachedCommitHistory(login, token)),
-			),
-			suspendedSet(logins).catch(() => new Set<string>()),
-		]);
-		return Promise.all(
-			settled.map(async (outcome, i): Promise<UserResult> => {
-				const login = logins[i];
-				const isSuspended = suspended.has(login.toLowerCase());
-				if (outcome.status === "rejected") {
-					const e = outcome.reason;
-					// The 503 "still building" rejection carries progress — surface it as `building`
-					// (with error null) so the client polls to continue instead of showing a failure
-					// card. This mapping runs server-side, in-process, so instanceof sees the raw reason.
-					const building =
-						e instanceof GitHubError && e.status === 503 && e.progress
-							? e.progress
-							: null;
-					return {
-						login,
-						history: null,
-						error: building
-							? null
-							: e instanceof Error
-								? e.message
-								: "Failed to load",
-						suspended: isSuspended,
-						ranks: {},
-						building,
-					};
-				}
-				const history = outcome.value;
-				// Ranks are supplementary — never let a ranking-query failure drop a loaded profile.
-				const ranks = await ranksFor(history).catch(() => ({}));
-				return {
-					login,
-					history,
-					error: null,
-					suspended: isSuspended,
-					ranks,
-					building: null,
-				};
-			}),
-		);
-	});
+	.handler(({ data: logins }): Promise<UserResult[]> => lookupUsers(logins));
