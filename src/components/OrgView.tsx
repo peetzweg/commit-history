@@ -272,9 +272,12 @@ function MemberBoard({
 	return (
 		<section className="mt-12">
 			<div className="border-border border-b pb-3">
+				{/* "Current": the roster is a snapshot of today's public members — see the
+				    historical-membership issue for keeping departed members' contributions. */}
 				<h2 className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-2xl font-bold tracking-tight">
+					Current
 					<span className="font-hand font-normal text-3xl text-primary leading-none">
-						Member
+						Members
 					</span>
 					leaderboard
 				</h2>
