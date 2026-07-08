@@ -103,6 +103,7 @@ async function fillOrg(login: string): Promise<number> {
 	const orgId = orgEntityId(login);
 	const runStart = new Date();
 	let requests = 0;
+	console.log(`${login}: resolving profile…`);
 
 	// Profile first — validates the login, yields nodeId (keys every org-scoped query) + createdAt
 	// (bounds each member's windows). Upsert so a never-looked-up org (e.g. a fresh google) is
@@ -173,6 +174,13 @@ async function fillOrg(login: string): Promise<number> {
 		.from(orgMembers)
 		.where(eq(orgMembers.orgId, orgId));
 	const fetchedById = new Map(existing.map((r) => [r.memberId, r.lastFetched]));
+	const already = members.filter((m) => {
+		const p = fetchedById.get(userEntityId(m.login));
+		return p && p >= runStart;
+	}).length;
+	console.log(
+		`  ${members.length} public members${already ? ` (${already} already done this run)` : ""} — fetching lifetime totals, ~${Math.round((Math.max(1, Math.ceil(20 / WINDOWS_PER_REQUEST)) / TARGET_RATE) * 3600)}s each`,
+	);
 
 	let done = 0;
 	for (const m of members) {
@@ -212,6 +220,9 @@ async function fillOrg(login: string): Promise<number> {
 				and(eq(orgMembers.orgId, orgId), eq(orgMembers.memberId, memberId)),
 			);
 		done += 1;
+		console.log(
+			`  ✓ ${m.login.padEnd(22)} ${totals.commits.toLocaleString()} commits  (${done}/${members.length})`,
+		);
 		// Politeness pacing: spread this member's request cost across the target hourly rate.
 		await sleep((req / TARGET_RATE) * 3_600_000);
 	}
