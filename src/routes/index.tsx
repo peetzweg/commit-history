@@ -117,6 +117,13 @@ function Home() {
 					The metrics, explained
 				</Link>
 			</p>
+			<p className="mt-2 text-center text-sm text-muted-foreground">
+				Or rank whole organizations on the{" "}
+				<Link to="/companies" className="underline hover:text-foreground">
+					company leaderboard
+				</Link>
+				.
+			</p>
 		</main>
 	);
 }
