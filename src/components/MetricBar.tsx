@@ -27,10 +27,11 @@ const LEADER_MODES: LeaderMode[] = [
  */
 export function MetricBar() {
 	const navigate = useNavigate();
-	const { routeId, metric } = useRouterState({
+	const { routeId, metric, boardKind } = useRouterState({
 		select: (s) => ({
 			routeId: s.matches[s.matches.length - 1]?.routeId as string | undefined,
 			metric: (s.location.search as { metric?: string }).metric,
+			boardKind: (s.location.search as { kind?: string }).kind,
 		}),
 	});
 	// Defined only while the /$user route is active and its loader has resolved (undefined elsewhere
@@ -40,7 +41,8 @@ export function MetricBar() {
 
 	let modes: LeaderMode[] | null = null;
 	if (routeId === "/") {
-		modes = LEADER_MODES;
+		// The company board (?kind=org) ranks by commits only — no metric to pick yet.
+		modes = boardKind === "org" ? null : LEADER_MODES;
 	} else if (routeId === "/$user") {
 		if (lookup?.kind === "org") {
 			// Org pages have a single number set — nothing to pick (no per-metric boards yet).

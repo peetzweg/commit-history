@@ -207,7 +207,7 @@ function LoadedOrg({ org }: { org: OrgSummary }) {
 				</p>
 			)}
 
-			<div className="mx-auto mt-8 grid max-w-xl grid-cols-2 gap-x-4 gap-y-5 text-center sm:mx-0 sm:flex sm:max-w-none sm:flex-wrap sm:gap-10 sm:text-left">
+			<div className="mx-auto mt-8 grid max-w-xl grid-cols-3 gap-x-4 gap-y-5 text-center sm:mx-0 sm:flex sm:max-w-none sm:flex-wrap sm:gap-10 sm:text-left">
 				<Stat label="Commits" value={org.totalCommits.toLocaleString()} />
 				<Stat
 					label="Pull requests"
@@ -215,6 +215,7 @@ function LoadedOrg({ org }: { org: OrgSummary }) {
 				/>
 				<Stat label="Reviews" value={org.totalReviews.toLocaleString()} />
 				<Stat label="Issues" value={org.totalIssues.toLocaleString()} />
+				<Stat label="Members" value={org.memberCount.toLocaleString()} />
 			</div>
 
 			<p className="mt-8 text-xs text-muted-foreground">
@@ -226,7 +227,11 @@ function LoadedOrg({ org }: { org: OrgSummary }) {
 
 			<p className="mt-2 text-xs text-muted-foreground">
 				See how {org.login} ranks on the{" "}
-				<Link to="/companies" className="underline hover:text-foreground">
+				<Link
+					to="/"
+					search={{ kind: "org" }}
+					className="underline hover:text-foreground"
+				>
 					company leaderboard
 				</Link>
 				.
