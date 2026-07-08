@@ -43,9 +43,10 @@ const BUILD_BUDGET_MS = 6_000;
 const MEMBER_CONCURRENCY = 3;
 
 // Orgs with more visible members than this get a clean refusal instead of an on-demand build:
-// at ~2 requests per member a mega-org lookup would eat the shared token's hourly budget and
-// poison it for every visitor. Lifting this needs the background worker.
-const MAX_ORG_MEMBERS = 400;
+// at ~2 requests per member even a mid-size org lookup can eat into the shared token's hourly
+// budget and poison it for every visitor. We keep this deliberately low and record the refused
+// orgs (see getFromDb) so the background worker can backfill them later, off the request path.
+const MAX_ORG_MEMBERS = 25;
 
 export interface OrgSummary {
 	login: string;
@@ -141,11 +142,13 @@ async function getFromDb(
 
 	if (!row) {
 		// First sighting: the profile fetch validates the login and yields the node id (keys every
-		// org-scoped contribution query) + createdAt (caps member windows). Refuse oversized orgs
-		// BEFORE writing anything — a half-enumerated mega-org would burn quota on every poll.
+		// org-scoped contribution query) + createdAt (caps member windows). Record the profile
+		// (a single cheap upsert into `entities`, builtAt still null) BEFORE refusing an oversized
+		// org — this leaves a tracked row the background worker can later backfill, instead of
+		// discarding the lookup. The request path still won't build it live.
 		const profile = await fetchOrgProfile(login, token);
-		assertBuildable(profile);
 		row = await upsertOrgProfile(database, id, profile, now);
+		assertBuildable(profile);
 	}
 
 	const complete = row.builtAt != null;
@@ -181,6 +184,13 @@ async function getFromDb(
 	const orgCreatedAt = row.createdAt;
 	if (!orgNodeId || !orgCreatedAt) {
 		throw new GitHubError(`Could not resolve "${login}" on GitHub.`, 502);
+	}
+
+	// Enrolled but oversized: the row is recorded for the worker, but the request path must refuse
+	// it — cheaply, from the stored memberCount, so a repeat lookup never pays to re-enumerate its
+	// members before bailing. (assertBuildable already caught it at first sighting.)
+	if ((row.memberCount ?? 0) > MAX_ORG_MEMBERS) {
+		throw new GitHubError(tooLargeMessage(login, row.memberCount ?? 0), 422);
 	}
 
 	// Enumerate members once per build: every member becomes a pending org_members row, which
