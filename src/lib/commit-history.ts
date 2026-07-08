@@ -35,7 +35,7 @@ import { availableMetrics, METRIC_TOTAL } from "#/lib/metrics";
  * "points.map is not iterable". `createServerFn` already strips the handler from the client bundle
  * on its own, so the server-only deps (cache, github, process.env) never reach the browser.
  */
-function serverToken(): string {
+export function serverToken(): string {
 	const token = process.env.GITHUB_TOKEN;
 	if (!token) {
 		throw new GitHubError(

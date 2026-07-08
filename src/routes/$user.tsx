@@ -5,7 +5,7 @@ import {
 	useRouter,
 } from "@tanstack/react-router";
 import { motion } from "motion/react";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import {
 	type ChartMode,
 	CommitChart,
@@ -27,6 +27,7 @@ import {
 } from "#/lib/commit-history";
 import type { BuildProgress, CommitPoint } from "#/lib/github";
 import { availableMetrics, METRIC_LABEL, METRIC_TOTAL } from "#/lib/metrics";
+import { useBuildPolling } from "#/lib/use-build-polling";
 
 // ── Chart metrics ─────────────────────────────────────────────────────────────
 
@@ -215,73 +216,6 @@ function useGoToLogins() {
 	};
 }
 
-// ── Build polling: keep an in-progress server-side build moving ───────────────
-
-const BUILD_POLL_MS = 3_000;
-const BUILD_POLL_TIMEOUT_MS = 5 * 60_000;
-// Consecutive polls with no monthsFetched growth before giving up. Each healthy poll fetches
-// a chunk or more, so this many stalls means something is genuinely stuck (quota, DB writes).
-const BUILD_MAX_STALLED_POLLS = 5;
-
-/**
- * While any result is `building`, re-run this route's loader every few seconds — each run
- * advances the build server-side (there are no background workers; requests ARE the worker).
- * Polls chain off loaderData identity, so they never overlap: period ≈ loader time + delay.
- * `router.invalidate` keeps the current view rendered (no pending flash) and keeps loaderData
- * the single source of truth, which MetricBar reads directly.
- */
-function useBuildPolling(results: UserResult[]) {
-	const router = useRouter();
-	const { user } = Route.useParams();
-	const [gaveUp, setGaveUp] = useState(false);
-	const startedAt = useRef<number | null>(null);
-	const lastFetched = useRef(-1);
-	const stalls = useRef(0);
-
-	const anyBuilding = results.some((r) => r.building);
-
-	// A different login set is a fresh polling session.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: reset exactly when the route param changes
-	useEffect(() => {
-		startedAt.current = null;
-		lastFetched.current = -1;
-		stalls.current = 0;
-		setGaveUp(false);
-	}, [user]);
-
-	useEffect(() => {
-		if (!anyBuilding || gaveUp) return;
-		startedAt.current ??= Date.now();
-		const fetched = results.reduce(
-			(sum, r) => sum + (r.building?.monthsFetched ?? 0),
-			0,
-		);
-		stalls.current = fetched > lastFetched.current ? 0 : stalls.current + 1;
-		lastFetched.current = fetched;
-		if (
-			Date.now() - startedAt.current > BUILD_POLL_TIMEOUT_MS ||
-			stalls.current >= BUILD_MAX_STALLED_POLLS
-		) {
-			setGaveUp(true);
-			return;
-		}
-		const t = setTimeout(() => {
-			router.invalidate({ filter: (m) => m.routeId === "/$user" });
-		}, BUILD_POLL_MS);
-		return () => clearTimeout(t);
-	}, [results, anyBuilding, gaveUp, router]);
-
-	const retry = () => {
-		startedAt.current = null;
-		lastFetched.current = -1;
-		stalls.current = 0;
-		setGaveUp(false);
-		router.invalidate({ filter: (m) => m.routeId === "/$user" });
-	};
-
-	return { gaveUp, retry };
-}
-
 function BuildProgressCard({
 	login,
 	progress,
@@ -381,7 +315,18 @@ function BuildingView({
 
 function View() {
 	const results = Route.useLoaderData();
-	const { gaveUp, retry } = useBuildPolling(results);
+	const { user } = Route.useParams();
+	const { gaveUp, retry } = useBuildPolling({
+		routeId: "/$user",
+		// A different login set is a fresh polling session.
+		resetKey: user,
+		data: results,
+		building: results.some((r) => r.building),
+		fetched: results.reduce(
+			(sum, r) => sum + (r.building?.monthsFetched ?? 0),
+			0,
+		),
+	});
 	const ok = results.filter((r) => r.history);
 	const building = gaveUp ? [] : results.filter((r) => r.building);
 	// Once polling gives up, building entries degrade to failures with a retryable message.
