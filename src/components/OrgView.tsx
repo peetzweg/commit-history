@@ -19,6 +19,22 @@ function monthYear(date: string) {
 	});
 }
 
+/** Rough, human "14 years ago" / "8 months ago" since a date — mirrors the user page. */
+function timeAgo(date: string) {
+	const then = new Date(date);
+	const now = new Date();
+	let years = now.getFullYear() - then.getFullYear();
+	const monthDiff = now.getMonth() - then.getMonth();
+	if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < then.getDate())) {
+		years--;
+	}
+	if (years >= 1) return `${years} year${years === 1 ? "" : "s"} ago`;
+	let months = years * 12 + monthDiff;
+	if (now.getDate() < then.getDate()) months--;
+	if (months >= 1) return `${months} month${months === 1 ? "" : "s"} ago`;
+	return "this month";
+}
+
 function BackLink() {
 	return (
 		<Link
@@ -168,10 +184,9 @@ function LoadedOrg({
 	org: OrgSummary;
 	members: OrgMemberEntry[];
 }) {
+	// Member/repo counts live in the stats row below — the subtitle stays to when and where.
 	const facts = [
-		`Created ${monthYear(org.createdAt)}`,
-		`${org.memberCount.toLocaleString()} public member${org.memberCount === 1 ? "" : "s"}`,
-		`${org.publicRepos.toLocaleString()} public repos`,
+		`Created ${monthYear(org.createdAt)} (${timeAgo(org.createdAt)})`,
 		...(org.location ? [org.location] : []),
 	];
 	return (
@@ -220,8 +235,9 @@ function LoadedOrg({
 					label="Pull requests"
 					value={org.totalPullRequests.toLocaleString()}
 				/>
-				<Stat label="Reviews" value={org.totalReviews.toLocaleString()} />
 				<Stat label="Issues" value={org.totalIssues.toLocaleString()} />
+				<Stat label="Reviews" value={org.totalReviews.toLocaleString()} />
+				<Stat label="Repos" value={org.publicRepos.toLocaleString()} />
 				<Stat label="Members" value={org.memberCount.toLocaleString()} />
 			</div>
 
