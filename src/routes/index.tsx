@@ -13,7 +13,7 @@ import {
 	type LeaderMode,
 	type RecentEntry,
 } from "#/lib/commit-history";
-import { type CompanyLeaderEntry, getCompanyLeaderboard } from "#/lib/org";
+import { getOrgLeaderboard, type OrgLeaderEntry } from "#/lib/org";
 import { cn } from "#/lib/utils";
 
 // Leaderboard metrics that live in the URL as `?metric=…`. "public" (commits) is the default and
@@ -35,22 +35,17 @@ function isLeaderMetricParam(v: unknown): v is LeaderMode {
 interface HomeSearch {
 	/** Selected leaderboard metric; absent = the default (commits). */
 	metric?: LeaderMode;
-	/** Which board is shown; absent = developers, "org" = the company board. */
+	/** Which board is shown; absent = developers, "org" = the organization board. */
 	kind?: "org";
 }
 
-// Company board page size — a single page for now (the board is young); swap for the
+// Organization board page size — a single page for now (the board is young); swap for the
 // LEADERBOARD_PAGE_STOPS infinite-scroll pattern when it outgrows this.
-const COMPANY_PAGE_SIZE = 100;
-
-// Feature flag: the company board ships dark — fully working but only reachable via a direct
-// `/?kind=org` URL, so the board can be filled and checked in production before it's
-// advertised. Flip to true to show the Developers/Companies switch to everyone.
-const SHOW_BOARD_TOGGLE = false;
+const ORG_PAGE_SIZE = 100;
 
 export const Route = createFileRoute("/")({
 	// `?metric=` selects the leaderboard type so a view can be shared; invalid/absent → commits.
-	// `?kind=org` flips the board to companies (same clean-URL convention: default is absent).
+	// `?kind=org` flips the board to organizations (same clean-URL convention: default is absent).
 	validateSearch: (search: Record<string, unknown>): HomeSearch => ({
 		...(isLeaderMetricParam(search.metric) ? { metric: search.metric } : {}),
 		...(search.kind === "org" ? { kind: "org" as const } : {}),
@@ -62,16 +57,16 @@ export const Route = createFileRoute("/")({
 	loaderDeps: ({ search }) => ({ kind: search.kind }),
 	loader: async ({ deps }) => {
 		if (deps.kind === "org") {
-			const [recent, companies] = await Promise.all([
+			const [recent, orgs] = await Promise.all([
 				getRecentLookups(),
-				getCompanyLeaderboard({
-					data: { offset: 0, limit: COMPANY_PAGE_SIZE },
+				getOrgLeaderboard({
+					data: { offset: 0, limit: ORG_PAGE_SIZE },
 				}),
 			]);
-			return { recent, leaderboard: [] as LeaderEntry[], companies };
+			return { recent, leaderboard: [] as LeaderEntry[], orgs };
 		}
 		const start = await getStartPageData();
-		return { ...start, companies: [] as CompanyLeaderEntry[] };
+		return { ...start, orgs: [] as OrgLeaderEntry[] };
 	},
 	component: Home,
 });
@@ -136,13 +131,11 @@ function Home() {
 			</form>
 
 			{recent.length > 0 && <RecentSection recent={recent} />}
-			{SHOW_BOARD_TOGGLE && (
-				<div className="mt-14 flex justify-center">
-					<BoardKindToggle />
-				</div>
-			)}
+			<div className="mt-14 flex justify-center">
+				<BoardKindToggle />
+			</div>
 			{kind === "org" ? (
-				<CompanyBoard rows={initial.companies} />
+				<OrgBoard rows={initial.orgs} />
 			) : (
 				initial.leaderboard.length > 0 && (
 					<Leaderboard initialPage={initial.leaderboard} />
@@ -162,9 +155,10 @@ function Home() {
 }
 
 /**
- * Centered tab bar above the leaderboard heading, switching between the developer and company
- * boards via `?kind=`. Switching also drops `?metric=` — the company board ranks by commits
- * only (per-metric company boards can follow), so a stale metric param would be meaningless.
+ * Centered tab bar above the leaderboard heading, switching between the developer and
+ * organization boards via `?kind=`. Switching also drops `?metric=` — the organization board
+ * ranks by commits only (per-metric org boards can follow), so a stale metric param would be
+ * meaningless.
  */
 function BoardKindToggle() {
 	const { kind } = Route.useSearch();
@@ -185,7 +179,7 @@ function BoardKindToggle() {
 			{(
 				[
 					["user", "Developers"],
-					["org", "Companies"],
+					["org", "Organizations"],
 				] as const
 			).map(([k, label]) => (
 				<button
@@ -246,8 +240,19 @@ function RecentSection({ recent }: { recent: RecentEntry[] }) {
 									aria-hidden
 									className="pointer-events-none invisible flex items-center gap-2 rounded-full border py-1 pr-3 pl-1 text-sm"
 								>
-									<span className="h-6 w-6 rounded-full border border-border" />
-									{u.login}
+									{/* org avatars are square, users' are round — match OrgBoard/OrgView. */}
+									<span
+										className={cn(
+											"h-6 w-6 border border-border",
+											u.kind === "org" ? "rounded-lg" : "rounded-full",
+										)}
+									/>
+									<span className="inline-flex items-center">
+										{u.login}
+										{u.kind === "org" && u.isVerified && (
+											<BadgeCheck className="ml-1 h-3.5 w-3.5 shrink-0" />
+										)}
+									</span>
 								</span>
 								<Link
 									to="/$user"
@@ -258,10 +263,19 @@ function RecentSection({ recent }: { recent: RecentEntry[] }) {
 									<img
 										src={u.avatarUrl ?? ""}
 										alt=""
-										className="h-6 w-6 rounded-full border border-border"
+										className={cn(
+											"h-6 w-6 border border-border",
+											u.kind === "org" ? "rounded-lg" : "rounded-full",
+										)}
 									/>
 									<span className="inline-flex items-center">
 										{u.login}
+										{u.kind === "org" && u.isVerified && (
+											<BadgeCheck
+												className="ml-1 h-3.5 w-3.5 shrink-0 text-primary"
+												aria-label="Verified organization"
+											/>
+										)}
 										{u.name && (
 											<span className="max-w-0 overflow-hidden whitespace-nowrap text-muted-foreground opacity-0 transition-all duration-200 desktop:group-hover:ml-1 desktop:group-hover:max-w-40 desktop:group-hover:opacity-100 desktop:group-focus-within:ml-1 desktop:group-focus-within:max-w-40 desktop:group-focus-within:opacity-100">
 												{u.name}
@@ -638,16 +652,17 @@ function Leaderboard({ initialPage }: { initialPage: LeaderEntry[] }) {
 }
 
 /**
- * The company board: orgs ranked by their public members' lifetime commits *to that org*
+ * The organization board: orgs ranked by their public members' lifetime commits *to that org*
  * (org-scoped — members' unrelated side projects don't count). Rows come straight from the
- * loader (`?kind=` is a loader dep, so toggling refetches); new companies enter the board via
+ * loader (`?kind=` is a loader dep, so toggling refetches); new orgs enter the board via
  * the search box above — /$login resolves orgs too and builds unknown ones on first visit.
  */
-function CompanyBoard({ rows }: { rows: CompanyLeaderEntry[] }) {
+function OrgBoard({ rows }: { rows: OrgLeaderEntry[] }) {
 	if (rows.length === 0) {
 		return (
 			<p className="mt-14 text-center text-sm text-muted-foreground">
-				No companies on the board yet — look up an organization above to add it.
+				No organizations on the board yet — look up an organization above to add
+				it.
 			</p>
 		);
 	}
@@ -658,14 +673,14 @@ function CompanyBoard({ rows }: { rows: CompanyLeaderEntry[] }) {
 				<h2 className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-2xl font-bold tracking-tight">
 					All-time
 					<span className="font-hand font-normal text-3xl text-primary leading-none">
-						Company
+						Organization
 					</span>
 					leaderboard
 				</h2>
 				<p className="mt-1.5 text-xs text-muted-foreground">
 					Public members’ lifetime commits to the organization’s repositories.{" "}
 					<Link
-						to="/company/$slug"
+						to="/organizations/$slug"
 						params={{ slug: "stats" }}
 						className="whitespace-nowrap underline decoration-dotted underline-offset-2 hover:text-foreground"
 					>

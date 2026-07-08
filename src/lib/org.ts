@@ -12,7 +12,7 @@ import { type BuildProgress, GitHubError } from "#/lib/github";
 import { getOrgSummary, type OrgSummary, orgEntityId } from "#/lib/org-cache";
 
 /**
- * Server functions for org ("company") pages and the company leaderboard. Split from
+ * Server functions for organization pages and the organization leaderboard. Split from
  * commit-history.ts to keep that module user-only; same createServerFn conventions (and the
  * same "don't rename to *.server.ts" caveat documented there).
  */
@@ -41,7 +41,7 @@ export interface OrgResult {
 }
 
 /**
- * A company's members ranked by their commits *to that org* — the same rows the org's totals
+ * An organization's members ranked by their commits *to that org* — the same rows the org's totals
  * are summed from, so the list always reconciles with the headline numbers. Suspended members
  * are hidden (consistent with every other board); not-yet-fetched members (mid-build) carry
  * no numbers yet and are skipped.
@@ -145,7 +145,7 @@ export const getLookup = createServerFn({ method: "GET" })
 		if (solo) {
 			const kinds = await knownKinds(solo);
 			// Both kinds existing at once means a login changed hands across a rename — prefer the
-			// user row (the historical default); the org stays reachable via the company board.
+			// user row (the historical default); the org stays reachable via the organization board.
 			if (kinds.has("org") && !kinds.has("user")) {
 				return { kind: "org", org: await resolveOrg(solo) };
 			}
@@ -169,7 +169,7 @@ export const getLookup = createServerFn({ method: "GET" })
 		return { kind: "users", users };
 	});
 
-export interface CompanyLeaderEntry {
+export interface OrgLeaderEntry {
 	login: string;
 	name: string | null;
 	avatarUrl: string | null;
@@ -184,14 +184,14 @@ export interface CompanyLeaderEntry {
 }
 
 /**
- * Companies ranked by their members' org-scoped commits. Only fully built orgs appear — a
+ * Organizations ranked by their members' org-scoped commits. Only fully built orgs appear — a
  * half-built org's totals are still zero/partial and would rank nonsense. v1 ranks by commits
  * only; the per-metric machinery can follow once orgs get their own metric bar.
  */
-async function queryCompanyLeaderboard(
+async function queryOrgLeaderboard(
 	offset: number,
 	limit: number,
-): Promise<CompanyLeaderEntry[]> {
+): Promise<OrgLeaderEntry[]> {
 	if (!db) return [];
 	return (
 		db
@@ -221,11 +221,11 @@ async function queryCompanyLeaderboard(
 	);
 }
 
-/** One page of the company leaderboard — same clamp conventions as getLeaderboard. */
-export const getCompanyLeaderboard = createServerFn({ method: "GET" })
+/** One page of the organization leaderboard — same clamp conventions as getLeaderboard. */
+export const getOrgLeaderboard = createServerFn({ method: "GET" })
 	.validator((p: { offset: number; limit: number }) => p)
-	.handler(({ data }): Promise<CompanyLeaderEntry[]> => {
+	.handler(({ data }): Promise<OrgLeaderEntry[]> => {
 		const offset = Math.min(Math.max(0, data.offset), LEADERBOARD_MAX);
 		const limit = Math.min(Math.max(0, data.limit), LEADERBOARD_MAX - offset);
-		return queryCompanyLeaderboard(offset, limit);
+		return queryOrgLeaderboard(offset, limit);
 	});

@@ -1,4 +1,5 @@
 import { and, eq, isNull, sql } from "drizzle-orm";
+import { recordLookup } from "#/lib/cache";
 import { type DB, db } from "#/lib/db";
 import { entities, orgMembers } from "#/lib/db/schema";
 import {
@@ -12,12 +13,13 @@ import {
 } from "#/lib/github";
 
 /**
- * Incremental org ("company") cache — the org sibling of cache.ts.
+ * Incremental organization cache — the org sibling of cache.ts.
  *
  * An org's numbers are the sum of its members' contributions *to that org* (org-scoped
  * `contributionsCollection(organizationID: …)`, a different number from each member's global
  * totals). Those per-member sums live in `org_members`; the roll-up lands on the org's
- * `entities` row so the company leaderboard ranks orgs exactly like the user board ranks users.
+ * `entities` row so the organization leaderboard ranks orgs exactly like the user board ranks
+ * users.
  *
  * Builds are **resumable** at member granularity: enumeration inserts every member as a pending
  * `org_members` row (`lastFetched` null), each fetched member is stamped the moment its totals
@@ -148,7 +150,13 @@ async function getFromDb(
 		// discarding the lookup. The request path still won't build it live.
 		const profile = await fetchOrgProfile(login, token);
 		row = await upsertOrgProfile(database, id, profile, now);
+		// Record the lookup before the size check so even an oversized org we refuse to build
+		// still surfaces in "recently looked up" — the row exists and the strip links to /$user.
+		await recordLookup(database, id, now);
 		assertBuildable(profile);
+	} else {
+		// Known org, revisited: bump its recency so it re-sorts to the front of the strip.
+		await recordLookup(database, id, now);
 	}
 
 	const complete = row.builtAt != null;

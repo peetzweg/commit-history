@@ -6,7 +6,7 @@ import type { OrgMemberEntry, OrgResult } from "#/lib/org";
 import type { OrgSummary } from "#/lib/org-cache";
 
 /**
- * Org ("company") views rendered by the /$user route when a login resolves to an organization
+ * Organization views rendered by the /$user route when a login resolves to an organization
  * (GitHub logins share one namespace, so /paritytech IS the org page). Header + lifetime totals
  * of the members' contributions *to this org*, plus the building/error states. No chart yet:
  * orgs have no monthly data until the background worker lands (issue #84 follow-up).
@@ -247,7 +247,7 @@ function LoadedOrg({
 				repositories, as attributed by GitHub. Private members and private
 				contributions aren’t included.{" "}
 				<Link
-					to="/company/$slug"
+					to="/organizations/$slug"
 					params={{ slug: "stats" }}
 					className="whitespace-nowrap underline decoration-dotted underline-offset-2 hover:text-foreground"
 				>
@@ -285,7 +285,7 @@ function MemberBoard({
 					Public members ranked by their lifetime commits to {org.login}’s
 					repositories.{" "}
 					<Link
-						to="/company/$slug"
+						to="/organizations/$slug"
 						params={{ slug: "members" }}
 						className="whitespace-nowrap underline decoration-dotted underline-offset-2 hover:text-foreground"
 					>

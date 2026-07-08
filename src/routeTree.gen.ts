@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as UserRouteImport } from './routes/$user'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as OrganizationsSlugRouteImport } from './routes/organizations.$slug'
 import { Route as MetricsExplainedRouteImport } from './routes/metrics.explained'
 import { Route as MetricsSlugRouteImport } from './routes/metrics.$slug'
 import { Route as EmbedUserRouteImport } from './routes/embed.$user'
@@ -24,6 +25,11 @@ const UserRoute = UserRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OrganizationsSlugRoute = OrganizationsSlugRouteImport.update({
+  id: '/organizations/$slug',
+  path: '/organizations/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MetricsExplainedRoute = MetricsExplainedRouteImport.update({
@@ -54,6 +60,7 @@ export interface FileRoutesByFullPath {
   '/embed/$user': typeof EmbedUserRoute
   '/metrics/$slug': typeof MetricsSlugRoute
   '/metrics/explained': typeof MetricsExplainedRoute
+  '/organizations/$slug': typeof OrganizationsSlugRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -62,6 +69,7 @@ export interface FileRoutesByTo {
   '/embed/$user': typeof EmbedUserRoute
   '/metrics/$slug': typeof MetricsSlugRoute
   '/metrics/explained': typeof MetricsExplainedRoute
+  '/organizations/$slug': typeof OrganizationsSlugRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -71,6 +79,7 @@ export interface FileRoutesById {
   '/embed/$user': typeof EmbedUserRoute
   '/metrics/$slug': typeof MetricsSlugRoute
   '/metrics/explained': typeof MetricsExplainedRoute
+  '/organizations/$slug': typeof OrganizationsSlugRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -81,6 +90,7 @@ export interface FileRouteTypes {
     | '/embed/$user'
     | '/metrics/$slug'
     | '/metrics/explained'
+    | '/organizations/$slug'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -89,6 +99,7 @@ export interface FileRouteTypes {
     | '/embed/$user'
     | '/metrics/$slug'
     | '/metrics/explained'
+    | '/organizations/$slug'
   id:
     | '__root__'
     | '/'
@@ -97,6 +108,7 @@ export interface FileRouteTypes {
     | '/embed/$user'
     | '/metrics/$slug'
     | '/metrics/explained'
+    | '/organizations/$slug'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -106,6 +118,7 @@ export interface RootRouteChildren {
   EmbedUserRoute: typeof EmbedUserRoute
   MetricsSlugRoute: typeof MetricsSlugRoute
   MetricsExplainedRoute: typeof MetricsExplainedRoute
+  OrganizationsSlugRoute: typeof OrganizationsSlugRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -122,6 +135,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/organizations/$slug': {
+      id: '/organizations/$slug'
+      path: '/organizations/$slug'
+      fullPath: '/organizations/$slug'
+      preLoaderRoute: typeof OrganizationsSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/metrics/explained': {
@@ -162,6 +182,7 @@ const rootRouteChildren: RootRouteChildren = {
   EmbedUserRoute: EmbedUserRoute,
   MetricsSlugRoute: MetricsSlugRoute,
   MetricsExplainedRoute: MetricsExplainedRoute,
+  OrganizationsSlugRoute: OrganizationsSlugRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -435,7 +435,7 @@ async function persistEntity(
 	}
 }
 
-async function recordLookup(database: DB, id: string, now: Date) {
+export async function recordLookup(database: DB, id: string, now: Date) {
 	try {
 		await database.insert(lookups).values({ entityId: id, searchedAt: now });
 	} catch {
