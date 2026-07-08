@@ -1,15 +1,15 @@
 ---
-title: "How company stats are calculated"
-description: "Where a company's commits, pull requests, reviews and issues come from: each public member's contributions to that organization's repositories, summed — and what that number deliberately leaves out."
+title: "How organization stats are calculated"
+description: "Where an organization's commits, pull requests, reviews and issues come from: each public member's contributions to that organization's repositories, summed — and what that number deliberately leaves out."
 publishedAt: "2026-07-08"
 updatedAt: "2026-07-08"
 order: 1
 ---
 
-A company page answers a narrower question than it might look like: **how much
-have this organization's public members publicly contributed to the
+An organization page answers a narrower question than it might look like: **how
+much have this organization's public members publicly contributed to the
 organization's own repositories?** Every number on the page — the headline
-stats, the member leaderboard, the company's position on the company
+stats, the member leaderboard, the organization's position on the organization
 leaderboard — is built from that one measure.
 
 ## The calculation
@@ -24,8 +24,8 @@ Within that scope, GitHub's usual contribution rules apply, the same ones your
 personal profile uses: commits count on the default branch, under an email
 linked to the account, in non-fork repositories.
 
-The company totals are simply those per-member numbers **summed**. The member
-leaderboard shows the same rows the sum is made of, so the two always
+The organization totals are simply those per-member numbers **summed**. The
+member leaderboard shows the same rows the sum is made of, so the two always
 reconcile.
 
 ## What the number is *not*
@@ -35,32 +35,33 @@ things are excluded, and they can make the totals smaller than you'd expect:
 
 - **Private members.** GitHub keeps organization membership private by
   default, and we can only see members who made theirs public. An active
-  company whose people all keep membership private shows a total of zero —
-  see [why am I not on this member list?](/company/members).
+  organization whose people all keep membership private shows a total of zero —
+  see [why am I not on this member list?](/organizations/members).
 - **Outside contributors.** Someone who sends pull requests to the org's
   repos without being a member isn't counted. The measure is about the
-  company's people, not its repos' traffic.
+  organization's people, not its repos' traffic.
 - **Private repositories.** We only see public activity. Work in the org's
   private repos is invisible to us, even for public members.
 
-So treat the company numbers as the org's **public footprint**: what its
+So treat the organization numbers as the org's **public footprint**: what its
 publicly-listed people have visibly built there.
 
 ## How this differs from a personal profile
 
 Your personal page counts your public contributions **across all of GitHub**.
-A company page counts only what landed **in that org's repositories**. That's
-why your number on a member leaderboard is always less than or equal to the
-number on your own profile — often much less, if most of your work happens
+An organization page counts only what landed **in that org's repositories**.
+That's why your number on a member leaderboard is always less than or equal to
+the number on your own profile — often much less, if most of your work happens
 elsewhere.
 
 ## Freshness and quirks
 
 - Totals cover every **completed month** up to now; the current in-progress
   month rolls in once it ends (the same convention as personal profiles).
-- A company's numbers are collected when it's first looked up and refreshed
-  periodically after that, so very recent activity can take a while to appear.
-- Company pages don't have a commit chart yet — we currently store lifetime
+- An organization's numbers are collected when it's first looked up and
+  refreshed periodically after that, so very recent activity can take a while
+  to appear.
+- Organization pages don't have a commit chart yet — we currently store lifetime
   totals per member, and the per-month history that powers the chart is
   collected in a slower background pass.
 - In rare cases GitHub's API cannot serve a specific slice of a member's

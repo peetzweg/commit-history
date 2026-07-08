@@ -41,7 +41,7 @@ export function MetricBar() {
 
 	let modes: LeaderMode[] | null = null;
 	if (routeId === "/") {
-		// The company board (?kind=org) ranks by commits only — no metric to pick yet.
+		// The organization board (?kind=org) ranks by commits only — no metric to pick yet.
 		modes = boardKind === "org" ? null : LEADER_MODES;
 	} else if (routeId === "/$user") {
 		if (lookup?.kind === "org") {

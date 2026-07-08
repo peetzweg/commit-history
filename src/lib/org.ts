@@ -12,7 +12,7 @@ import { type BuildProgress, GitHubError } from "#/lib/github";
 import { getOrgSummary, type OrgSummary, orgEntityId } from "#/lib/org-cache";
 
 /**
- * Server functions for org ("company") pages and the company leaderboard. Split from
+ * Server functions for organization pages and the organization leaderboard. Split from
  * commit-history.ts to keep that module user-only; same createServerFn conventions (and the
  * same "don't rename to *.server.ts" caveat documented there).
  */
@@ -38,10 +38,14 @@ export interface OrgResult {
 	// Non-null while the initial server-side build is still in progress — each poll of the loader
 	// advances it (progress counts *members*, not months). Mutually exclusive with `error`.
 	building: BuildProgress | null;
+	// Non-null when the org is valid but too large for an on-demand build: it's been recorded and
+	// the background worker will fill it in. Carries a friendly "still indexing" message, and the
+	// UI shows a gentle notice rather than a failure card. Mutually exclusive with the fields above.
+	indexing: string | null;
 }
 
 /**
- * A company's members ranked by their commits *to that org* — the same rows the org's totals
+ * An organization's members ranked by their commits *to that org* — the same rows the org's totals
  * are summed from, so the list always reconciles with the headline numbers. Suspended members
  * are hidden (consistent with every other board); not-yet-fetched members (mid-build) carry
  * no numbers yet and are skipped.
@@ -77,7 +81,7 @@ async function resolveOrg(login: string): Promise<OrgResult> {
 		const org = await getOrgSummary(login, serverToken());
 		// Best-effort: a members-query hiccup must not drop an already-loaded org page.
 		const members = await queryOrgMembers(orgEntityId(login)).catch(() => []);
-		return { login, org, members, error: null, building: null };
+		return { login, org, members, error: null, building: null, indexing: null };
 	} catch (e) {
 		// The 503 "still building" rejection carries progress — surface it as `building` so the
 		// client polls to continue instead of showing a failure card (same mapping as the user
@@ -86,16 +90,22 @@ async function resolveOrg(login: string): Promise<OrgResult> {
 			e instanceof GitHubError && e.status === 503 && e.progress
 				? e.progress
 				: null;
+		// 422 = valid but too large to build on demand. It's been recorded for the background
+		// worker, so this isn't a failure — surface it as a friendly "still indexing" notice.
+		const indexing =
+			e instanceof GitHubError && e.status === 422 ? e.message : null;
 		return {
 			login,
 			org: null,
 			members: [],
-			error: building
-				? null
-				: e instanceof Error
-					? e.message
-					: "Failed to load",
+			error:
+				building || indexing
+					? null
+					: e instanceof Error
+						? e.message
+						: "Failed to load",
 			building,
+			indexing,
 		};
 	}
 }
@@ -145,7 +155,7 @@ export const getLookup = createServerFn({ method: "GET" })
 		if (solo) {
 			const kinds = await knownKinds(solo);
 			// Both kinds existing at once means a login changed hands across a rename — prefer the
-			// user row (the historical default); the org stays reachable via the company board.
+			// user row (the historical default); the org stays reachable via the organization board.
 			if (kinds.has("org") && !kinds.has("user")) {
 				return { kind: "org", org: await resolveOrg(solo) };
 			}
@@ -157,7 +167,7 @@ export const getLookup = createServerFn({ method: "GET" })
 			/could not resolve to a user/i.test(users[0].error)
 		) {
 			const org = await resolveOrg(solo);
-			if (org.org || org.building) return { kind: "org", org };
+			if (org.org || org.building || org.indexing) return { kind: "org", org };
 			// The login isn't a user. If the org path failed for any reason other than "no such
 			// org" (token scopes, a GitHub hiccup mid-build), that error is the truthful one —
 			// surface it instead of the misleading user 404. A login that is neither keeps the
@@ -169,7 +179,7 @@ export const getLookup = createServerFn({ method: "GET" })
 		return { kind: "users", users };
 	});
 
-export interface CompanyLeaderEntry {
+export interface OrgLeaderEntry {
 	login: string;
 	name: string | null;
 	avatarUrl: string | null;
@@ -184,14 +194,14 @@ export interface CompanyLeaderEntry {
 }
 
 /**
- * Companies ranked by their members' org-scoped commits. Only fully built orgs appear — a
+ * Organizations ranked by their members' org-scoped commits. Only fully built orgs appear — a
  * half-built org's totals are still zero/partial and would rank nonsense. v1 ranks by commits
  * only; the per-metric machinery can follow once orgs get their own metric bar.
  */
-async function queryCompanyLeaderboard(
+async function queryOrgLeaderboard(
 	offset: number,
 	limit: number,
-): Promise<CompanyLeaderEntry[]> {
+): Promise<OrgLeaderEntry[]> {
 	if (!db) return [];
 	return (
 		db
@@ -221,11 +231,11 @@ async function queryCompanyLeaderboard(
 	);
 }
 
-/** One page of the company leaderboard — same clamp conventions as getLeaderboard. */
-export const getCompanyLeaderboard = createServerFn({ method: "GET" })
+/** One page of the organization leaderboard — same clamp conventions as getLeaderboard. */
+export const getOrgLeaderboard = createServerFn({ method: "GET" })
 	.validator((p: { offset: number; limit: number }) => p)
-	.handler(({ data }): Promise<CompanyLeaderEntry[]> => {
+	.handler(({ data }): Promise<OrgLeaderEntry[]> => {
 		const offset = Math.min(Math.max(0, data.offset), LEADERBOARD_MAX);
 		const limit = Math.min(Math.max(0, data.limit), LEADERBOARD_MAX - offset);
-		return queryCompanyLeaderboard(offset, limit);
+		return queryOrgLeaderboard(offset, limit);
 	});

@@ -60,7 +60,7 @@ export const Route = createFileRoute("/$user")({
 		const logins = parseLogins(params.user);
 		const isOrg = loaderData?.kind === "org";
 		const title = isOrg
-			? `${logins[0]} — company commit history`
+			? `${logins[0]} — organization commit history`
 			: logins.length > 1
 				? `${logins.join(" vs ")} — commit history`
 				: `${logins[0] ?? "GitHub user"}’s commit history`;

@@ -23,7 +23,7 @@ function contentSlugs(collection: string): string[] {
 		.map((f) => f.replace(/\.mdx$/, ""));
 }
 const metricSlugs = contentSlugs("metrics");
-const companySlugs = contentSlugs("company");
+const orgSlugs = contentSlugs("organizations");
 
 const config = defineConfig({
 	resolve: { tsconfigPaths: true },
@@ -70,9 +70,9 @@ const config = defineConfig({
 					prerender: { enabled: true, crawlLinks: false },
 					sitemap: { changefreq: "monthly" as const, priority: 0.7 },
 				})),
-				// Company-context explainers — same policy (bare /company stays a login).
-				...companySlugs.map((slug) => ({
-					path: `/company/${slug}`,
+				// Organization-context explainers — same policy (bare /organizations stays a login).
+				...orgSlugs.map((slug) => ({
+					path: `/organizations/${slug}`,
 					prerender: { enabled: true, crawlLinks: false },
 					sitemap: { changefreq: "monthly" as const, priority: 0.7 },
 				})),

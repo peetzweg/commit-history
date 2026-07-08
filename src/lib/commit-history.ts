@@ -115,6 +115,10 @@ export interface RecentEntry {
 	login: string;
 	name: string | null;
 	avatarUrl: string | null;
+	/** Drives the chip's avatar shape (org = square, user = circle) and the verified badge. */
+	kind: "user" | "org";
+	/** Org-only verified badge; null for users. */
+	isVerified: boolean | null;
 }
 export interface StartPageData {
 	recent: RecentEntry[];
@@ -220,13 +224,20 @@ async function queryRecent(limit: number): Promise<RecentEntry[]> {
 			login: entities.login,
 			name: entities.name,
 			avatarUrl: entities.avatarUrl,
+			kind: entities.kind,
+			isVerified: entities.isVerified,
 			last: sql<string>`max(${lookups.searchedAt})`,
 		})
 		.from(lookups)
 		.innerJoin(entities, eq(entities.id, lookups.entityId))
-		// kind filter is defensive — org lookups aren't recorded (v1), but the strip links every
-		// entry to /$user, which for an org login would kick off a bogus user build.
-		.where(and(isNull(entities.suspendedAt), eq(entities.kind, "user")))
+		// Users and orgs both belong in the strip (each links to /$user, which resolves either);
+		// repos are the only other kind and don't get a page here, so they're excluded.
+		.where(
+			and(
+				isNull(entities.suspendedAt),
+				inArray(entities.kind, ["user", "org"]),
+			),
+		)
 		.groupBy(entities.id)
 		.orderBy(desc(sql`max(${lookups.searchedAt})`))
 		.limit(limit);
@@ -234,6 +245,8 @@ async function queryRecent(limit: number): Promise<RecentEntry[]> {
 		login: r.login,
 		name: r.name,
 		avatarUrl: r.avatarUrl,
+		kind: r.kind === "org" ? "org" : "user",
+		isVerified: r.isVerified,
 	}));
 }
 

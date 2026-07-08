@@ -6,7 +6,7 @@ import type { OrgMemberEntry, OrgResult } from "#/lib/org";
 import type { OrgSummary } from "#/lib/org-cache";
 
 /**
- * Org ("company") views rendered by the /$user route when a login resolves to an organization
+ * Organization views rendered by the /$user route when a login resolves to an organization
  * (GitHub logins share one namespace, so /paritytech IS the org page). Header + lifetime totals
  * of the members' contributions *to this org*, plus the building/error states. No chart yet:
  * orgs have no monthly data until the background worker lands (issue #84 follow-up).
@@ -153,6 +153,27 @@ export function OrgResultView({
 		);
 	}
 
+	// Valid but too large to build on demand — recorded and queued for the background worker.
+	// A gentle notice, not a failure: no Retry (retrying can't help), just "check back later".
+	if (result.indexing) {
+		return (
+			<main className="mx-auto max-w-md px-6 py-24 text-center">
+				<h1 className="text-xl font-semibold">
+					We’re still indexing {result.login}
+				</h1>
+				<p className="mt-3 text-sm text-muted-foreground">{result.indexing}</p>
+				<div className="mt-6">
+					<Link
+						to="/"
+						className="text-sm text-muted-foreground hover:underline"
+					>
+						← Try another lookup
+					</Link>
+				</div>
+			</main>
+		);
+	}
+
 	// Hard failure, or polling gave up on a stalled build.
 	const message = result.error
 		? result.error
@@ -247,7 +268,7 @@ function LoadedOrg({
 				repositories, as attributed by GitHub. Private members and private
 				contributions aren’t included.{" "}
 				<Link
-					to="/company/$slug"
+					to="/organizations/$slug"
 					params={{ slug: "stats" }}
 					className="whitespace-nowrap underline decoration-dotted underline-offset-2 hover:text-foreground"
 				>
@@ -285,7 +306,7 @@ function MemberBoard({
 					Public members ranked by their lifetime commits to {org.login}’s
 					repositories.{" "}
 					<Link
-						to="/company/$slug"
+						to="/organizations/$slug"
 						params={{ slug: "members" }}
 						className="whitespace-nowrap underline decoration-dotted underline-offset-2 hover:text-foreground"
 					>

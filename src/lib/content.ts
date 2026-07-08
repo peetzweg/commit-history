@@ -1,9 +1,9 @@
 /**
  * The MDX content collections:
  * - src/content/metrics/<slug>.mdx → /metrics/<slug> (individual metrics, /metrics/explained hub)
- * - src/content/company/<slug>.mdx → /company/<slug> (company/org context — deliberately its own
- *   collection, NOT mixed into the individuals' hub: the definitions differ, e.g. org-scoped vs
- *   global contributions)
+ * - src/content/organizations/<slug>.mdx → /organizations/<slug> (organization context —
+ *   deliberately its own collection, NOT mixed into the individuals' hub: the definitions differ,
+ *   e.g. org-scoped vs global contributions)
  *
  * Two globs per collection with different costs:
  * - an eager, frontmatter-only glob (tiny — just the exported metadata objects), used
@@ -69,21 +69,19 @@ export function loadArticle(
 	return load?.();
 }
 
-// ── Company collection (/company/<slug>) ─────────────────────────────────────
+// ── Organization collection (/organizations/<slug>) ──────────────────────────
 
-const companyFrontmatters = import.meta.glob<ArticleFrontmatter>(
-	"../content/company/*.mdx",
+const orgFrontmatters = import.meta.glob<ArticleFrontmatter>(
+	"../content/organizations/*.mdx",
 	{ eager: true, import: "frontmatter" },
 );
 
-const companyComponents = import.meta.glob<{ default: MDXContent }>(
-	"../content/company/*.mdx",
+const orgComponents = import.meta.glob<{ default: MDXContent }>(
+	"../content/organizations/*.mdx",
 );
 
-/** All company articles in curated reading order. */
-export const companyArticles: ArticleMeta[] = Object.entries(
-	companyFrontmatters,
-)
+/** All organization articles in curated reading order. */
+export const orgArticles: ArticleMeta[] = Object.entries(orgFrontmatters)
 	.map(([path, fm]) => ({ slug: slugOf(path), ...fm }))
 	.sort(
 		(a, b) =>
@@ -91,14 +89,14 @@ export const companyArticles: ArticleMeta[] = Object.entries(
 				(b.order ?? Number.MAX_SAFE_INTEGER) || a.title.localeCompare(b.title),
 	);
 
-export function getCompanyArticleMeta(slug: string): ArticleMeta | undefined {
-	return companyArticles.find((a) => a.slug === slug);
+export function getOrgArticleMeta(slug: string): ArticleMeta | undefined {
+	return orgArticles.find((a) => a.slug === slug);
 }
 
-/** Lazily import a company article's compiled MDX module (shape fits React.lazy). */
-export function loadCompanyArticle(
+/** Lazily import an organization article's compiled MDX module (shape fits React.lazy). */
+export function loadOrgArticle(
 	slug: string,
 ): Promise<{ default: MDXContent }> | undefined {
-	const load = companyComponents[`../content/company/${slug}.mdx`];
+	const load = orgComponents[`../content/organizations/${slug}.mdx`];
 	return load?.();
 }

@@ -1,4 +1,5 @@
 import { and, eq, isNull, sql } from "drizzle-orm";
+import { recordLookup } from "#/lib/cache";
 import { type DB, db } from "#/lib/db";
 import { entities, orgMembers } from "#/lib/db/schema";
 import {
@@ -12,12 +13,13 @@ import {
 } from "#/lib/github";
 
 /**
- * Incremental org ("company") cache — the org sibling of cache.ts.
+ * Incremental organization cache — the org sibling of cache.ts.
  *
  * An org's numbers are the sum of its members' contributions *to that org* (org-scoped
  * `contributionsCollection(organizationID: …)`, a different number from each member's global
  * totals). Those per-member sums live in `org_members`; the roll-up lands on the org's
- * `entities` row so the company leaderboard ranks orgs exactly like the user board ranks users.
+ * `entities` row so the organization leaderboard ranks orgs exactly like the user board ranks
+ * users.
  *
  * Builds are **resumable** at member granularity: enumeration inserts every member as a pending
  * `org_members` row (`lastFetched` null), each fetched member is stamped the moment its totals
@@ -43,9 +45,10 @@ const BUILD_BUDGET_MS = 6_000;
 const MEMBER_CONCURRENCY = 3;
 
 // Orgs with more visible members than this get a clean refusal instead of an on-demand build:
-// at ~2 requests per member a mega-org lookup would eat the shared token's hourly budget and
-// poison it for every visitor. Lifting this needs the background worker.
-const MAX_ORG_MEMBERS = 400;
+// at ~2 requests per member even a mid-size org lookup can eat into the shared token's hourly
+// budget and poison it for every visitor. We keep this deliberately low and record the refused
+// orgs (see getFromDb) so the background worker can backfill them later, off the request path.
+const MAX_ORG_MEMBERS = 25;
 
 export interface OrgSummary {
 	login: string;
@@ -141,11 +144,19 @@ async function getFromDb(
 
 	if (!row) {
 		// First sighting: the profile fetch validates the login and yields the node id (keys every
-		// org-scoped contribution query) + createdAt (caps member windows). Refuse oversized orgs
-		// BEFORE writing anything — a half-enumerated mega-org would burn quota on every poll.
+		// org-scoped contribution query) + createdAt (caps member windows). Record the profile
+		// (a single cheap upsert into `entities`, builtAt still null) BEFORE refusing an oversized
+		// org — this leaves a tracked row the background worker can later backfill, instead of
+		// discarding the lookup. The request path still won't build it live.
 		const profile = await fetchOrgProfile(login, token);
-		assertBuildable(profile);
 		row = await upsertOrgProfile(database, id, profile, now);
+		// Record the lookup before the size check so even an oversized org we refuse to build
+		// still surfaces in "recently looked up" — the row exists and the strip links to /$user.
+		await recordLookup(database, id, now);
+		assertBuildable(profile);
+	} else {
+		// Known org, revisited: bump its recency so it re-sorts to the front of the strip.
+		await recordLookup(database, id, now);
 	}
 
 	const complete = row.builtAt != null;
@@ -181,6 +192,13 @@ async function getFromDb(
 	const orgCreatedAt = row.createdAt;
 	if (!orgNodeId || !orgCreatedAt) {
 		throw new GitHubError(`Could not resolve "${login}" on GitHub.`, 502);
+	}
+
+	// Enrolled but oversized: the row is recorded for the worker, but the request path must refuse
+	// it — cheaply, from the stored memberCount, so a repeat lookup never pays to re-enumerate its
+	// members before bailing. (assertBuildable already caught it at first sighting.)
+	if ((row.memberCount ?? 0) > MAX_ORG_MEMBERS) {
+		throw new GitHubError(tooLargeMessage(login, row.memberCount ?? 0), 422);
 	}
 
 	// Enumerate members once per build: every member becomes a pending org_members row, which
@@ -278,7 +296,7 @@ function assertBuildable(profile: OrgProfile) {
 }
 
 function tooLargeMessage(login: string, count: number) {
-	return `"${login}" has ${count.toLocaleString()} public members — too many for an on-demand build yet.`;
+	return `${login} has ${count.toLocaleString()} public members — a bit much for us to crunch on the spot. We’ve added it to the queue and are indexing it in the background; check back a little later. Thanks for your interest!`;
 }
 
 async function memberRowCount(database: DB, id: string): Promise<number> {
