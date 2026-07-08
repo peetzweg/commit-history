@@ -296,7 +296,7 @@ function assertBuildable(profile: OrgProfile) {
 }
 
 function tooLargeMessage(login: string, count: number) {
-	return `"${login}" has ${count.toLocaleString()} public members — too many for an on-demand build yet.`;
+	return `${login} has ${count.toLocaleString()} public members — a bit much for us to crunch on the spot. We’ve added it to the queue and are indexing it in the background; check back a little later. Thanks for your interest!`;
 }
 
 async function memberRowCount(database: DB, id: string): Promise<number> {

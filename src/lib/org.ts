@@ -38,6 +38,10 @@ export interface OrgResult {
 	// Non-null while the initial server-side build is still in progress — each poll of the loader
 	// advances it (progress counts *members*, not months). Mutually exclusive with `error`.
 	building: BuildProgress | null;
+	// Non-null when the org is valid but too large for an on-demand build: it's been recorded and
+	// the background worker will fill it in. Carries a friendly "still indexing" message, and the
+	// UI shows a gentle notice rather than a failure card. Mutually exclusive with the fields above.
+	indexing: string | null;
 }
 
 /**
@@ -77,7 +81,7 @@ async function resolveOrg(login: string): Promise<OrgResult> {
 		const org = await getOrgSummary(login, serverToken());
 		// Best-effort: a members-query hiccup must not drop an already-loaded org page.
 		const members = await queryOrgMembers(orgEntityId(login)).catch(() => []);
-		return { login, org, members, error: null, building: null };
+		return { login, org, members, error: null, building: null, indexing: null };
 	} catch (e) {
 		// The 503 "still building" rejection carries progress — surface it as `building` so the
 		// client polls to continue instead of showing a failure card (same mapping as the user
@@ -86,16 +90,22 @@ async function resolveOrg(login: string): Promise<OrgResult> {
 			e instanceof GitHubError && e.status === 503 && e.progress
 				? e.progress
 				: null;
+		// 422 = valid but too large to build on demand. It's been recorded for the background
+		// worker, so this isn't a failure — surface it as a friendly "still indexing" notice.
+		const indexing =
+			e instanceof GitHubError && e.status === 422 ? e.message : null;
 		return {
 			login,
 			org: null,
 			members: [],
-			error: building
-				? null
-				: e instanceof Error
-					? e.message
-					: "Failed to load",
+			error:
+				building || indexing
+					? null
+					: e instanceof Error
+						? e.message
+						: "Failed to load",
 			building,
+			indexing,
 		};
 	}
 }
@@ -157,7 +167,7 @@ export const getLookup = createServerFn({ method: "GET" })
 			/could not resolve to a user/i.test(users[0].error)
 		) {
 			const org = await resolveOrg(solo);
-			if (org.org || org.building) return { kind: "org", org };
+			if (org.org || org.building || org.indexing) return { kind: "org", org };
 			// The login isn't a user. If the org path failed for any reason other than "no such
 			// org" (token scopes, a GitHub hiccup mid-build), that error is the truthful one —
 			// surface it instead of the misleading user 404. A login that is neither keeps the

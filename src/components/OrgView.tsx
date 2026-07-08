@@ -153,6 +153,27 @@ export function OrgResultView({
 		);
 	}
 
+	// Valid but too large to build on demand — recorded and queued for the background worker.
+	// A gentle notice, not a failure: no Retry (retrying can't help), just "check back later".
+	if (result.indexing) {
+		return (
+			<main className="mx-auto max-w-md px-6 py-24 text-center">
+				<h1 className="text-xl font-semibold">
+					We’re still indexing {result.login}
+				</h1>
+				<p className="mt-3 text-sm text-muted-foreground">{result.indexing}</p>
+				<div className="mt-6">
+					<Link
+						to="/"
+						className="text-sm text-muted-foreground hover:underline"
+					>
+						← Try another lookup
+					</Link>
+				</div>
+			</main>
+		);
+	}
+
 	// Hard failure, or polling gave up on a stalled build.
 	const message = result.error
 		? result.error
