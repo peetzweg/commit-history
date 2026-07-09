@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ChartAttribution } from "#/components/ChartAttribution";
 import { ChartLegend } from "#/components/ChartLegend";
+import { pickYearTicks } from "#/lib/chart-ticks";
 import type { CommitPoint } from "#/lib/github";
 import { useIsMobile } from "#/lib/useIsMobile";
 
@@ -174,9 +175,11 @@ export function CommitChart({
 	const area = `${line} L${x(n - 1).toFixed(1)},${baseline} L${x(0).toFixed(1)},${baseline} Z`;
 
 	const yTicks = Array.from({ length: 5 }, (_, i) => Math.round((max / 4) * i));
-	const xTicks = points
+	const yearTicks = points
 		.map((p, i) => ({ i, year: p.date.slice(0, 4) }))
 		.filter((t, idx, arr) => idx === 0 || t.year !== arr[idx - 1].year);
+	// Thin the year row so labels never crowd (bad on mobile, where the axis font is much larger).
+	const xTicks = pickYearTicks(yearTicks, innerW, FONT.axis);
 
 	// Show a dot per point, but thin out when there are many months so it stays sketchy, not noisy.
 	const dotEvery = Math.max(1, Math.ceil(n / 60));
