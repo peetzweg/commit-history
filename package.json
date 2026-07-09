@@ -19,6 +19,7 @@
     "suspend": "bun scripts/suspend.ts",
     "refresh": "bun scripts/refresh.ts",
     "backfill": "bun scripts/backfill-contributions.ts",
+    "backup": "bash scripts/backup.sh",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio"
