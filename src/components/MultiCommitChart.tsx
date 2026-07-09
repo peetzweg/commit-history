@@ -8,6 +8,7 @@ import {
 	cumulativeSeries,
 	metricDelta,
 } from "#/components/CommitChart";
+import { niceYearStep } from "#/lib/chart-ticks";
 import type { CommitPoint } from "#/lib/github";
 import { useIsMobile } from "#/lib/useIsMobile";
 
@@ -147,14 +148,17 @@ export function MultiCommitChart({
 	if (mode === "date") {
 		const y0 = Math.ceil(t0 / 12);
 		const y1 = Math.floor(t1 / 12);
-		const span = Math.max(1, y1 - y0);
-		const step = span > 12 ? 2 : 1;
-		for (let yr = y0; yr <= y1; yr += step) {
-			xTicks.push({ x: xDate(yr * 12), label: String(yr) });
+		// Thin to a "nice" step so labels never crowd, anchoring survivors to round years (…2015,
+		// 2020) — see niceYearStep. The mobile axis font is large, so wide ranges need this.
+		const step = niceYearStep(y1 - y0, innerW, FONT.axis);
+		for (let yr = y0; yr <= y1; yr++) {
+			if (yr % step === 0)
+				xTicks.push({ x: xDate(yr * 12), label: String(yr) });
 		}
 	} else {
 		const years = Math.floor((maxLen - 1) / 12);
-		const step = years > 12 ? 2 : 1;
+		// "Ny" labels are up to 3 chars ("start" is only at 0); size the step to that.
+		const step = niceYearStep(years, innerW, FONT.axis, 3);
 		for (let yr = 0; yr <= years; yr += step) {
 			xTicks.push({
 				x: xAligned(yr * 12),
