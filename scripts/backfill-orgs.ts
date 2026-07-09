@@ -14,12 +14,18 @@
  * same model as backfill-contributions.ts. Run with bun (auto-loads .env; beware a shell-exported
  * GITHUB_TOKEN overriding it — prefix with `env -u GITHUB_TOKEN` if your shell sets one):
  *
- *   bun scripts/backfill-orgs.ts                       # every recorded org not yet filled, stalest first
+ *   bun scripts/backfill-orgs.ts                       # every recorded org not yet filled, SMALLEST first
  *   bun scripts/backfill-orgs.ts google microsoft      # these orgs specifically (records them if new)
+ *   bun scripts/backfill-orgs.ts --force <login…>      # re-fetch every member (refresh, don't resume)
  *
- * Safe to re-run and interrupt: every write is an idempotent upsert, a member already fetched in
- * this run is skipped on resume, and an org's `builtAt` is stamped only after all its members are
- * fetched (so an interrupted org stays unfilled and is retried).
+ * No-arg runs go smallest-org-first (fewest public members) so small orgs resolve quickly and
+ * mega-orgs fall to the back instead of blocking everyone behind one 1,000-member org.
+ *
+ * Safe to re-run and interrupt: every write is an idempotent upsert; a member's `lastFetched`
+ * marks it done, so a re-run SKIPS members already fetched (in this run or a previous, aborted
+ * one) and continues from where it stopped. An org's `builtAt` is stamped only after all its
+ * members are fetched, so an interrupted org stays unfilled and is picked up again. Pass --force
+ * to re-fetch already-filled members (refresh their numbers) instead of resuming.
  */
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { db } from "#/lib/db";
@@ -53,6 +59,9 @@ const CHUNK_ROWS = 100;
 // fetchOrgMemberContributions batches windows this many at a time; used only to pace, not for
 // correctness — an over-estimate just spends the budget more conservatively.
 const WINDOWS_PER_REQUEST = 6;
+// --force re-fetches every member even if already filled (to refresh numbers). Default: resume,
+// i.e. skip members that already have a lastFetched from any prior run.
+const force = process.argv.slice(2).includes("--force");
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -165,7 +174,10 @@ async function fillOrg(login: string): Promise<number> {
 			.onConflictDoNothing();
 	}
 
-	// Resume support: skip members already fetched since this run started.
+	// Resume support: a member's `lastFetched` is set once we've fetched it — in this run OR a
+	// previous, aborted one. By default we skip anything already fetched, so re-running continues
+	// from exactly where an abort stopped (e.g. mid-Microsoft) instead of restarting the org.
+	// --force re-fetches everyone, to refresh an already-filled org's numbers.
 	const existing = await database
 		.select({
 			memberId: orgMembers.memberId,
@@ -174,19 +186,17 @@ async function fillOrg(login: string): Promise<number> {
 		.from(orgMembers)
 		.where(eq(orgMembers.orgId, orgId));
 	const fetchedById = new Map(existing.map((r) => [r.memberId, r.lastFetched]));
-	const already = members.filter((m) => {
-		const p = fetchedById.get(userEntityId(m.login));
-		return p && p >= runStart;
-	}).length;
+	const isDone = (login: string) =>
+		!force && fetchedById.get(userEntityId(login)) != null;
+	const already = members.filter((m) => isDone(m.login)).length;
 	console.log(
-		`  ${members.length} public members${already ? ` (${already} already done this run)` : ""} — fetching lifetime totals, ~${Math.round((Math.max(1, Math.ceil(20 / WINDOWS_PER_REQUEST)) / TARGET_RATE) * 3600)}s each`,
+		`  ${members.length} public members${already ? ` (${already} already done — resuming)` : ""} — fetching lifetime totals, ~${Math.round((Math.max(1, Math.ceil(20 / WINDOWS_PER_REQUEST)) / TARGET_RATE) * 3600)}s each`,
 	);
 
 	let done = 0;
 	for (const m of members) {
 		const memberId = userEntityId(m.login);
-		const prev = fetchedById.get(memberId);
-		if (prev && prev >= runStart) continue;
+		if (isDone(m.login)) continue;
 
 		// A member can't have contributed to the org before either account existed.
 		const start = new Date(
@@ -251,7 +261,7 @@ async function fillOrg(login: string): Promise<number> {
 		.where(eq(entities.id, orgId));
 
 	console.log(
-		`✓ ${login.padEnd(24)} ${Number(sums?.commits ?? 0).toLocaleString()} commits · ${done}/${members.length} members fetched`,
+		`✓ ${login.padEnd(24)} ${Number(sums?.commits ?? 0).toLocaleString()} commits · ${done} fetched${already ? ` + ${already} already done` : ""} / ${members.length} members`,
 	);
 	return requests;
 }
@@ -263,16 +273,18 @@ if (args.length > 0) {
 	targets = args.map((login) => ({ login }));
 	console.log(`Backfilling ${targets.length} org(s) by name\n`);
 } else {
-	// Every recorded-but-unfilled org (builtAt null), stalest first; an interrupted org keeps its
-	// old lastFetched and is retried first.
+	// Every recorded-but-unfilled org (builtAt null), SMALLEST first (fewest public members) so
+	// small orgs resolve quickly and mega-orgs (microsoft, google) fall to the back instead of
+	// blocking everyone. An org interrupted mid-fill still has builtAt null, so it's picked up
+	// again and resumes from where it stopped (members already fetched are skipped).
 	const rows = await database
 		.select({ login: entities.login })
 		.from(entities)
 		.where(and(eq(entities.kind, "org"), isNull(entities.builtAt)))
-		.orderBy(sql`${entities.lastFetched} asc nulls first`, asc(entities.id));
+		.orderBy(sql`${entities.memberCount} asc nulls last`, asc(entities.id));
 	targets = rows;
 	console.log(
-		`${rows.length} recorded org(s) not yet filled, stalest first, ~${TARGET_RATE} req/hr\n`,
+		`${rows.length} recorded org(s) not yet filled, smallest first, ~${TARGET_RATE} req/hr\n`,
 	);
 }
 
