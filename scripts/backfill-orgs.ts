@@ -217,8 +217,16 @@ async function fillOrg(login: string): Promise<number> {
 				windows,
 			);
 		} catch (e) {
-			// A deleted/renamed member 404s forever — record zeros and move on.
-			if (!(e instanceof GitHubError && e.status === 404)) throw e;
+			// Isolate per-member failures so one bad member can't sink the whole org:
+			//  - 404: deleted/renamed member — gone forever.
+			//  - 400: login our validator can't accept (shouldn't happen now that legacy
+			//    hyphen-ending usernames pass, but stay defensive).
+			// Record zeros + mark done so resume doesn't wedge on it. Rate limits (403/429) and
+			// 5xx still propagate → the run aborts and resumes later rather than storing false zeros.
+			if (!(e instanceof GitHubError && (e.status === 404 || e.status === 400))) {
+				throw e;
+			}
+			console.log(`  – ${m.login.padEnd(22)} skipped (${(e as GitHubError).status})`);
 		}
 		const req = Math.max(1, Math.ceil(windows.length / WINDOWS_PER_REQUEST));
 		requests += req;
