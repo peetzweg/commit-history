@@ -70,6 +70,15 @@ export const Route = createFileRoute("/$user")({
 				? `Compare the cumulative GitHub commits of ${logins.join(", ")} over time.`
 				: `${logins[0]}’s cumulative GitHub commits over their whole lifetime.`;
 		const url = `https://commit-history.com/${logins.join(",")}`;
+		// A single login gets a dynamic card (see src/routes/og.$kind.$login.tsx); a comparison
+		// keeps the site-wide card (the root default) — a compare card can follow later.
+		const single = logins.length === 1 ? logins[0] : null;
+		const ogImage = single
+			? `https://commit-history.com/og/${isOrg ? "org" : "user"}/${single}`
+			: null;
+		const imageAlt = isOrg
+			? `${logins[0]} on the commit-history.com organization leaderboard`
+			: `${logins[0]} on commit-history.com`;
 		return {
 			meta: [
 				{ title },
@@ -79,6 +88,15 @@ export const Route = createFileRoute("/$user")({
 				{ property: "og:url", content: url },
 				{ name: "twitter:title", content: title },
 				{ name: "twitter:description", content: description },
+				// Override the root's static card with the entity's own (deduped by property/name).
+				...(ogImage
+					? [
+							{ property: "og:image", content: ogImage },
+							{ property: "og:image:alt", content: imageAlt },
+							{ name: "twitter:image", content: ogImage },
+							{ name: "twitter:image:alt", content: imageAlt },
+						]
+					: []),
 			],
 			links: [{ rel: "canonical", href: url }],
 		};

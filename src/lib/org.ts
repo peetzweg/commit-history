@@ -1,5 +1,15 @@
 import { createServerFn } from "@tanstack/react-start";
-import { and, asc, desc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
+import {
+	and,
+	asc,
+	desc,
+	eq,
+	gt,
+	inArray,
+	isNotNull,
+	isNull,
+	sql,
+} from "drizzle-orm";
 import {
 	LEADERBOARD_MAX,
 	lookupUsers,
@@ -74,9 +84,9 @@ async function queryOrgMembers(orgId: string): Promise<OrgMemberEntry[]> {
 		.orderBy(desc(orgMembers.commits), asc(orgMembers.memberId));
 }
 
-/** Plain server-side resolution — shared by getOrg and getLookup (server functions must not
- *  call each other: a server-side call turns into an HTTP self-fetch). */
-async function resolveOrg(login: string): Promise<OrgResult> {
+/** Plain server-side resolution — shared by getOrg, getLookup and the OG image route (server
+ *  functions must not call each other: a server-side call turns into an HTTP self-fetch). */
+export async function resolveOrg(login: string): Promise<OrgResult> {
 	try {
 		const org = await getOrgSummary(login, serverToken());
 		// Best-effort: a members-query hiccup must not drop an already-loaded org page.
@@ -229,6 +239,27 @@ async function queryOrgLeaderboard(
 			.limit(limit)
 			.offset(offset)
 	);
+}
+
+/**
+ * An organization's place on the organization leaderboard: how many built, non-suspended orgs
+ * rank ahead of `totalCommits`, plus one. Same population/ordering as queryOrgLeaderboard, so the
+ * place matches where the org sits on the board. Ties share a place. Null without a DB.
+ */
+export async function orgRankFor(totalCommits: number): Promise<number | null> {
+	if (!db) return null;
+	const [row] = await db
+		.select({ ahead: sql<number>`count(*)` })
+		.from(entities)
+		.where(
+			and(
+				eq(entities.kind, "org"),
+				isNull(entities.suspendedAt),
+				isNotNull(entities.builtAt),
+				gt(entities.totalCommits, totalCommits),
+			),
+		);
+	return Number(row?.ahead ?? 0) + 1;
 }
 
 /** One page of the organization leaderboard — same clamp conventions as getLeaderboard. */
