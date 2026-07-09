@@ -671,7 +671,6 @@ function OrgBoard({ rows }: { rows: OrgLeaderEntry[] }) {
 			{/* Same sticky-heading treatment as the developer board (see Leaderboard above). */}
 			<div className="sticky top-0 z-20 border-border border-b bg-background pt-3 pb-3">
 				<h2 className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-2xl font-bold tracking-tight">
-					All-time
 					<span className="font-hand font-normal text-3xl text-primary leading-none">
 						Organization
 					</span>
