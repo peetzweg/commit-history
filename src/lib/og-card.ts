@@ -215,14 +215,15 @@ export interface DeveloperCardInput {
 	login: string;
 	name: string | null;
 	avatarDataUrl: string | null;
-	/** Public-commits leaderboard place; null → line omitted. */
-	rankCommits: number | null;
+	/** The single rank to show (value + its label), or null to omit the line. The caller picks
+	 *  public commits, falling back to private contributions when public isn't available. */
+	rank: { value: number; label: string } | null;
 }
 
 export function developerCard(input: DeveloperCardInput): OgNode {
 	const ranks: Child[] = [];
-	if (input.rankCommits != null) {
-		ranks.push(rankLine(input.rankCommits, "by public commits"));
+	if (input.rank) {
+		ranks.push(rankLine(input.rank.value, input.rank.label));
 	}
 	return frame(
 		el(

@@ -83,12 +83,23 @@ export const Route = createFileRoute("/og/$kind/$login")({
 						if (!result?.history) return fallback(request);
 						const { user } = result.history;
 						const avatarDataUrl = await fetchAvatar(user.avatarUrl);
+						// Public-commits rank is the headline; fall back to the private-contributions
+						// rank only when the profile has no public commits to rank.
+						const rank =
+							result.ranks.public != null
+								? { value: result.ranks.public, label: "by public commits" }
+								: result.ranks.private != null
+									? {
+											value: result.ranks.private,
+											label: "by private contributions",
+										}
+									: null;
 						const png = await renderPng(
 							developerCard({
 								login: user.login,
 								name: user.name,
 								avatarDataUrl,
-								rankCommits: result.ranks.public ?? null,
+								rank,
 							}),
 						);
 						return new Response(new Uint8Array(png), { headers: PNG_HEADERS });
