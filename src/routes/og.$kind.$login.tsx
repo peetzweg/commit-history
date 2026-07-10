@@ -88,7 +88,6 @@ export const Route = createFileRoute("/og/$kind/$login")({
 								login: user.login,
 								name: user.name,
 								avatarDataUrl,
-								rankOverall: result.ranks.total ?? null,
 								rankCommits: result.ranks.public ?? null,
 							}),
 						);

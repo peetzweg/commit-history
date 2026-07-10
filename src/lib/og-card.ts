@@ -191,14 +191,14 @@ function identityBlock(name: string | null | undefined, login: string): OgNode {
 	);
 }
 
-/** A big accent rank line like "#42 by public commits". `null` rank → skipped by the caller. */
+/** A big rank line like "#42 by public commits". `null` rank → skipped by the caller. */
 function rankLine(rank: number, label: string): OgNode {
 	return el(
 		"div",
 		{ style: { display: "flex", alignItems: "baseline", gap: 16 } },
 		el(
 			"div",
-			{ style: { display: "flex", fontSize: 56, color: ACCENT } },
+			{ style: { display: "flex", fontSize: 56, color: FG } },
 			`#${rank.toLocaleString("en-US")}`,
 		),
 		el(
@@ -215,17 +215,12 @@ export interface DeveloperCardInput {
 	login: string;
 	name: string | null;
 	avatarDataUrl: string | null;
-	/** Overall (total-contributions) leaderboard place; null → line omitted. */
-	rankOverall: number | null;
 	/** Public-commits leaderboard place; null → line omitted. */
 	rankCommits: number | null;
 }
 
 export function developerCard(input: DeveloperCardInput): OgNode {
 	const ranks: Child[] = [];
-	if (input.rankOverall != null) {
-		ranks.push(rankLine(input.rankOverall, "overall"));
-	}
 	if (input.rankCommits != null) {
 		ranks.push(rankLine(input.rankCommits, "by public commits"));
 	}
