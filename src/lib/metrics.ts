@@ -16,6 +16,19 @@ export const METRIC_LABEL: Record<LeaderMode, string> = {
 	followers: "Followers",
 };
 
+// Plain-language noun for a metric, used in share cards ("112,847 public commits",
+// "ranked #2"). Lower-case, plural — reads as a count. "public"/"private" keep their qualifier
+// so a card is unambiguous about which commits it means.
+export const METRIC_NOUN: Record<ChartMode, string> = {
+	public: "public commits",
+	prs: "pull requests",
+	issues: "issues",
+	reviews: "reviews",
+	repos: "repositories",
+	private: "private contributions",
+	total: "total contributions",
+};
+
 // The /metrics/<slug> explainer article for each metric (src/content/metrics/) — surfaced
 // as a tertiary "What is this?" link next to the leaderboard subtitle and chart captions.
 export const METRIC_EXPLAINER: Record<LeaderMode, string> = {

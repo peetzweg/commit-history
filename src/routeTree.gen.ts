@@ -16,6 +16,7 @@ import { Route as MetricsExplainedRouteImport } from './routes/metrics.explained
 import { Route as MetricsSlugRouteImport } from './routes/metrics.$slug'
 import { Route as EmbedUserRouteImport } from './routes/embed.$user'
 import { Route as CompanySlugRouteImport } from './routes/company.$slug'
+import { Route as OgKindLoginRouteImport } from './routes/og.$kind.$login'
 
 const UserRoute = UserRouteImport.update({
   id: '/$user',
@@ -52,6 +53,11 @@ const CompanySlugRoute = CompanySlugRouteImport.update({
   path: '/company/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OgKindLoginRoute = OgKindLoginRouteImport.update({
+  id: '/og/$kind/$login',
+  path: '/og/$kind/$login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -61,6 +67,7 @@ export interface FileRoutesByFullPath {
   '/metrics/$slug': typeof MetricsSlugRoute
   '/metrics/explained': typeof MetricsExplainedRoute
   '/organizations/$slug': typeof OrganizationsSlugRoute
+  '/og/$kind/$login': typeof OgKindLoginRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -70,6 +77,7 @@ export interface FileRoutesByTo {
   '/metrics/$slug': typeof MetricsSlugRoute
   '/metrics/explained': typeof MetricsExplainedRoute
   '/organizations/$slug': typeof OrganizationsSlugRoute
+  '/og/$kind/$login': typeof OgKindLoginRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -80,6 +88,7 @@ export interface FileRoutesById {
   '/metrics/$slug': typeof MetricsSlugRoute
   '/metrics/explained': typeof MetricsExplainedRoute
   '/organizations/$slug': typeof OrganizationsSlugRoute
+  '/og/$kind/$login': typeof OgKindLoginRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -91,6 +100,7 @@ export interface FileRouteTypes {
     | '/metrics/$slug'
     | '/metrics/explained'
     | '/organizations/$slug'
+    | '/og/$kind/$login'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -100,6 +110,7 @@ export interface FileRouteTypes {
     | '/metrics/$slug'
     | '/metrics/explained'
     | '/organizations/$slug'
+    | '/og/$kind/$login'
   id:
     | '__root__'
     | '/'
@@ -109,6 +120,7 @@ export interface FileRouteTypes {
     | '/metrics/$slug'
     | '/metrics/explained'
     | '/organizations/$slug'
+    | '/og/$kind/$login'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -119,6 +131,7 @@ export interface RootRouteChildren {
   MetricsSlugRoute: typeof MetricsSlugRoute
   MetricsExplainedRoute: typeof MetricsExplainedRoute
   OrganizationsSlugRoute: typeof OrganizationsSlugRoute
+  OgKindLoginRoute: typeof OgKindLoginRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -172,6 +185,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CompanySlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/og/$kind/$login': {
+      id: '/og/$kind/$login'
+      path: '/og/$kind/$login'
+      fullPath: '/og/$kind/$login'
+      preLoaderRoute: typeof OgKindLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -183,6 +203,7 @@ const rootRouteChildren: RootRouteChildren = {
   MetricsSlugRoute: MetricsSlugRoute,
   MetricsExplainedRoute: MetricsExplainedRoute,
   OrganizationsSlugRoute: OrganizationsSlugRoute,
+  OgKindLoginRoute: OgKindLoginRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

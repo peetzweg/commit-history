@@ -50,9 +50,35 @@ export const Route = createFileRoute("/")({
 		...(isLeaderMetricParam(search.metric) ? { metric: search.metric } : {}),
 		...(search.kind === "org" ? { kind: "org" as const } : {}),
 	}),
-	head: () => ({
-		links: [{ rel: "canonical", href: "https://commit-history.com/" }],
-	}),
+	// The share card follows the board on show: the org board gets its own "Organization
+	// leaderboard" card, the default the "Developer leaderboard" one (both static, built by
+	// scripts/generate-og.ts). Read the board from `match.search` (not loaderData — depending on
+	// the loader's output here closes a type cycle with loaderDeps that collapses inference).
+	head: ({ match }: { match: { search: HomeSearch } }) => {
+		const isOrg = match.search.kind === "org";
+		const title = isOrg
+			? "Organization leaderboard — Commit History"
+			: "Developer leaderboard — Commit History";
+		const description = isOrg
+			? "GitHub organizations ranked by their members’ lifetime commits."
+			: "GitHub developers ranked by their lifetime commits.";
+		const ogImage = `https://commit-history.com/og/leaderboard/${
+			isOrg ? "org" : "developer"
+		}.png`;
+		return {
+			meta: [
+				{ property: "og:title", content: title },
+				{ property: "og:description", content: description },
+				{ property: "og:image", content: ogImage },
+				{ property: "og:image:alt", content: title },
+				{ name: "twitter:title", content: title },
+				{ name: "twitter:description", content: description },
+				{ name: "twitter:image", content: ogImage },
+				{ name: "twitter:image:alt", content: title },
+			],
+			links: [{ rel: "canonical", href: "https://commit-history.com/" }],
+		};
+	},
 	// The board kind changes what the loader fetches, so it's a loader dep — toggling re-runs it.
 	loaderDeps: ({ search }) => ({ kind: search.kind }),
 	loader: async ({ deps }) => {

@@ -56,7 +56,15 @@ export const Route = createFileRoute("/$user")({
 	// GitHub logins are one namespace across users and orgs, so this route serves both:
 	// /paritytech renders the org view, /peetzweg the user view (see getLookup).
 	loader: ({ params }) => getLookup({ data: parseLogins(params.user) }),
-	head: ({ params, loaderData }) => {
+	head: ({
+		params,
+		loaderData,
+		match,
+	}: {
+		params: { user: string };
+		loaderData?: { kind?: string };
+		match: { search: UserSearch };
+	}) => {
 		const logins = parseLogins(params.user);
 		const isOrg = loaderData?.kind === "org";
 		const title = isOrg
@@ -70,6 +78,20 @@ export const Route = createFileRoute("/$user")({
 				? `Compare the cumulative GitHub commits of ${logins.join(", ")} over time.`
 				: `${logins[0]}’s cumulative GitHub commits over their whole lifetime.`;
 		const url = `https://commit-history.com/${logins.join(",")}`;
+		// A single login gets a dynamic card (see src/routes/og.$kind.$login.tsx); a comparison
+		// keeps the site-wide card (the root default) — a compare card can follow later.
+		const single = logins.length === 1 ? logins[0] : null;
+		// Carry the selected chart metric into the user card so a shared `?metric=prs` view shows
+		// that metric's amount + rank. Orgs aren't metric-aware (they rank on commits only).
+		const metric = isOrg ? undefined : match.search.metric;
+		const ogImage = single
+			? `https://commit-history.com/og/${isOrg ? "org" : "user"}/${single}${
+					metric ? `?metric=${metric}` : ""
+				}`
+			: null;
+		const imageAlt = isOrg
+			? `${logins[0]} on the commit-history.com organization leaderboard`
+			: `${logins[0]} on commit-history.com`;
 		return {
 			meta: [
 				{ title },
@@ -79,6 +101,15 @@ export const Route = createFileRoute("/$user")({
 				{ property: "og:url", content: url },
 				{ name: "twitter:title", content: title },
 				{ name: "twitter:description", content: description },
+				// Override the root's static card with the entity's own (deduped by property/name).
+				...(ogImage
+					? [
+							{ property: "og:image", content: ogImage },
+							{ property: "og:image:alt", content: imageAlt },
+							{ name: "twitter:image", content: ogImage },
+							{ name: "twitter:image:alt", content: imageAlt },
+						]
+					: []),
 			],
 			links: [{ rel: "canonical", href: url }],
 		};
