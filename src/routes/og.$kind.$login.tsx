@@ -1,5 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
+import type { ChartMode } from "#/components/CommitChart";
 import { lookupUsers } from "#/lib/commit-history";
+import { METRIC_NOUN, METRIC_TOTAL } from "#/lib/metrics";
 import { developerCard, orgCard, renderPng } from "#/lib/og-card";
 import { orgRankFor, resolveOrg } from "#/lib/org";
 
@@ -82,24 +84,30 @@ export const Route = createFileRoute("/og/$kind/$login")({
 						const [result] = await lookupUsers([login]);
 						if (!result?.history) return fallback(request);
 						const { user } = result.history;
+						const { history, ranks } = result;
 						const avatarDataUrl = await fetchAvatar(user.avatarUrl);
-						// Public-commits rank is the headline; fall back to the private-contributions
-						// rank only when the profile has no public commits to rank.
-						const rank =
-							result.ranks.public != null
-								? { value: result.ranks.public, label: "by public commits" }
-								: result.ranks.private != null
-									? {
-											value: result.ranks.private,
-											label: "by private contributions",
-										}
-									: null;
+						// Mirror the profile's ?metric= view. Default is public commits, but a profile
+						// with no public commits defaults to its private contributions instead, so the
+						// card still says something (matches the site's own default-metric behaviour).
+						const requested = new URL(request.url).searchParams.get("metric");
+						const metric: ChartMode =
+							requested && requested in METRIC_TOTAL
+								? (requested as ChartMode)
+								: METRIC_TOTAL.public(history) === 0 &&
+										METRIC_TOTAL.private(history) > 0
+									? "private"
+									: "public";
+						const amountValue = METRIC_TOTAL[metric](history);
 						const png = await renderPng(
 							developerCard({
 								login: user.login,
 								name: user.name,
 								avatarDataUrl,
-								rank,
+								amount:
+									amountValue > 0
+										? { value: amountValue, label: METRIC_NOUN[metric] }
+										: null,
+								rank: ranks[metric] ?? null,
 							}),
 						);
 						return new Response(new Uint8Array(png), { headers: PNG_HEADERS });

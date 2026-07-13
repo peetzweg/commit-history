@@ -191,7 +191,7 @@ function identityBlock(name: string | null | undefined, login: string): OgNode {
 	);
 }
 
-/** A big rank line like "#42 by public commits". `null` rank → skipped by the caller. */
+/** The org card's single rank line, e.g. "#7 on the organization leaderboard". */
 function rankLine(rank: number, label: string): OgNode {
 	return el(
 		"div",
@@ -209,22 +209,63 @@ function rankLine(rank: number, label: string): OgNode {
 	);
 }
 
+/** The developer card's metric block: a big amount ("112,847 public commits") with the
+ *  leaderboard place beneath it ("ranked #2"). Either line is omitted when its value is absent. */
+function metricBlock(
+	amount: { value: number; label: string } | null,
+	rank: number | null,
+): OgNode {
+	const lines: Child[] = [];
+	if (amount) {
+		lines.push(
+			el(
+				"div",
+				{ style: { display: "flex", alignItems: "baseline", gap: 14 } },
+				el(
+					"div",
+					{ style: { display: "flex", fontSize: 60, color: FG } },
+					amount.value.toLocaleString("en-US"),
+				),
+				el(
+					"div",
+					{ style: { display: "flex", fontSize: 34, color: MUTED } },
+					amount.label,
+				),
+			),
+		);
+	}
+	if (rank != null) {
+		lines.push(
+			el(
+				"div",
+				{
+					style: { display: "flex", fontSize: 38, color: MUTED, marginTop: 10 },
+				},
+				`ranked #${rank.toLocaleString("en-US")}`,
+			),
+		);
+	}
+	return el(
+		"div",
+		{ style: { display: "flex", flexDirection: "column" } },
+		...lines,
+	);
+}
+
 // ── Public card builders ─────────────────────────────────────────────────────
 
 export interface DeveloperCardInput {
 	login: string;
 	name: string | null;
 	avatarDataUrl: string | null;
-	/** The single rank to show (value + its label), or null to omit the line. The caller picks
-	 *  public commits, falling back to private contributions when public isn't available. */
-	rank: { value: number; label: string } | null;
+	/** The metric's amount, e.g. { value: 112847, label: "public commits" }. Null → hero line
+	 *  omitted (the caller passes the metric the profile's ?metric= view is showing). */
+	amount: { value: number; label: string } | null;
+	/** Leaderboard place in that metric; null → the "ranked #N" line is omitted. */
+	rank: number | null;
 }
 
 export function developerCard(input: DeveloperCardInput): OgNode {
-	const ranks: Child[] = [];
-	if (input.rank) {
-		ranks.push(rankLine(input.rank.value, input.rank.label));
-	}
 	return frame(
 		el(
 			"div",
@@ -234,16 +275,8 @@ export function developerCard(input: DeveloperCardInput): OgNode {
 		),
 		el(
 			"div",
-			{
-				style: {
-					display: "flex",
-					flexDirection: "column",
-					gap: 18,
-					marginTop: "auto",
-					marginBottom: 40,
-				},
-			},
-			...ranks,
+			{ style: { display: "flex", marginTop: "auto", marginBottom: 40 } },
+			metricBlock(input.amount, input.rank),
 		),
 		wordmark(32),
 	);
