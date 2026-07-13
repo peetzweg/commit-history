@@ -75,6 +75,7 @@ export const Route = createFileRoute("/og/$kind/$login")({
 								name: org.name,
 								avatarDataUrl,
 								place,
+								commits: org.totalCommits,
 							}),
 						);
 						return new Response(new Uint8Array(png), { headers: PNG_HEADERS });
@@ -98,16 +99,21 @@ export const Route = createFileRoute("/og/$kind/$login")({
 									? "private"
 									: "public";
 						const amountValue = METRIC_TOTAL[metric](history);
+						const rankValue = ranks[metric] ?? null;
 						const png = await renderPng(
 							developerCard({
 								login: user.login,
 								name: user.name,
 								avatarDataUrl,
+								// Rank is the headline; the metric's amount sits beneath it.
+								rank:
+									rankValue != null
+										? { value: rankValue, label: `by ${METRIC_NOUN[metric]}` }
+										: null,
 								amount:
 									amountValue > 0
 										? { value: amountValue, label: METRIC_NOUN[metric] }
 										: null,
-								rank: ranks[metric] ?? null,
 							}),
 						);
 						return new Response(new Uint8Array(png), { headers: PNG_HEADERS });
