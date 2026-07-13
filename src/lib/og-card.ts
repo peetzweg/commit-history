@@ -205,8 +205,9 @@ function statBlock(
 		lines.push(
 			el(
 				"div",
-				{ style: { display: "flex", fontSize: 108, color: FG, lineHeight: 1 } },
-				`#${rank.toLocaleString("en-US")}`,
+				{ style: { display: "flex", fontSize: 72, color: FG, lineHeight: 1 } },
+				// No thousands separators on the rank — "#1911", not "#1,911".
+				`#${rank}`,
 			),
 		);
 	}
