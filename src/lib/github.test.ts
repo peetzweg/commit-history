@@ -1,7 +1,36 @@
 import { describe, expect, it } from "vitest";
-import { monthlyWindows, yearlyWindows } from "#/lib/github";
+import { isValidLogin, monthlyWindows, yearlyWindows } from "#/lib/github";
 
 const YEAR_MS = 365 * 24 * 60 * 60 * 1000;
+
+describe("isValidLogin", () => {
+	it("accepts ordinary GitHub usernames", () => {
+		for (const login of ["torvalds", "peetzweg", "gaearon", "a", "user-name"]) {
+			expect(isValidLogin(login)).toBe(true);
+		}
+	});
+
+	it("accepts legacy grandfathered usernames that violate current naming rules", () => {
+		// Real accounts created before GitHub tightened username rules (~2013): trailing hyphen
+		// and double hyphens. These must stay lookup-able — the previous regex rejected them.
+		for (const login of ["Link-", "gil--", "p-", "-legacy"]) {
+			expect(isValidLogin(login)).toBe(true);
+		}
+	});
+
+	it("rejects empty, over-length, and injection-shaped input", () => {
+		for (const login of [
+			"",
+			"a".repeat(40),
+			'x") { id } __schema { types { name } } #',
+			"foo bar",
+			"foo/bar",
+			'a"b',
+		]) {
+			expect(isValidLogin(login)).toBe(false);
+		}
+	});
+});
 
 describe("yearlyWindows", () => {
 	const now = new Date("2026-07-08T12:34:56Z");

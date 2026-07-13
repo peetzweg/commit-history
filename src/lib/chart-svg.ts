@@ -1,3 +1,4 @@
+import { pickYearTicks } from "#/lib/chart-ticks";
 import {
 	CROWN_ASPECT,
 	CROWN_FILL,
@@ -162,9 +163,11 @@ export function renderChartSvg(
 	const area = `${line} L${x(n - 1).toFixed(1)},${baseline} L${x(0).toFixed(1)},${baseline} Z`;
 
 	const yTicks = Array.from({ length: 5 }, (_, i) => Math.round((max / 4) * i));
-	const xTicks = points
+	const yearTicks = points
 		.map((p, i) => ({ i, year: p.date.slice(0, 4) }))
 		.filter((t, idx, arr) => idx === 0 || t.year !== arr[idx - 1].year);
+	// Axis labels use font-size 14 below; thin the year row to that so it never crowds.
+	const xTicks = pickYearTicks(yearTicks, innerW, 14);
 	const dotEvery = Math.max(1, Math.ceil(n / 60));
 
 	const gridY = yTicks
