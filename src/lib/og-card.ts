@@ -192,30 +192,21 @@ function identityBlock(name: string | null | undefined, login: string): OgNode {
 }
 
 /**
- * The shared stat block, identical on both cards: the leaderboard rank is the headline
- * ("#65 by public commits" / "#7 on the organization leaderboard"), with the metric's raw
- * amount beneath it ("35,742 public commits"). Either line is omitted when its value is absent.
+ * The shared stat block, identical on both cards: a big standalone leaderboard rank ("#65")
+ * as the headline, with the metric's raw amount + label beneath it ("35,742 public commits").
+ * Either line is omitted when its value is absent.
  */
 function statBlock(
-	rank: { value: number; label: string } | null,
+	rank: number | null,
 	amount: { value: number; label: string } | null,
 ): OgNode {
 	const lines: Child[] = [];
-	if (rank) {
+	if (rank != null) {
 		lines.push(
 			el(
 				"div",
-				{ style: { display: "flex", alignItems: "baseline", gap: 16 } },
-				el(
-					"div",
-					{ style: { display: "flex", fontSize: 60, color: FG } },
-					`#${rank.value.toLocaleString("en-US")}`,
-				),
-				el(
-					"div",
-					{ style: { display: "flex", fontSize: 34, color: MUTED } },
-					rank.label,
-				),
+				{ style: { display: "flex", fontSize: 108, color: FG, lineHeight: 1 } },
+				`#${rank.toLocaleString("en-US")}`,
 			),
 		);
 	}
@@ -224,7 +215,7 @@ function statBlock(
 			el(
 				"div",
 				{
-					style: { display: "flex", fontSize: 34, color: MUTED, marginTop: 10 },
+					style: { display: "flex", fontSize: 40, color: MUTED, marginTop: 16 },
 				},
 				`${amount.value.toLocaleString("en-US")} ${amount.label}`,
 			),
@@ -243,7 +234,7 @@ function entityCard(
 	login: string,
 	name: string | null,
 	avatarDataUrl: string | null,
-	rank: { value: number; label: string } | null,
+	rank: number | null,
 	amount: { value: number; label: string } | null,
 ): OgNode {
 	return frame(
@@ -268,8 +259,8 @@ export interface DeveloperCardInput {
 	login: string;
 	name: string | null;
 	avatarDataUrl: string | null;
-	/** Leaderboard place in the shown metric, e.g. { value: 65, label: "by public commits" }. */
-	rank: { value: number; label: string } | null;
+	/** Leaderboard place in the shown metric (the big "#65" headline); null → omitted. */
+	rank: number | null;
 	/** The metric's amount, e.g. { value: 35742, label: "public commits" }. */
 	amount: { value: number; label: string } | null;
 }
@@ -301,9 +292,7 @@ export function orgCard(input: OrgCardInput): OgNode {
 		input.login,
 		input.name,
 		input.avatarDataUrl,
-		input.place != null
-			? { value: input.place, label: "on the organization leaderboard" }
-			: null,
+		input.place,
 		input.commits ? { value: input.commits, label: "commits" } : null,
 	);
 }

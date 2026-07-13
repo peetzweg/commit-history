@@ -105,11 +105,8 @@ export const Route = createFileRoute("/og/$kind/$login")({
 								login: user.login,
 								name: user.name,
 								avatarDataUrl,
-								// Rank is the headline; the metric's amount sits beneath it.
-								rank:
-									rankValue != null
-										? { value: rankValue, label: `by ${METRIC_NOUN[metric]}` }
-										: null,
+								// Rank is the big headline; the metric's amount + label sit beneath it.
+								rank: rankValue,
 								amount:
 									amountValue > 0
 										? { value: amountValue, label: METRIC_NOUN[metric] }
