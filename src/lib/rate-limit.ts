@@ -76,19 +76,26 @@ export function createRateLimiter(opts: RateLimiterOptions) {
 }
 
 /**
- * Client IP as seen by our Traefik (Coolify's proxy).
+ * Client IP for bucket keying. Prod traffic arrives Cloudflare → Traefik → app, so:
  *
- * Traefik APPENDS the connecting peer to any client-supplied X-Forwarded-For, so only
- * the LAST entry is trustworthy — earlier entries are attacker-controlled and using
- * them would let one machine spread across arbitrary buckets. When the Cloudflare
- * proxy (orange cloud) is enabled later, the last hop becomes Cloudflare's IP and this
- * must switch to reading the entry Cloudflare appended (or CF-Connecting-IP, which is
- * only trustworthy once CF is guaranteed to be in front).
+ * - CF-Connecting-IP is the real visitor on every proxied request. Without it the
+ *   last X-Forwarded-For hop would be a Cloudflare edge IP and ALL users would pile
+ *   into a handful of buckets — instant false 429s.
+ * - The fallback is the LAST X-Forwarded-For entry: Traefik APPENDS the connecting
+ *   peer to any client-supplied list, so earlier entries are attacker-controlled.
+ *   This covers unproxied paths (preview subdomains, direct origin hits).
  *
- * Dev serves without a proxy, so no header exists — every request shares one bucket,
+ * Caveat until the planned Cloudflare-IP origin lockdown (devops#2) lands: whoever
+ * hits the origin directly can spoof CF-Connecting-IP and hop between buckets. That
+ * weakens the ceiling for a determined attacker but never mis-buckets legit users,
+ * and is strictly better than today's no-limit.
+ *
+ * Dev serves without a proxy, so no headers exist — every request shares one bucket,
  * which is fine locally.
  */
 export function clientIpFrom(headers: Headers): string {
+	const cloudflare = headers.get("cf-connecting-ip")?.trim();
+	if (cloudflare) return cloudflare;
 	const forwarded = headers.get("x-forwarded-for");
 	if (!forwarded) return "local";
 	const hops = forwarded.split(",");

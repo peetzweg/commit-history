@@ -100,19 +100,27 @@ describe("createRateLimiter", () => {
 });
 
 describe("clientIpFrom", () => {
-	const headers = (xff?: string) =>
-		new Headers(xff === undefined ? {} : { "x-forwarded-for": xff });
+	it("prefers CF-Connecting-IP — behind the Cloudflare proxy the XFF tail is an edge IP", () => {
+		const proxied = new Headers({
+			"cf-connecting-ip": "203.0.113.7",
+			"x-forwarded-for": "203.0.113.7, 172.68.1.1",
+		});
+		expect(clientIpFrom(proxied)).toBe("203.0.113.7");
+	});
 
-	it("takes the last hop — the one Traefik appended", () => {
-		expect(clientIpFrom(headers("203.0.113.7"))).toBe("203.0.113.7");
+	it("falls back to the last XFF hop — the one Traefik appended", () => {
+		const direct = (xff: string) => new Headers({ "x-forwarded-for": xff });
+		expect(clientIpFrom(direct("203.0.113.7"))).toBe("203.0.113.7");
 		// Earlier entries are client-supplied and must not shift the bucket key.
-		expect(clientIpFrom(headers("1.1.1.1, 2.2.2.2, 203.0.113.7"))).toBe(
+		expect(clientIpFrom(direct("1.1.1.1, 2.2.2.2, 203.0.113.7"))).toBe(
 			"203.0.113.7",
 		);
 	});
 
 	it("falls back to a shared bucket without a proxy (dev)", () => {
-		expect(clientIpFrom(headers())).toBe("local");
-		expect(clientIpFrom(headers("  "))).toBe("local");
+		expect(clientIpFrom(new Headers())).toBe("local");
+		expect(clientIpFrom(new Headers({ "x-forwarded-for": "  " }))).toBe(
+			"local",
+		);
 	});
 });
