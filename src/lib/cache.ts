@@ -50,14 +50,18 @@ const BUILD_BUDGET_MS = 6_000;
 export async function getCommitHistory(
 	login: string,
 	token: string,
-	now = new Date(),
+	opts: { now?: Date; record?: boolean } = {},
 ): Promise<CommitHistory> {
+	// `record: false` serves the data without writing a lookups row. Embed renders use it:
+	// they're third-party image fetches (GitHub camo, CDN cache misses), not someone searching,
+	// and counting them pollutes "recently looked up" and the all-time leaderboard.
+	const { now = new Date(), record = true } = opts;
 	if (!token) {
 		// Defer to the uncached path so it throws the canonical "missing token" error.
 		return fetchCommitHistory(login, token);
 	}
 	return db
-		? getFromDb(db, login, token, now)
+		? getFromDb(db, login, token, now, record)
 		: getFromMemory(login, token, now);
 }
 
@@ -146,6 +150,7 @@ async function getFromDb(
 	login: string,
 	token: string,
 	now: Date,
+	record: boolean,
 ): Promise<CommitHistory> {
 	const id = entityId(login);
 	const nowMs = now.getTime();
@@ -229,7 +234,7 @@ async function getFromDb(
 		row?.lastFetched &&
 		nowMs - row.lastFetched.getTime() < TAIL_TTL
 	) {
-		await recordLookup(database, id, now);
+		if (record) await recordLookup(database, id, now);
 		return toHistory(profile, head);
 	}
 
@@ -263,7 +268,7 @@ async function getFromDb(
 		// so surface the error and let the retry resume from the frontier.
 		if (!complete) throw err;
 		// Tail-refresh hiccup on an already-built profile: serve what we have.
-		await recordLookup(database, id, now);
+		if (record) await recordLookup(database, id, now);
 		return toHistory(profile, head);
 	}
 
@@ -281,7 +286,7 @@ async function getFromDb(
 			{ monthsFetched: points.length, monthsTotal: windows.length },
 		);
 	}
-	await recordLookup(database, id, now);
+	if (record) await recordLookup(database, id, now);
 	return history;
 }
 
