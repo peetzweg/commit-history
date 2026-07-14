@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as UserRouteImport } from './routes/$user'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as OrganizationsSlugRouteImport } from './routes/organizations.$slug'
@@ -18,6 +19,11 @@ import { Route as EmbedUserRouteImport } from './routes/embed.$user'
 import { Route as CompanySlugRouteImport } from './routes/company.$slug'
 import { Route as OgKindLoginRouteImport } from './routes/og.$kind.$login'
 
+const RobotsDottxtRoute = RobotsDottxtRouteImport.update({
+  id: '/robots.txt',
+  path: '/robots.txt',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const UserRoute = UserRouteImport.update({
   id: '/$user',
   path: '/$user',
@@ -62,6 +68,7 @@ const OgKindLoginRoute = OgKindLoginRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$user': typeof UserRoute
+  '/robots.txt': typeof RobotsDottxtRoute
   '/company/$slug': typeof CompanySlugRoute
   '/embed/$user': typeof EmbedUserRoute
   '/metrics/$slug': typeof MetricsSlugRoute
@@ -72,6 +79,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$user': typeof UserRoute
+  '/robots.txt': typeof RobotsDottxtRoute
   '/company/$slug': typeof CompanySlugRoute
   '/embed/$user': typeof EmbedUserRoute
   '/metrics/$slug': typeof MetricsSlugRoute
@@ -83,6 +91,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/$user': typeof UserRoute
+  '/robots.txt': typeof RobotsDottxtRoute
   '/company/$slug': typeof CompanySlugRoute
   '/embed/$user': typeof EmbedUserRoute
   '/metrics/$slug': typeof MetricsSlugRoute
@@ -95,6 +104,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/$user'
+    | '/robots.txt'
     | '/company/$slug'
     | '/embed/$user'
     | '/metrics/$slug'
@@ -105,6 +115,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/$user'
+    | '/robots.txt'
     | '/company/$slug'
     | '/embed/$user'
     | '/metrics/$slug'
@@ -115,6 +126,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/$user'
+    | '/robots.txt'
     | '/company/$slug'
     | '/embed/$user'
     | '/metrics/$slug'
@@ -126,6 +138,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   UserRoute: typeof UserRoute
+  RobotsDottxtRoute: typeof RobotsDottxtRoute
   CompanySlugRoute: typeof CompanySlugRoute
   EmbedUserRoute: typeof EmbedUserRoute
   MetricsSlugRoute: typeof MetricsSlugRoute
@@ -136,6 +149,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/robots.txt': {
+      id: '/robots.txt'
+      path: '/robots.txt'
+      fullPath: '/robots.txt'
+      preLoaderRoute: typeof RobotsDottxtRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/$user': {
       id: '/$user'
       path: '/$user'
@@ -198,6 +218,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   UserRoute: UserRoute,
+  RobotsDottxtRoute: RobotsDottxtRoute,
   CompanySlugRoute: CompanySlugRoute,
   EmbedUserRoute: EmbedUserRoute,
   MetricsSlugRoute: MetricsSlugRoute,
