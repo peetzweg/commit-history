@@ -20,7 +20,11 @@ export const Route = createFileRoute("/embed/$user")({
 				const token = process.env.GITHUB_TOKEN ?? "";
 
 				try {
-					const history = await getCommitHistory(params.user, token);
+					// Embed fetches are README badges / CDN cache misses, not searches — serve
+					// (and build/refresh) the data but never count them as lookups.
+					const history = await getCommitHistory(params.user, token, {
+						record: false,
+					});
 					return new Response(renderChartSvg(history, theme), {
 						headers: {
 							"content-type": "image/svg+xml; charset=utf-8",
