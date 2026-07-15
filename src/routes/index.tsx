@@ -319,38 +319,13 @@ function RecentSection({ recent }: { recent: RecentEntry[] }) {
 }
 
 /**
- * A single hardcoded sponsor row, shown in the slot after rank 5.
+ * The empty sponsor slot, shown in the slot after rank 5 on both boards.
  *
- * Same visual treatment as the (parked) DB-driven sponsorship system on `feat/sponsorships`,
- * but with no database — the creative is hardcoded for now. Uses the sponsor's own favicon and
- * page title, and links out with rel="sponsored nofollow".
+ * The paid creative (previously Rebates.ai) is deactivated; until a new sponsor signs,
+ * the slot advertises itself and links to the /sponsoring pitch page. Same row treatment
+ * as a booked sponsor so buyers see exactly what they'd get.
  */
-// A/B test on the Rebates ad subtitle. "a" is the control (original copy), "b" the
-// challenger. utm_content carries the variant so clicks are attributable per arm.
-const REBATES_VARIANTS = {
-	a: {
-		subtitle: "The ads in your terminal pay you",
-		utmContent: "slot5-test-79-a",
-	},
-	b: {
-		subtitle: "Watch ads while coding. Get paid.",
-		utmContent: "slot5-test-79-b",
-	},
-} as const;
-
-function rebatesHref(utmContent: string): string {
-	return `https://rebates.ai/?utm_source=commit-history.com&utm_medium=leaderboard&utm_campaign=commit-history_sponsorship&utm_content=${utmContent}`;
-}
-
 function SponsorRow({ ref }: { ref?: React.Ref<HTMLLIElement> }) {
-	// Default to the control on the server/first paint so hydration matches, then flip
-	// to a random 50/50 arm on the client. Math.random() during render would desync SSR.
-	const [variant, setVariant] = useState<"a" | "b">("a");
-	useEffect(() => {
-		setVariant(Math.random() < 0.5 ? "a" : "b");
-	}, []);
-	const { subtitle, utmContent } = REBATES_VARIANTS[variant];
-
 	return (
 		<motion.li
 			ref={ref}
@@ -361,34 +336,27 @@ function SponsorRow({ ref }: { ref?: React.Ref<HTMLLIElement> }) {
 			transition={{ type: "spring", stiffness: 600, damping: 40 }}
 			className="border-border border-b bg-muted/40"
 		>
-			<a
-				href={rebatesHref(utmContent)}
-				target="_blank"
-				rel="sponsored nofollow noopener"
+			<Link
+				to="/sponsoring"
 				className="flex w-full items-center gap-3 py-2.5 text-left hover:bg-muted"
 			>
 				{/* "Ad" gutter is dropped on mobile to give the title room (it reads cramped otherwise);
-				    "Sponsored" on the right keeps the disclosure. */}
+				    the right-hand label keeps the disclosure. */}
 				<span className="hidden w-6 items-center justify-center text-[10px] uppercase tracking-wide text-muted-foreground sm:flex">
 					Ad
 				</span>
-				<img
-					src="https://rebates.ai/brand/rebates-bandit.svg"
-					alt="Rebates.ai"
-					className="h-8 w-8 shrink-0 rounded-full border border-border object-cover"
-				/>
-				{/* Title + tagline on two lines in a lighter weight than the usernames, so the block
-				    matches the logo height and doesn't shout as loud as a real leaderboard entry. */}
+				{/* Dashed placeholder where the sponsor's logo would sit — reads as "empty". */}
+				<span className="h-8 w-8 shrink-0 rounded-full border border-border border-dashed" />
 				<span className="min-w-0 flex-1">
-					<span className="block truncate">Rebates.ai</span>
+					<span className="block truncate">This sponsor slot is empty</span>
 					<span className="block truncate text-xs text-muted-foreground">
-						{subtitle}
+						Put your product in front of thousands of developers
 					</span>
 				</span>
 				<span className="shrink-0 text-right text-xs text-muted-foreground">
-					Sponsored
+					Sponsoring
 				</span>
-			</a>
+			</Link>
 		</motion.li>
 	);
 }
@@ -714,55 +682,61 @@ function OrgBoard({ rows }: { rows: OrgLeaderEntry[] }) {
 				</p>
 			</div>
 			<ol>
-				{rows.map((org, i) => (
-					<li key={org.login} className="border-border border-b">
-						<Link
-							to="/$user"
-							params={{ user: org.login }}
-							preload={false}
-							className="group flex w-full items-center gap-3 py-2.5 text-left hover:bg-muted"
-						>
-							<span className="flex w-6 items-center justify-center text-sm tabular-nums text-muted-foreground">
-								{i === 0 ? (
-									<img
-										src="/crown.svg"
-										alt="1st place"
-										className="h-4 w-auto"
-									/>
-								) : (
-									i + 1
-								)}
-							</span>
-							<img
-								src={org.avatarUrl ?? ""}
-								alt=""
-								className="h-8 w-8 rounded-lg border border-border"
-							/>
-							<span className="flex min-w-0 flex-1 items-center gap-1.5 truncate font-medium">
-								{org.login}
-								{org.isVerified && (
-									<BadgeCheck
-										className="h-4 w-4 shrink-0 text-primary"
-										aria-label="Verified organization"
-									/>
-								)}
-								{org.name && (
-									<span className="hidden truncate font-normal text-muted-foreground opacity-0 transition-opacity duration-200 sm:inline desktop:group-hover:opacity-100 desktop:group-focus-within:opacity-100">
-										{org.name}
+				{rows.flatMap((org, i) => {
+					const items = [
+						<li key={org.login} className="border-border border-b">
+							<Link
+								to="/$user"
+								params={{ user: org.login }}
+								preload={false}
+								className="group flex w-full items-center gap-3 py-2.5 text-left hover:bg-muted"
+							>
+								<span className="flex w-6 items-center justify-center text-sm tabular-nums text-muted-foreground">
+									{i === 0 ? (
+										<img
+											src="/crown.svg"
+											alt="1st place"
+											className="h-4 w-auto"
+										/>
+									) : (
+										i + 1
+									)}
+								</span>
+								<img
+									src={org.avatarUrl ?? ""}
+									alt=""
+									className="h-8 w-8 rounded-lg border border-border"
+								/>
+								<span className="flex min-w-0 flex-1 items-center gap-1.5 truncate font-medium">
+									{org.login}
+									{org.isVerified && (
+										<BadgeCheck
+											className="h-4 w-4 shrink-0 text-primary"
+											aria-label="Verified organization"
+										/>
+									)}
+									{org.name && (
+										<span className="hidden truncate font-normal text-muted-foreground opacity-0 transition-opacity duration-200 sm:inline desktop:group-hover:opacity-100 desktop:group-focus-within:opacity-100">
+											{org.name}
+										</span>
+									)}
+								</span>
+								<span className="text-right">
+									<span className="block font-semibold tabular-nums">
+										{org.totalCommits.toLocaleString()}
 									</span>
-								)}
-							</span>
-							<span className="text-right">
-								<span className="block font-semibold tabular-nums">
-									{org.totalCommits.toLocaleString()}
+									<span className="block text-xs text-muted-foreground tabular-nums">
+										commits
+									</span>
 								</span>
-								<span className="block text-xs text-muted-foreground tabular-nums">
-									commits
-								</span>
-							</span>
-						</Link>
-					</li>
-				))}
+							</Link>
+						</li>,
+					];
+					// Same sponsor slot after rank 5 as on the developer board.
+					if (i === 4 && rows.length > 5)
+						items.push(<SponsorRow key="sponsor" />);
+					return items;
+				})}
 			</ol>
 		</section>
 	);

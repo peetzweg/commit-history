@@ -65,6 +65,14 @@ const config = defineConfig({
 					prerender: { enabled: true, crawlLinks: false },
 					sitemap: { changefreq: "monthly", priority: 0.8 },
 				},
+				// The sponsor pitch page — static content, so prerendered like the explainers.
+				// Single-segment exception to the bare-prefix rule: no GitHub account
+				// "sponsoring" exists (GitHub reserves sponsor-related names).
+				{
+					path: "/sponsoring",
+					prerender: { enabled: true, crawlLinks: false },
+					sitemap: { changefreq: "monthly", priority: 0.5 },
+				},
 				...metricSlugs.map((slug) => ({
 					path: `/metrics/${slug}`,
 					prerender: { enabled: true, crawlLinks: false },

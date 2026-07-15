@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SponsoringRouteImport } from './routes/sponsoring'
 import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as UserRouteImport } from './routes/$user'
 import { Route as IndexRouteImport } from './routes/index'
@@ -19,6 +20,11 @@ import { Route as EmbedUserRouteImport } from './routes/embed.$user'
 import { Route as CompanySlugRouteImport } from './routes/company.$slug'
 import { Route as OgKindLoginRouteImport } from './routes/og.$kind.$login'
 
+const SponsoringRoute = SponsoringRouteImport.update({
+  id: '/sponsoring',
+  path: '/sponsoring',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RobotsDottxtRoute = RobotsDottxtRouteImport.update({
   id: '/robots.txt',
   path: '/robots.txt',
@@ -69,6 +75,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$user': typeof UserRoute
   '/robots.txt': typeof RobotsDottxtRoute
+  '/sponsoring': typeof SponsoringRoute
   '/company/$slug': typeof CompanySlugRoute
   '/embed/$user': typeof EmbedUserRoute
   '/metrics/$slug': typeof MetricsSlugRoute
@@ -80,6 +87,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$user': typeof UserRoute
   '/robots.txt': typeof RobotsDottxtRoute
+  '/sponsoring': typeof SponsoringRoute
   '/company/$slug': typeof CompanySlugRoute
   '/embed/$user': typeof EmbedUserRoute
   '/metrics/$slug': typeof MetricsSlugRoute
@@ -92,6 +100,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/$user': typeof UserRoute
   '/robots.txt': typeof RobotsDottxtRoute
+  '/sponsoring': typeof SponsoringRoute
   '/company/$slug': typeof CompanySlugRoute
   '/embed/$user': typeof EmbedUserRoute
   '/metrics/$slug': typeof MetricsSlugRoute
@@ -105,6 +114,7 @@ export interface FileRouteTypes {
     | '/'
     | '/$user'
     | '/robots.txt'
+    | '/sponsoring'
     | '/company/$slug'
     | '/embed/$user'
     | '/metrics/$slug'
@@ -116,6 +126,7 @@ export interface FileRouteTypes {
     | '/'
     | '/$user'
     | '/robots.txt'
+    | '/sponsoring'
     | '/company/$slug'
     | '/embed/$user'
     | '/metrics/$slug'
@@ -127,6 +138,7 @@ export interface FileRouteTypes {
     | '/'
     | '/$user'
     | '/robots.txt'
+    | '/sponsoring'
     | '/company/$slug'
     | '/embed/$user'
     | '/metrics/$slug'
@@ -139,6 +151,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   UserRoute: typeof UserRoute
   RobotsDottxtRoute: typeof RobotsDottxtRoute
+  SponsoringRoute: typeof SponsoringRoute
   CompanySlugRoute: typeof CompanySlugRoute
   EmbedUserRoute: typeof EmbedUserRoute
   MetricsSlugRoute: typeof MetricsSlugRoute
@@ -149,6 +162,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/sponsoring': {
+      id: '/sponsoring'
+      path: '/sponsoring'
+      fullPath: '/sponsoring'
+      preLoaderRoute: typeof SponsoringRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/robots.txt': {
       id: '/robots.txt'
       path: '/robots.txt'
@@ -219,6 +239,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   UserRoute: UserRoute,
   RobotsDottxtRoute: RobotsDottxtRoute,
+  SponsoringRoute: SponsoringRoute,
   CompanySlugRoute: CompanySlugRoute,
   EmbedUserRoute: EmbedUserRoute,
   MetricsSlugRoute: MetricsSlugRoute,
