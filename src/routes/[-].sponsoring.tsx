@@ -8,6 +8,8 @@ const DESCRIPTION =
 // GitHub login, so this page can't shadow the $user route (the old single-segment
 // /sponsoring URL 301s here — see sponsoring.tsx).
 const URL = `${SITE}/-/sponsoring`;
+// Static card built by scripts/generate-og.ts — keep its copy in sync with TITLE/DESCRIPTION.
+const OG_IMAGE = `${SITE}/og/sponsoring.png`;
 
 const CONTACT = "phil.czek@gmail.com";
 const MAILTO = `mailto:${CONTACT}?subject=${encodeURIComponent("Sponsoring commit-history.com")}`;
@@ -29,8 +31,12 @@ export const Route = createFileRoute("/-/sponsoring")({
 			{ property: "og:title", content: TITLE },
 			{ property: "og:description", content: DESCRIPTION },
 			{ property: "og:url", content: URL },
+			{ property: "og:image", content: OG_IMAGE },
+			{ property: "og:image:alt", content: TITLE },
 			{ name: "twitter:title", content: TITLE },
 			{ name: "twitter:description", content: DESCRIPTION },
+			{ name: "twitter:image", content: OG_IMAGE },
+			{ name: "twitter:image:alt", content: TITLE },
 		],
 		links: [{ rel: "canonical", href: URL }],
 	}),

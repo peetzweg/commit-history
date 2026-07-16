@@ -357,8 +357,15 @@ export function boardCard(kind: "user" | "org"): OgNode {
 	);
 }
 
-/** The /metrics explainer card — title + description, matching the metrics hub style. */
-export function metricsCard(title: string, description: string): OgNode {
+/**
+ * Card for editorial pages (metric explainers, the sponsoring pitch) — a section kicker
+ * next to the wordmark, then title + description.
+ */
+export function contentCard(
+	kicker: string,
+	title: string,
+	description: string,
+): OgNode {
 	return frame(
 		el(
 			"div",
@@ -367,7 +374,7 @@ export function metricsCard(title: string, description: string): OgNode {
 			el(
 				"div",
 				{ style: { display: "flex", fontSize: 32, color: MUTED } },
-				"/ metrics, explained",
+				kicker,
 			),
 		),
 		el(
