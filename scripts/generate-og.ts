@@ -3,7 +3,9 @@
  *
  * Two families, both rendered from the shared card builders in src/lib/og-card.ts (satori →
  * resvg, in the site's hand-drawn xkcd/star-history style):
- *   • /metrics/<slug> + the /metrics/explained hub → public/og/metrics/<slug>.png
+ *   • /-/metrics/<slug> + the /-/metrics hub → public/og/metrics/<slug>.png (the asset
+ *     directory keeps its historical og/metrics/ name — URLs and assets are decoupled)
+ *   • the /-/sponsoring pitch page → public/og/sponsoring.png
  *   • the two leaderboard boards (developer / organization) → public/og/leaderboard/<board>.png
  *
  * Per-developer and per-org cards are NOT here — they're DB/GitHub-driven and rendered at
@@ -19,7 +21,7 @@ import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse } from "yaml";
-import { boardCard, metricsCard, renderPng } from "#/lib/og-card";
+import { boardCard, contentCard, renderPng } from "#/lib/og-card";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const contentDir = join(root, "src/content/metrics");
@@ -36,7 +38,7 @@ async function renderMetricsCard(
 	title: string,
 	description: string,
 ) {
-	const png = await renderPng(metricsCard(title, description));
+	const png = await renderPng(contentCard("/ metrics, explained", title, description));
 	write(join(metricsOutDir, `${slug}.png`), png, `metrics/${slug}.png`);
 }
 
@@ -59,7 +61,8 @@ function frontmatterOf(file: string): Frontmatter {
 mkdirSync(metricsOutDir, { recursive: true });
 mkdirSync(boardOutDir, { recursive: true });
 
-// The /metrics/explained hub itself — keep in sync with src/routes/metrics.explained.tsx.
+// The /-/metrics hub itself — keep in sync with src/routes/[-].metrics.index.tsx.
+// The card's asset name stays "explained.png" from the hub's old URL.
 await renderMetricsCard(
 	"explained",
 	"GitHub contribution metrics, explained",
@@ -71,6 +74,19 @@ for (const file of readdirSync(contentDir)) {
 	const { title, description } = frontmatterOf(file);
 	await renderMetricsCard(file.replace(/\.mdx$/, ""), title, description);
 }
+
+// The /-/sponsoring pitch card — keep in sync with src/routes/[-].sponsoring.tsx.
+write(
+	join(root, "public/og/sponsoring.png"),
+	await renderPng(
+		contentCard(
+			"/ sponsoring",
+			"Sponsoring commit-history.com",
+			"Put your product in front of a developer-first audience: 15k unique visitors and 57k page views in under a month, in a sponsor slot on both leaderboards.",
+		),
+	),
+	"sponsoring.png",
+);
 
 // The two leaderboard share cards — fixed content, chosen by `?kind` in src/routes/index.tsx.
 write(

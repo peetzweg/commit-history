@@ -1,7 +1,8 @@
 /**
- * The MDX content collections:
- * - src/content/metrics/<slug>.mdx → /metrics/<slug> (individual metrics, /metrics/explained hub)
- * - src/content/organizations/<slug>.mdx → /organizations/<slug> (organization context —
+ * The MDX content collections (all under the reserved /-/ namespace — "-" can never be a
+ * GitHub login, so editorial pages never shadow the $user route):
+ * - src/content/metrics/<slug>.mdx → /-/metrics/<slug> (individual metrics, /-/metrics hub)
+ * - src/content/organizations/<slug>.mdx → /-/organizations/<slug> (organization context —
  *   deliberately its own collection, NOT mixed into the individuals' hub: the definitions differ,
  *   e.g. org-scoped vs global contributions)
  *
@@ -23,7 +24,7 @@ export interface ArticleFrontmatter {
 	/** ISO date strings ("2026-07-07") — kept as strings by the YAML core schema. */
 	publishedAt: string;
 	updatedAt: string;
-	/** Position in the /metrics/explained hub list (unset sorts last, then by title). */
+	/** Position in the /-/metrics hub list (unset sorts last, then by title). */
 	order?: number;
 }
 
@@ -48,7 +49,7 @@ export interface ArticleMeta extends ArticleFrontmatter {
 	slug: string;
 }
 
-/** All articles in curated reading order — for the /metrics/explained hub. */
+/** All articles in curated reading order — for the /-/metrics hub. */
 export const articles: ArticleMeta[] = Object.entries(frontmatters)
 	.map(([path, fm]) => ({ slug: slugOf(path), ...fm }))
 	.sort(
@@ -69,7 +70,7 @@ export function loadArticle(
 	return load?.();
 }
 
-// ── Organization collection (/organizations/<slug>) ──────────────────────────
+// ── Organization collection (/-/organizations/<slug>) ────────────────────────
 
 const orgFrontmatters = import.meta.glob<ArticleFrontmatter>(
 	"../content/organizations/*.mdx",

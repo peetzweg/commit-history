@@ -268,7 +268,7 @@ function LoadedOrg({
 				repositories, as attributed by GitHub. Private members and private
 				contributions aren’t included.{" "}
 				<Link
-					to="/organizations/$slug"
+					to="/-/organizations/$slug"
 					params={{ slug: "stats" }}
 					className="whitespace-nowrap underline decoration-dotted underline-offset-2 hover:text-foreground"
 				>
@@ -306,7 +306,7 @@ function MemberBoard({
 					Public members ranked by their lifetime commits to {org.login}’s
 					repositories.{" "}
 					<Link
-						to="/organizations/$slug"
+						to="/-/organizations/$slug"
 						params={{ slug: "members" }}
 						className="whitespace-nowrap underline decoration-dotted underline-offset-2 hover:text-foreground"
 					>

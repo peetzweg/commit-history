@@ -169,10 +169,7 @@ function Home() {
 			)}
 			<p className="mt-14 text-center text-sm text-muted-foreground">
 				Wondering what these numbers mean?{" "}
-				<Link
-					to="/metrics/explained"
-					className="underline hover:text-foreground"
-				>
+				<Link to="/-/metrics" className="underline hover:text-foreground">
 					The metrics, explained
 				</Link>
 			</p>
@@ -319,7 +316,7 @@ function RecentSection({ recent }: { recent: RecentEntry[] }) {
 }
 
 /**
- * A single hardcoded sponsor row, shown in the slot after rank 5.
+ * A single hardcoded sponsor row, shown in the slot after rank 5 on the developer board.
  *
  * Same visual treatment as the (parked) DB-driven sponsorship system on `feat/sponsorships`,
  * but with no database — the creative is hardcoded for now. Uses the sponsor's own favicon and
@@ -389,6 +386,49 @@ function SponsorRow({ ref }: { ref?: React.Ref<HTMLLIElement> }) {
 					Sponsored
 				</span>
 			</a>
+		</motion.li>
+	);
+}
+
+/**
+ * The empty sponsor slot, shown in the slot after rank 5 on the organization board.
+ *
+ * That slot has no paid creative yet; until a sponsor signs, it advertises itself and
+ * links to the /sponsoring pitch page. Same row treatment as a booked sponsor so buyers
+ * see exactly what they'd get.
+ */
+function EmptySponsorRow({ ref }: { ref?: React.Ref<HTMLLIElement> }) {
+	return (
+		<motion.li
+			ref={ref}
+			layout
+			initial={{ opacity: 0 }}
+			animate={{ opacity: 1 }}
+			exit={{ opacity: 0 }}
+			transition={{ type: "spring", stiffness: 600, damping: 40 }}
+			className="border-border border-b bg-muted/40"
+		>
+			<Link
+				to="/-/sponsoring"
+				className="flex w-full items-center gap-3 py-2.5 text-left hover:bg-muted"
+			>
+				{/* "Ad" gutter is dropped on mobile to give the title room (it reads cramped otherwise);
+				    the right-hand label keeps the disclosure. */}
+				<span className="hidden w-6 items-center justify-center text-[10px] uppercase tracking-wide text-muted-foreground sm:flex">
+					Ad
+				</span>
+				{/* Dashed placeholder where the sponsor's logo would sit — reads as "empty". */}
+				<span className="h-8 w-8 shrink-0 rounded-full border border-border border-dashed" />
+				<span className="min-w-0 flex-1">
+					<span className="block truncate">This sponsor slot is empty</span>
+					<span className="block truncate text-xs text-muted-foreground">
+						Put your product in front of thousands of developers
+					</span>
+				</span>
+				<span className="shrink-0 text-right text-xs text-muted-foreground">
+					Sponsoring
+				</span>
+			</Link>
 		</motion.li>
 	);
 }
@@ -705,7 +745,7 @@ function OrgBoard({ rows }: { rows: OrgLeaderEntry[] }) {
 				<p className="mt-1.5 text-xs text-muted-foreground">
 					Public members’ lifetime commits to the organization’s repositories.{" "}
 					<Link
-						to="/organizations/$slug"
+						to="/-/organizations/$slug"
 						params={{ slug: "stats" }}
 						className="whitespace-nowrap underline decoration-dotted underline-offset-2 hover:text-foreground"
 					>
@@ -714,55 +754,62 @@ function OrgBoard({ rows }: { rows: OrgLeaderEntry[] }) {
 				</p>
 			</div>
 			<ol>
-				{rows.map((org, i) => (
-					<li key={org.login} className="border-border border-b">
-						<Link
-							to="/$user"
-							params={{ user: org.login }}
-							preload={false}
-							className="group flex w-full items-center gap-3 py-2.5 text-left hover:bg-muted"
-						>
-							<span className="flex w-6 items-center justify-center text-sm tabular-nums text-muted-foreground">
-								{i === 0 ? (
-									<img
-										src="/crown.svg"
-										alt="1st place"
-										className="h-4 w-auto"
-									/>
-								) : (
-									i + 1
-								)}
-							</span>
-							<img
-								src={org.avatarUrl ?? ""}
-								alt=""
-								className="h-8 w-8 rounded-lg border border-border"
-							/>
-							<span className="flex min-w-0 flex-1 items-center gap-1.5 truncate font-medium">
-								{org.login}
-								{org.isVerified && (
-									<BadgeCheck
-										className="h-4 w-4 shrink-0 text-primary"
-										aria-label="Verified organization"
-									/>
-								)}
-								{org.name && (
-									<span className="hidden truncate font-normal text-muted-foreground opacity-0 transition-opacity duration-200 sm:inline desktop:group-hover:opacity-100 desktop:group-focus-within:opacity-100">
-										{org.name}
+				{rows.flatMap((org, i) => {
+					const items = [
+						<li key={org.login} className="border-border border-b">
+							<Link
+								to="/$user"
+								params={{ user: org.login }}
+								preload={false}
+								className="group flex w-full items-center gap-3 py-2.5 text-left hover:bg-muted"
+							>
+								<span className="flex w-6 items-center justify-center text-sm tabular-nums text-muted-foreground">
+									{i === 0 ? (
+										<img
+											src="/crown.svg"
+											alt="1st place"
+											className="h-4 w-auto"
+										/>
+									) : (
+										i + 1
+									)}
+								</span>
+								<img
+									src={org.avatarUrl ?? ""}
+									alt=""
+									className="h-8 w-8 rounded-lg border border-border"
+								/>
+								<span className="flex min-w-0 flex-1 items-center gap-1.5 truncate font-medium">
+									{org.login}
+									{org.isVerified && (
+										<BadgeCheck
+											className="h-4 w-4 shrink-0 text-primary"
+											aria-label="Verified organization"
+										/>
+									)}
+									{org.name && (
+										<span className="hidden truncate font-normal text-muted-foreground opacity-0 transition-opacity duration-200 sm:inline desktop:group-hover:opacity-100 desktop:group-focus-within:opacity-100">
+											{org.name}
+										</span>
+									)}
+								</span>
+								<span className="text-right">
+									<span className="block font-semibold tabular-nums">
+										{org.totalCommits.toLocaleString()}
 									</span>
-								)}
-							</span>
-							<span className="text-right">
-								<span className="block font-semibold tabular-nums">
-									{org.totalCommits.toLocaleString()}
+									<span className="block text-xs text-muted-foreground tabular-nums">
+										commits
+									</span>
 								</span>
-								<span className="block text-xs text-muted-foreground tabular-nums">
-									commits
-								</span>
-							</span>
-						</Link>
-					</li>
-				))}
+							</Link>
+						</li>,
+					];
+					// Sponsor slot after rank 5, mirroring the developer board — but this one
+					// is unbooked, so it advertises itself.
+					if (i === 4 && rows.length > 5)
+						items.push(<EmptySponsorRow key="sponsor" />);
+					return items;
+				})}
 			</ol>
 		</section>
 	);

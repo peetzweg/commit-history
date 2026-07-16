@@ -12,7 +12,7 @@ import remarkGfm from "remark-gfm";
 import remarkMdxFrontmatter from "remark-mdx-frontmatter";
 import { defineConfig } from "vite";
 
-// Static MDX articles: every src/content/<collection>/<slug>.mdx becomes /<collection>/<slug>.
+// Static MDX articles: every src/content/<collection>/<slug>.mdx becomes /-/<collection>/<slug>.
 // Listed here so the build prerenders them to plain HTML (no SSR invocation per crawl —
 // see #70's cost concern) and emits them into the generated sitemap.
 function contentSlugs(collection: string): string[] {
@@ -57,22 +57,31 @@ const config = defineConfig({
 				// `crawlLinks` (default true) must be off, or in-article links to live pages
 				// (e.g. /torvalds,gaearon) get baked into stale static HTML at build time.
 				//
-				// The hub is /metrics/explained, NOT bare /metrics: content sections never
-				// own their bare prefix, so single-segment paths keep falling through to
-				// the $user route and no GitHub username is ever locked out.
+				// All editorial content lives under the reserved /-/ namespace: "-" can never
+				// be a GitHub login (no leading/trailing hyphens), so nothing here can shadow
+				// the single-segment $user route — and inside the namespace sections may own
+				// their bare prefix, so the metrics hub is /-/metrics directly. Old URLs
+				// (/sponsoring, /metrics/*, /organizations/*) 301 via thin redirect routes
+				// and are deliberately absent from this list.
 				{
-					path: "/metrics/explained",
+					path: "/-/metrics",
 					prerender: { enabled: true, crawlLinks: false },
 					sitemap: { changefreq: "monthly", priority: 0.8 },
 				},
+				// The sponsor pitch page — static content, so prerendered like the explainers.
+				{
+					path: "/-/sponsoring",
+					prerender: { enabled: true, crawlLinks: false },
+					sitemap: { changefreq: "monthly", priority: 0.5 },
+				},
 				...metricSlugs.map((slug) => ({
-					path: `/metrics/${slug}`,
+					path: `/-/metrics/${slug}`,
 					prerender: { enabled: true, crawlLinks: false },
 					sitemap: { changefreq: "monthly" as const, priority: 0.7 },
 				})),
-				// Organization-context explainers — same policy (bare /organizations stays a login).
+				// Organization-context explainers.
 				...orgSlugs.map((slug) => ({
-					path: `/organizations/${slug}`,
+					path: `/-/organizations/${slug}`,
 					prerender: { enabled: true, crawlLinks: false },
 					sitemap: { changefreq: "monthly" as const, priority: 0.7 },
 				})),
