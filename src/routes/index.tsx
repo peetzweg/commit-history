@@ -319,13 +319,88 @@ function RecentSection({ recent }: { recent: RecentEntry[] }) {
 }
 
 /**
- * The empty sponsor slot, shown in the slot after rank 5 on both boards.
+ * A single hardcoded sponsor row, shown in the slot after rank 5 on the developer board.
  *
- * The paid creative (previously Rebates.ai) is deactivated; until a new sponsor signs,
- * the slot advertises itself and links to the /sponsoring pitch page. Same row treatment
- * as a booked sponsor so buyers see exactly what they'd get.
+ * Same visual treatment as the (parked) DB-driven sponsorship system on `feat/sponsorships`,
+ * but with no database — the creative is hardcoded for now. Uses the sponsor's own favicon and
+ * page title, and links out with rel="sponsored nofollow".
  */
+// A/B test on the Rebates ad subtitle. "a" is the control (original copy), "b" the
+// challenger. utm_content carries the variant so clicks are attributable per arm.
+const REBATES_VARIANTS = {
+	a: {
+		subtitle: "The ads in your terminal pay you",
+		utmContent: "slot5-test-79-a",
+	},
+	b: {
+		subtitle: "Watch ads while coding. Get paid.",
+		utmContent: "slot5-test-79-b",
+	},
+} as const;
+
+function rebatesHref(utmContent: string): string {
+	return `https://rebates.ai/?utm_source=commit-history.com&utm_medium=leaderboard&utm_campaign=commit-history_sponsorship&utm_content=${utmContent}`;
+}
+
 function SponsorRow({ ref }: { ref?: React.Ref<HTMLLIElement> }) {
+	// Default to the control on the server/first paint so hydration matches, then flip
+	// to a random 50/50 arm on the client. Math.random() during render would desync SSR.
+	const [variant, setVariant] = useState<"a" | "b">("a");
+	useEffect(() => {
+		setVariant(Math.random() < 0.5 ? "a" : "b");
+	}, []);
+	const { subtitle, utmContent } = REBATES_VARIANTS[variant];
+
+	return (
+		<motion.li
+			ref={ref}
+			layout
+			initial={{ opacity: 0 }}
+			animate={{ opacity: 1 }}
+			exit={{ opacity: 0 }}
+			transition={{ type: "spring", stiffness: 600, damping: 40 }}
+			className="border-border border-b bg-muted/40"
+		>
+			<a
+				href={rebatesHref(utmContent)}
+				target="_blank"
+				rel="sponsored nofollow noopener"
+				className="flex w-full items-center gap-3 py-2.5 text-left hover:bg-muted"
+			>
+				{/* "Ad" gutter is dropped on mobile to give the title room (it reads cramped otherwise);
+				    "Sponsored" on the right keeps the disclosure. */}
+				<span className="hidden w-6 items-center justify-center text-[10px] uppercase tracking-wide text-muted-foreground sm:flex">
+					Ad
+				</span>
+				<img
+					src="https://rebates.ai/brand/rebates-bandit.svg"
+					alt="Rebates.ai"
+					className="h-8 w-8 shrink-0 rounded-full border border-border object-cover"
+				/>
+				{/* Title + tagline on two lines in a lighter weight than the usernames, so the block
+				    matches the logo height and doesn't shout as loud as a real leaderboard entry. */}
+				<span className="min-w-0 flex-1">
+					<span className="block truncate">Rebates.ai</span>
+					<span className="block truncate text-xs text-muted-foreground">
+						{subtitle}
+					</span>
+				</span>
+				<span className="shrink-0 text-right text-xs text-muted-foreground">
+					Sponsored
+				</span>
+			</a>
+		</motion.li>
+	);
+}
+
+/**
+ * The empty sponsor slot, shown in the slot after rank 5 on the organization board.
+ *
+ * That slot has no paid creative yet; until a sponsor signs, it advertises itself and
+ * links to the /sponsoring pitch page. Same row treatment as a booked sponsor so buyers
+ * see exactly what they'd get.
+ */
+function EmptySponsorRow({ ref }: { ref?: React.Ref<HTMLLIElement> }) {
 	return (
 		<motion.li
 			ref={ref}
@@ -732,9 +807,10 @@ function OrgBoard({ rows }: { rows: OrgLeaderEntry[] }) {
 							</Link>
 						</li>,
 					];
-					// Same sponsor slot after rank 5 as on the developer board.
+					// Sponsor slot after rank 5, mirroring the developer board — but this one
+					// is unbooked, so it advertises itself.
 					if (i === 4 && rows.length > 5)
-						items.push(<SponsorRow key="sponsor" />);
+						items.push(<EmptySponsorRow key="sponsor" />);
 					return items;
 				})}
 			</ol>
