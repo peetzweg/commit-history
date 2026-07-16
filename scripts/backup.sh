@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
-# Dump the Neon production database to a plain-SQL file under backups/.
+# Dump the production database (whatever DATABASE_URL points at) to a plain-SQL file under backups/.
 #
-#   pnpm backup            # -> backups/neon-backup-YYYYMMDD-HHMMSS.sql
+#   pnpm backup            # -> backups/db-backup-YYYYMMDD-HHMMSS.sql
 #
 # Reads DATABASE_URL from .env. The backups/ dir is gitignored — dumps never leave
 # your machine. Requires pg_dump; on macOS this ships with Homebrew's libpq
@@ -35,7 +35,7 @@ if [[ -z "${DATABASE_URL:-}" ]]; then
 fi
 
 mkdir -p backups
-OUT="backups/neon-backup-$(date +%Y%m%d-%H%M%S).sql"
+OUT="backups/db-backup-$(date +%Y%m%d-%H%M%S).sql"
 
 echo "Dumping with $("$PG_DUMP" --version) -> $OUT"
 "$PG_DUMP" "$DATABASE_URL" --no-owner --no-privileges --file "$OUT"
