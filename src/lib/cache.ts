@@ -33,7 +33,7 @@ import {
  * totals are stamped only once every month row is stored, so a half-written build can never
  * masquerade as a finished one (zeroed charts / corrupted leaderboard totals).
  *
- * Storage is Neon Postgres when DATABASE_URL is set (durable + shared across instances),
+ * Storage is Postgres when DATABASE_URL is set (durable + shared across instances),
  * else a per-process in-memory Map (so local dev / the app still work with no database).
  */
 const TAIL_TTL = 60_000; // serve cached untouched for 1 min — no GitHub call at all
@@ -111,7 +111,7 @@ function appendTail(
 	return [...head, ...tail];
 }
 
-// ── Neon-backed store ────────────────────────────────────────────────────────
+// ── Postgres-backed store ────────────────────────────────────────────────────
 
 function entityId(login: string) {
 	return `user:${login.trim().toLowerCase()}`;

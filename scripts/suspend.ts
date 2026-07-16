@@ -9,14 +9,15 @@
  *
  * Suspension is a soft, reversible flag (entities.suspended_at) — no data is deleted. A suspended
  * account drops off the leaderboard and "recently looked up" but is still directly viewable, with
- * an under-review notice. Mirrors scripts/backfill-profiles.mjs: plain neon() SQL, no build step.
+ * an under-review notice. Mirrors scripts/refresh.ts: plain tagged-template SQL, no build step.
  */
-import { neon } from "@neondatabase/serverless";
+import postgres from "postgres";
 
 const DATABASE_URL = process.env.DATABASE_URL;
 if (!DATABASE_URL) throw new Error("DATABASE_URL is required (add it to .env)");
 
-const sql = neon(DATABASE_URL);
+// prepare: false — Neon's pooled endpoint is PgBouncer transaction mode (see src/lib/db).
+const sql = postgres(DATABASE_URL, { prepare: false });
 
 const entityId = (login: string) => `user:${login.trim().toLowerCase()}`;
 const profileUrl = (login: string) => `https://commit-history.com/${login}`;
@@ -101,3 +102,6 @@ if (arg1 === "--list") {
 	);
 	process.exit(arg1 ? 1 : 0);
 }
+
+// postgres.js keeps its pool open — close it or the script never exits.
+await sql.end();
