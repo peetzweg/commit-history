@@ -16,12 +16,12 @@ Total is the sum of six non-overlapping buckets:
 
 | Bucket | What it counts |
 | --- | --- |
-| [Commits](/metrics/commits) | public commits on default branches |
-| [Issues](/metrics/issues) | public issues opened |
-| [Pull requests](/metrics/pull-requests) | public PRs opened |
-| [Reviews](/metrics/reviews) | public PR reviews submitted |
-| [Repositories](/metrics/repositories) | public repos created (no forks) |
-| [Private contributions](/metrics/private-contributions) | everything above, in private repos — if the user exposes it |
+| [Commits](/-/metrics/commits) | public commits on default branches |
+| [Issues](/-/metrics/issues) | public issues opened |
+| [Pull requests](/-/metrics/pull-requests) | public PRs opened |
+| [Reviews](/-/metrics/reviews) | public PR reviews submitted |
+| [Repositories](/-/metrics/repositories) | public repos created (no forks) |
+| [Private contributions](/-/metrics/private-contributions) | everything above, in private repos — if the user exposes it |
 
 The buckets are disjoint, so nothing is double-counted: a pull request counts
 once as a PR, and its commits count as commits only when they land on the
@@ -39,7 +39,7 @@ in private company repositories look like ghosts on every public metric.
 Total absorbs those biases into one number: the squash-merge engineer gets
 their PRs and reviews counted, the reviewer gets their reviews, the
 private-repo engineer gets their private count (once they
-[enable it](/metrics/private-contributions)). It's the metric we'd suggest
+[enable it](/-/metrics/private-contributions)). It's the metric we'd suggest
 for comparing two developers with *different* working styles.
 
 ## The honest caveat

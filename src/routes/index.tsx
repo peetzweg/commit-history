@@ -169,10 +169,7 @@ function Home() {
 			)}
 			<p className="mt-14 text-center text-sm text-muted-foreground">
 				Wondering what these numbers mean?{" "}
-				<Link
-					to="/metrics/explained"
-					className="underline hover:text-foreground"
-				>
+				<Link to="/-/metrics" className="underline hover:text-foreground">
 					The metrics, explained
 				</Link>
 			</p>
@@ -412,7 +409,7 @@ function EmptySponsorRow({ ref }: { ref?: React.Ref<HTMLLIElement> }) {
 			className="border-border border-b bg-muted/40"
 		>
 			<Link
-				to="/sponsoring"
+				to="/-/sponsoring"
 				className="flex w-full items-center gap-3 py-2.5 text-left hover:bg-muted"
 			>
 				{/* "Ad" gutter is dropped on mobile to give the title room (it reads cramped otherwise);
@@ -748,7 +745,7 @@ function OrgBoard({ rows }: { rows: OrgLeaderEntry[] }) {
 				<p className="mt-1.5 text-xs text-muted-foreground">
 					Public members’ lifetime commits to the organization’s repositories.{" "}
 					<Link
-						to="/organizations/$slug"
+						to="/-/organizations/$slug"
 						params={{ slug: "stats" }}
 						className="whitespace-nowrap underline decoration-dotted underline-offset-2 hover:text-foreground"
 					>

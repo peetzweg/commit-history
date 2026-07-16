@@ -18,7 +18,11 @@ import { Route as MetricsExplainedRouteImport } from './routes/metrics.explained
 import { Route as MetricsSlugRouteImport } from './routes/metrics.$slug'
 import { Route as EmbedUserRouteImport } from './routes/embed.$user'
 import { Route as CompanySlugRouteImport } from './routes/company.$slug'
+import { Route as Char91Char93SponsoringRouteImport } from './routes/[-].sponsoring'
+import { Route as Char91Char93MetricsIndexRouteImport } from './routes/[-].metrics.index'
 import { Route as OgKindLoginRouteImport } from './routes/og.$kind.$login'
+import { Route as Char91Char93OrganizationsSlugRouteImport } from './routes/[-].organizations.$slug'
+import { Route as Char91Char93MetricsSlugRouteImport } from './routes/[-].metrics.$slug'
 
 const SponsoringRoute = SponsoringRouteImport.update({
   id: '/sponsoring',
@@ -65,9 +69,31 @@ const CompanySlugRoute = CompanySlugRouteImport.update({
   path: '/company/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const Char91Char93SponsoringRoute = Char91Char93SponsoringRouteImport.update({
+  id: '/-/sponsoring',
+  path: '/-/sponsoring',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const Char91Char93MetricsIndexRoute =
+  Char91Char93MetricsIndexRouteImport.update({
+    id: '/-/metrics/',
+    path: '/-/metrics/',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const OgKindLoginRoute = OgKindLoginRouteImport.update({
   id: '/og/$kind/$login',
   path: '/og/$kind/$login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const Char91Char93OrganizationsSlugRoute =
+  Char91Char93OrganizationsSlugRouteImport.update({
+    id: '/-/organizations/$slug',
+    path: '/-/organizations/$slug',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const Char91Char93MetricsSlugRoute = Char91Char93MetricsSlugRouteImport.update({
+  id: '/-/metrics/$slug',
+  path: '/-/metrics/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -76,24 +102,32 @@ export interface FileRoutesByFullPath {
   '/$user': typeof UserRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/sponsoring': typeof SponsoringRoute
+  '/-/sponsoring': typeof Char91Char93SponsoringRoute
   '/company/$slug': typeof CompanySlugRoute
   '/embed/$user': typeof EmbedUserRoute
   '/metrics/$slug': typeof MetricsSlugRoute
   '/metrics/explained': typeof MetricsExplainedRoute
   '/organizations/$slug': typeof OrganizationsSlugRoute
+  '/-/metrics/$slug': typeof Char91Char93MetricsSlugRoute
+  '/-/organizations/$slug': typeof Char91Char93OrganizationsSlugRoute
   '/og/$kind/$login': typeof OgKindLoginRoute
+  '/-/metrics/': typeof Char91Char93MetricsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$user': typeof UserRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/sponsoring': typeof SponsoringRoute
+  '/-/sponsoring': typeof Char91Char93SponsoringRoute
   '/company/$slug': typeof CompanySlugRoute
   '/embed/$user': typeof EmbedUserRoute
   '/metrics/$slug': typeof MetricsSlugRoute
   '/metrics/explained': typeof MetricsExplainedRoute
   '/organizations/$slug': typeof OrganizationsSlugRoute
+  '/-/metrics/$slug': typeof Char91Char93MetricsSlugRoute
+  '/-/organizations/$slug': typeof Char91Char93OrganizationsSlugRoute
   '/og/$kind/$login': typeof OgKindLoginRoute
+  '/-/metrics': typeof Char91Char93MetricsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -101,12 +135,16 @@ export interface FileRoutesById {
   '/$user': typeof UserRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/sponsoring': typeof SponsoringRoute
+  '/-/sponsoring': typeof Char91Char93SponsoringRoute
   '/company/$slug': typeof CompanySlugRoute
   '/embed/$user': typeof EmbedUserRoute
   '/metrics/$slug': typeof MetricsSlugRoute
   '/metrics/explained': typeof MetricsExplainedRoute
   '/organizations/$slug': typeof OrganizationsSlugRoute
+  '/-/metrics/$slug': typeof Char91Char93MetricsSlugRoute
+  '/-/organizations/$slug': typeof Char91Char93OrganizationsSlugRoute
   '/og/$kind/$login': typeof OgKindLoginRoute
+  '/-/metrics/': typeof Char91Char93MetricsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -115,36 +153,48 @@ export interface FileRouteTypes {
     | '/$user'
     | '/robots.txt'
     | '/sponsoring'
+    | '/-/sponsoring'
     | '/company/$slug'
     | '/embed/$user'
     | '/metrics/$slug'
     | '/metrics/explained'
     | '/organizations/$slug'
+    | '/-/metrics/$slug'
+    | '/-/organizations/$slug'
     | '/og/$kind/$login'
+    | '/-/metrics/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/$user'
     | '/robots.txt'
     | '/sponsoring'
+    | '/-/sponsoring'
     | '/company/$slug'
     | '/embed/$user'
     | '/metrics/$slug'
     | '/metrics/explained'
     | '/organizations/$slug'
+    | '/-/metrics/$slug'
+    | '/-/organizations/$slug'
     | '/og/$kind/$login'
+    | '/-/metrics'
   id:
     | '__root__'
     | '/'
     | '/$user'
     | '/robots.txt'
     | '/sponsoring'
+    | '/-/sponsoring'
     | '/company/$slug'
     | '/embed/$user'
     | '/metrics/$slug'
     | '/metrics/explained'
     | '/organizations/$slug'
+    | '/-/metrics/$slug'
+    | '/-/organizations/$slug'
     | '/og/$kind/$login'
+    | '/-/metrics/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -152,12 +202,16 @@ export interface RootRouteChildren {
   UserRoute: typeof UserRoute
   RobotsDottxtRoute: typeof RobotsDottxtRoute
   SponsoringRoute: typeof SponsoringRoute
+  Char91Char93SponsoringRoute: typeof Char91Char93SponsoringRoute
   CompanySlugRoute: typeof CompanySlugRoute
   EmbedUserRoute: typeof EmbedUserRoute
   MetricsSlugRoute: typeof MetricsSlugRoute
   MetricsExplainedRoute: typeof MetricsExplainedRoute
   OrganizationsSlugRoute: typeof OrganizationsSlugRoute
+  Char91Char93MetricsSlugRoute: typeof Char91Char93MetricsSlugRoute
+  Char91Char93OrganizationsSlugRoute: typeof Char91Char93OrganizationsSlugRoute
   OgKindLoginRoute: typeof OgKindLoginRoute
+  Char91Char93MetricsIndexRoute: typeof Char91Char93MetricsIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -225,11 +279,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CompanySlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/-/sponsoring': {
+      id: '/-/sponsoring'
+      path: '/-/sponsoring'
+      fullPath: '/-/sponsoring'
+      preLoaderRoute: typeof Char91Char93SponsoringRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/-/metrics/': {
+      id: '/-/metrics/'
+      path: '/-/metrics'
+      fullPath: '/-/metrics/'
+      preLoaderRoute: typeof Char91Char93MetricsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/og/$kind/$login': {
       id: '/og/$kind/$login'
       path: '/og/$kind/$login'
       fullPath: '/og/$kind/$login'
       preLoaderRoute: typeof OgKindLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/-/organizations/$slug': {
+      id: '/-/organizations/$slug'
+      path: '/-/organizations/$slug'
+      fullPath: '/-/organizations/$slug'
+      preLoaderRoute: typeof Char91Char93OrganizationsSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/-/metrics/$slug': {
+      id: '/-/metrics/$slug'
+      path: '/-/metrics/$slug'
+      fullPath: '/-/metrics/$slug'
+      preLoaderRoute: typeof Char91Char93MetricsSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -240,12 +322,16 @@ const rootRouteChildren: RootRouteChildren = {
   UserRoute: UserRoute,
   RobotsDottxtRoute: RobotsDottxtRoute,
   SponsoringRoute: SponsoringRoute,
+  Char91Char93SponsoringRoute: Char91Char93SponsoringRoute,
   CompanySlugRoute: CompanySlugRoute,
   EmbedUserRoute: EmbedUserRoute,
   MetricsSlugRoute: MetricsSlugRoute,
   MetricsExplainedRoute: MetricsExplainedRoute,
   OrganizationsSlugRoute: OrganizationsSlugRoute,
+  Char91Char93MetricsSlugRoute: Char91Char93MetricsSlugRoute,
+  Char91Char93OrganizationsSlugRoute: Char91Char93OrganizationsSlugRoute,
   OgKindLoginRoute: OgKindLoginRoute,
+  Char91Char93MetricsIndexRoute: Char91Char93MetricsIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

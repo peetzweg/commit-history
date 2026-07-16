@@ -3,7 +3,8 @@
  *
  * Two families, both rendered from the shared card builders in src/lib/og-card.ts (satori →
  * resvg, in the site's hand-drawn xkcd/star-history style):
- *   • /metrics/<slug> + the /metrics/explained hub → public/og/metrics/<slug>.png
+ *   • /-/metrics/<slug> + the /-/metrics hub → public/og/metrics/<slug>.png (the asset
+ *     directory keeps its historical og/metrics/ name — URLs and assets are decoupled)
  *   • the two leaderboard boards (developer / organization) → public/og/leaderboard/<board>.png
  *
  * Per-developer and per-org cards are NOT here — they're DB/GitHub-driven and rendered at
@@ -59,7 +60,8 @@ function frontmatterOf(file: string): Frontmatter {
 mkdirSync(metricsOutDir, { recursive: true });
 mkdirSync(boardOutDir, { recursive: true });
 
-// The /metrics/explained hub itself — keep in sync with src/routes/metrics.explained.tsx.
+// The /-/metrics hub itself — keep in sync with src/routes/[-].metrics.index.tsx.
+// The card's asset name stays "explained.png" from the hub's old URL.
 await renderMetricsCard(
 	"explained",
 	"GitHub contribution metrics, explained",
