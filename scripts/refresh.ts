@@ -11,14 +11,15 @@
  * Safe to re-run. The same `user` query the app uses (src/lib/github.ts fetchProfile) is
  * replicated here so this runs as a plain script with no build step. Mirrors scripts/suspend.ts.
  */
-import { neon } from "@neondatabase/serverless";
+import postgres from "postgres";
 
 const DATABASE_URL = process.env.DATABASE_URL;
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 if (!DATABASE_URL) throw new Error("DATABASE_URL is required (add it to .env)");
 if (!GITHUB_TOKEN) throw new Error("GITHUB_TOKEN is required (add it to .env)");
 
-const sql = neon(DATABASE_URL);
+// prepare: false — Neon's pooled endpoint is PgBouncer transaction mode (see src/lib/db).
+const sql = postgres(DATABASE_URL, { prepare: false });
 
 const entityId = (login: string) => `user:${login.trim().toLowerCase()}`;
 
@@ -111,3 +112,6 @@ if (arg1 && !arg1.startsWith("--")) {
 	);
 	process.exit(1);
 }
+
+// postgres.js keeps its pool open — close it or the script never exits.
+await sql.end();
