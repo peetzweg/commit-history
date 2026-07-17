@@ -27,6 +27,12 @@ const orgSlugs = contentSlugs("organizations");
 
 const config = defineConfig({
 	resolve: { tsconfigPaths: true },
+	// @resvg/resvg-js is a native Node addon (.node binary). The dev-mode dependency
+	// optimizer scans it via the OG route's imports and crashes trying to parse the
+	// binary as JS (UNLOADABLE_DEPENDENCY). It only ever runs in server handlers, so
+	// keep it out of prebundling; prod builds were never affected (handlers are
+	// tree-shaken out of the client there).
+	optimizeDeps: { exclude: ["@resvg/resvg-js"] },
 	plugins: [
 		devtools(),
 		tailwindcss(),
