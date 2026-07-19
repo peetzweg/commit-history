@@ -77,10 +77,12 @@ export const Route = createFileRoute("/$user")({
 			: logins.length > 1
 				? `Compare the cumulative GitHub commits of ${logins.join(", ")} over time.`
 				: `${logins[0]}’s cumulative GitHub commits over their whole lifetime.`;
-		const url = `https://commit-history.com/${logins.join(",")}`;
+		// GitHub logins are case-insensitive, so /PeetZweg and /peetzweg serve the same page —
+		// lowercase the canonical (and og:url) so search engines fold case variants into one URL.
+		const url = `https://commit-history.com/${logins.join(",").toLowerCase()}`;
 		// A single login gets a dynamic card (see src/routes/og.$kind.$login.tsx); a comparison
 		// keeps the site-wide card (the root default) — a compare card can follow later.
-		const single = logins.length === 1 ? logins[0] : null;
+		const single = logins.length === 1 ? logins[0].toLowerCase() : null;
 		// Carry the selected chart metric into the user card so a shared `?metric=prs` view shows
 		// that metric's amount + rank. Orgs aren't metric-aware (they rank on commits only).
 		const metric = isOrg ? undefined : match.search.metric;
