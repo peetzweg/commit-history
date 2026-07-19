@@ -37,6 +37,9 @@ async function fetchAvatar(url: string | null): Promise<string | null> {
 
 const PNG_HEADERS = {
 	"content-type": "image/png",
+	// Share-card image, not a page — keep it (and its ?metric= variants) out of the search
+	// index so it never competes with the /$user profile page.
+	"x-robots-tag": "noindex",
 	"cache-control": "public, max-age=3600, s-maxage=3600",
 	// `durable` = one shared cache entry across all Netlify edge nodes (see /embed), so scraper
 	// traffic stops re-invoking the render function. Netlify-only; other CDNs ignore it.
@@ -50,6 +53,7 @@ function fallback(request: Request): Response {
 		status: 302,
 		headers: {
 			location: new URL("/og.png", request.url).toString(),
+			"x-robots-tag": "noindex",
 			"cache-control": "public, max-age=60",
 			"netlify-cdn-cache-control": "public, durable, s-maxage=60",
 		},

@@ -28,6 +28,9 @@ export const Route = createFileRoute("/embed/$user")({
 					return new Response(renderChartSvg(history, theme), {
 						headers: {
 							"content-type": "image/svg+xml; charset=utf-8",
+							// Badge image, not a page — keep it (and its ?theme= variants) out of the
+							// search index so it never competes with the /$user profile page.
+							"x-robots-tag": "noindex",
 							// Long-ish cache: our data is monthly and the cache layer keeps it fresh.
 							"cache-control": "public, max-age=3600, s-maxage=3600",
 							// `durable` = one shared cache entry across all Netlify edge nodes instead of
@@ -44,6 +47,7 @@ export const Route = createFileRoute("/embed/$user")({
 					return new Response(renderMessageSvg(message, theme), {
 						headers: {
 							"content-type": "image/svg+xml; charset=utf-8",
+							"x-robots-tag": "noindex",
 							"cache-control": "public, max-age=60",
 							// Short durable cache so a rate-limit storm doesn't hammer the function,
 							// while real data still replaces the message card quickly.
