@@ -1,6 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getCommitHistory } from "#/lib/cache";
-import { renderChartSvg, renderMessageSvg } from "#/lib/chart-svg";
+import {
+	type GraphType,
+	renderChartSvg,
+	renderMessageSvg,
+} from "#/lib/chart-svg";
 import { GitHubError } from "#/lib/github";
 
 /**
@@ -8,15 +12,28 @@ import { GitHubError } from "#/lib/github";
  *
  * A pure server route — `server.handlers.GET` returns raw image/svg+xml (no React component).
  * The SVG inlines its font + filter so it renders standalone in GitHub's <img> sandbox.
+ *
+ * `?metric=` picks which lifetime series to plot (default: all contributions). Uses the same
+ * metric names as the leaderboard URLs so an embed matches the board it came from.
  */
+const METRIC_TO_GRAPH: Record<string, GraphType> = {
+	commits: "commits",
+	public: "commits",
+	prs: "pullRequests",
+	issues: "issues",
+	reviews: "reviews",
+	repos: "repositories",
+	private: "private",
+};
+
 export const Route = createFileRoute("/embed/$user")({
 	server: {
 		handlers: {
 			GET: async ({ request, params }) => {
+				const url = new URL(request.url);
 				const theme =
-					new URL(request.url).searchParams.get("theme") === "dark"
-						? "dark"
-						: "light";
+					url.searchParams.get("theme") === "dark" ? "dark" : "light";
+				const graph = METRIC_TO_GRAPH[url.searchParams.get("metric") ?? ""];
 				const token = process.env.GITHUB_TOKEN ?? "";
 
 				try {
@@ -25,7 +42,7 @@ export const Route = createFileRoute("/embed/$user")({
 					const history = await getCommitHistory(params.user, token, {
 						record: false,
 					});
-					return new Response(renderChartSvg(history, theme), {
+					return new Response(renderChartSvg(history, theme, graph), {
 						headers: {
 							"content-type": "image/svg+xml; charset=utf-8",
 							// Badge image, not a page — keep it (and its ?theme= variants) out of the

@@ -6,7 +6,7 @@ import {
 	CROWN_TRANSFORM,
 	CROWN_VIEWBOX,
 } from "#/lib/crown";
-import type { CommitHistory } from "#/lib/github";
+import type { CommitHistory, CommitPoint } from "#/lib/github";
 import { xkcdFontDataUrl } from "#/lib/xkcd-font";
 
 /**
@@ -41,17 +41,17 @@ const THEMES: Record<Theme, ThemeColors> = {
 	dark: { bg: "#0d1117", fg: "#c9d1d9", muted: "#8b949e", grid: "#30363d" },
 };
 
-// The data type a chart shows. "all" is the aggregate (public commits + private contributions —
-// what the embed sums today); "commits" is live too, the rest are on the roadmap. Each gets its
-// embed wording here — the single switch point for new types. Per-type ranking on the embed is
-// tracked separately (see the "rank on the embed" issue).
+// The data type a chart shows. "all" is the aggregate (public commits + private contributions),
+// the embed default; every other type plots its own lifetime series (see monthlyValue). Wording
+// per type lives in TYPE_WORDS below; the embed route maps `?metric=` to one of these.
 export type GraphType =
 	| "all"
 	| "commits"
 	| "pullRequests"
 	| "issues"
 	| "reviews"
-	| "repositories";
+	| "repositories"
+	| "private";
 
 // The embed is standalone (no profile header like the on-page chart), so `title(login)` always
 // leads with the username; `unit` labels the running total.
@@ -68,7 +68,32 @@ const TYPE_WORDS: Record<
 	issues: { title: (l) => `${l}'s issues`, unit: "issues" },
 	reviews: { title: (l) => `${l}'s reviews`, unit: "reviews" },
 	repositories: { title: (l) => `${l}'s repositories`, unit: "repositories" },
+	private: {
+		title: (l) => `${l}'s private contributions`,
+		unit: "private contributions",
+	},
 };
+
+/** The monthly value a given graph type plots (cumulated into the running curve below). */
+function monthlyValue(p: CommitPoint, type: GraphType): number {
+	switch (type) {
+		case "commits":
+			return p.commits;
+		case "pullRequests":
+			return p.pullRequests;
+		case "issues":
+			return p.issues;
+		case "reviews":
+			return p.reviews;
+		case "repositories":
+			return p.repos;
+		case "private":
+			return p.restricted;
+		default:
+			// "all": public commits + private contributions, the site's default series.
+			return p.commits + p.restricted;
+	}
+}
 
 function compact(n: number) {
 	return new Intl.NumberFormat("en-US", { notation: "compact" }).format(n);
@@ -140,15 +165,19 @@ export function renderChartSvg(
 		return renderMessageSvg(`${user.login} has no public commits`, theme);
 	}
 
-	// Default to "both": public commits + private contributions, summed per month —
-	// the same series the main chart shows. For users who don't expose private
-	// activity, `restrictedCumulative` is 0, so this is identical to public.
-	const value = (p: (typeof points)[number]) =>
-		p.cumulative + p.restrictedCumulative;
-	const grandTotal = total + totalRestricted;
+	// Running cumulative of the selected metric, one value per point. Built from the monthly
+	// fields so any type (commits, PRs, issues, reviews, repos, private) plots its own curve;
+	// the header total is the endpoint of that curve, so number and line always agree.
+	let running = 0;
+	const values = points.map((p) => {
+		running += monthlyValue(p, type);
+		return running;
+	});
+	const grandTotal =
+		type === "all" ? total + totalRestricted : (values[values.length - 1] ?? 0);
 
 	const n = points.length;
-	const max = Math.max(...points.map(value), 1);
+	const max = Math.max(...values, 1);
 	const x = (i: number) =>
 		PAD.left + (n === 1 ? innerW / 2 : (i / (n - 1)) * innerW);
 	const y = (v: number) => PAD.top + innerH - (v / max) * innerH;
@@ -156,8 +185,8 @@ export function renderChartSvg(
 
 	const line = points
 		.map(
-			(p, i) =>
-				`${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(value(p)).toFixed(1)}`,
+			(_p, i) =>
+				`${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(values[i]).toFixed(1)}`,
 		)
 		.join(" ");
 	const area = `${line} L${x(n - 1).toFixed(1)},${baseline} L${x(0).toFixed(1)},${baseline} Z`;
@@ -184,9 +213,9 @@ export function renderChartSvg(
 		)
 		.join("");
 	const dots = points
-		.map((p, i) =>
+		.map((_p, i) =>
 			i % dotEvery === 0 || i === n - 1
-				? `<circle cx="${x(i).toFixed(1)}" cy="${y(value(p)).toFixed(1)}" r="2.5" fill="${ACCENT}"/>`
+				? `<circle cx="${x(i).toFixed(1)}" cy="${y(values[i]).toFixed(1)}" r="2.5" fill="${ACCENT}"/>`
 				: "",
 		)
 		.join("");

@@ -51,6 +51,9 @@ const RANKING_POST_SLUG: Partial<Record<LeaderMode, string>> = {
 	prs: "most-pull-requests-on-github",
 	reviews: "most-code-reviews-on-github",
 	followers: "most-followed-github-users",
+	issues: "most-issues-on-github",
+	repos: "most-repositories-on-github",
+	private: "most-private-contributions-on-github",
 };
 
 export const Route = createFileRoute("/")({
