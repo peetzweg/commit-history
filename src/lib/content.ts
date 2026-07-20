@@ -29,6 +29,12 @@ export interface ArticleFrontmatter {
 	updatedAt: string;
 	/** Position in the /-/metrics hub list (unset sorts last, then by title). */
 	order?: number;
+	/**
+	 * Ranked-list posts only: the entities in ranking order. Emitted as ItemList structured
+	 * data so search engines and agents can read the ranking without parsing prose. Mirror the
+	 * `<Person>` blocks in the body (same order); each `login` links to that profile on-site.
+	 */
+	people?: { login: string; name: string }[];
 }
 
 type MDXContent = ComponentType<{ components?: MDXComponents }>;

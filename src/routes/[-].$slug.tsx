@@ -111,6 +111,25 @@ export const Route = createFileRoute("/-/$slug")({
 								{ "@type": "ListItem", position: 2, name: meta.title },
 							],
 						},
+						// Ranked-list posts advertise their ranking explicitly so search engines can
+						// show it as a list and agents can extract it without reading the prose.
+						...(meta.people?.length
+							? [
+									{
+										"@context": "https://schema.org",
+										"@type": "ItemList",
+										name: meta.title,
+										numberOfItems: meta.people.length,
+										itemListOrder: "https://schema.org/ItemListOrderDescending",
+										itemListElement: meta.people.map((p, i) => ({
+											"@type": "ListItem",
+											position: i + 1,
+											name: p.name,
+											url: `${SITE}/${p.login.toLowerCase()}`,
+										})),
+									},
+								]
+							: []),
 					]),
 				},
 			],
