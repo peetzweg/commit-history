@@ -19,6 +19,7 @@ import { Route as MetricsSlugRouteImport } from './routes/metrics.$slug'
 import { Route as EmbedUserRouteImport } from './routes/embed.$user'
 import { Route as CompanySlugRouteImport } from './routes/company.$slug'
 import { Route as Char91Char93SponsoringRouteImport } from './routes/[-].sponsoring'
+import { Route as Char91Char93SlugRouteImport } from './routes/[-].$slug'
 import { Route as Char91Char93MetricsIndexRouteImport } from './routes/[-].metrics.index'
 import { Route as OgKindLoginRouteImport } from './routes/og.$kind.$login'
 import { Route as Char91Char93OrganizationsSlugRouteImport } from './routes/[-].organizations.$slug'
@@ -74,6 +75,11 @@ const Char91Char93SponsoringRoute = Char91Char93SponsoringRouteImport.update({
   path: '/-/sponsoring',
   getParentRoute: () => rootRouteImport,
 } as any)
+const Char91Char93SlugRoute = Char91Char93SlugRouteImport.update({
+  id: '/-/$slug',
+  path: '/-/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const Char91Char93MetricsIndexRoute =
   Char91Char93MetricsIndexRouteImport.update({
     id: '/-/metrics/',
@@ -102,6 +108,7 @@ export interface FileRoutesByFullPath {
   '/$user': typeof UserRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/sponsoring': typeof SponsoringRoute
+  '/-/$slug': typeof Char91Char93SlugRoute
   '/-/sponsoring': typeof Char91Char93SponsoringRoute
   '/company/$slug': typeof CompanySlugRoute
   '/embed/$user': typeof EmbedUserRoute
@@ -118,6 +125,7 @@ export interface FileRoutesByTo {
   '/$user': typeof UserRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/sponsoring': typeof SponsoringRoute
+  '/-/$slug': typeof Char91Char93SlugRoute
   '/-/sponsoring': typeof Char91Char93SponsoringRoute
   '/company/$slug': typeof CompanySlugRoute
   '/embed/$user': typeof EmbedUserRoute
@@ -135,6 +143,7 @@ export interface FileRoutesById {
   '/$user': typeof UserRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/sponsoring': typeof SponsoringRoute
+  '/-/$slug': typeof Char91Char93SlugRoute
   '/-/sponsoring': typeof Char91Char93SponsoringRoute
   '/company/$slug': typeof CompanySlugRoute
   '/embed/$user': typeof EmbedUserRoute
@@ -153,6 +162,7 @@ export interface FileRouteTypes {
     | '/$user'
     | '/robots.txt'
     | '/sponsoring'
+    | '/-/$slug'
     | '/-/sponsoring'
     | '/company/$slug'
     | '/embed/$user'
@@ -169,6 +179,7 @@ export interface FileRouteTypes {
     | '/$user'
     | '/robots.txt'
     | '/sponsoring'
+    | '/-/$slug'
     | '/-/sponsoring'
     | '/company/$slug'
     | '/embed/$user'
@@ -185,6 +196,7 @@ export interface FileRouteTypes {
     | '/$user'
     | '/robots.txt'
     | '/sponsoring'
+    | '/-/$slug'
     | '/-/sponsoring'
     | '/company/$slug'
     | '/embed/$user'
@@ -202,6 +214,7 @@ export interface RootRouteChildren {
   UserRoute: typeof UserRoute
   RobotsDottxtRoute: typeof RobotsDottxtRoute
   SponsoringRoute: typeof SponsoringRoute
+  Char91Char93SlugRoute: typeof Char91Char93SlugRoute
   Char91Char93SponsoringRoute: typeof Char91Char93SponsoringRoute
   CompanySlugRoute: typeof CompanySlugRoute
   EmbedUserRoute: typeof EmbedUserRoute
@@ -286,6 +299,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof Char91Char93SponsoringRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/-/$slug': {
+      id: '/-/$slug'
+      path: '/-/$slug'
+      fullPath: '/-/$slug'
+      preLoaderRoute: typeof Char91Char93SlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/-/metrics/': {
       id: '/-/metrics/'
       path: '/-/metrics'
@@ -322,6 +342,7 @@ const rootRouteChildren: RootRouteChildren = {
   UserRoute: UserRoute,
   RobotsDottxtRoute: RobotsDottxtRoute,
   SponsoringRoute: SponsoringRoute,
+  Char91Char93SlugRoute: Char91Char93SlugRoute,
   Char91Char93SponsoringRoute: Char91Char93SponsoringRoute,
   CompanySlugRoute: CompanySlugRoute,
   EmbedUserRoute: EmbedUserRoute,

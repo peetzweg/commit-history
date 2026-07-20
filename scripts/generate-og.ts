@@ -25,7 +25,9 @@ import { boardCard, contentCard, renderPng } from "#/lib/og-card";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const contentDir = join(root, "src/content/metrics");
+const postsContentDir = join(root, "src/content/posts");
 const metricsOutDir = join(root, "public/og/metrics");
+const postsOutDir = join(root, "public/og/posts");
 const boardOutDir = join(root, "public/og/leaderboard");
 
 function write(path: string, png: Buffer, label: string) {
@@ -47,8 +49,8 @@ interface Frontmatter {
 	description: string;
 }
 
-function frontmatterOf(file: string): Frontmatter {
-	const source = readFileSync(join(contentDir, file), "utf8");
+function frontmatterOf(dir: string, file: string): Frontmatter {
+	const source = readFileSync(join(dir, file), "utf8");
 	const match = source.match(/^---\n([\s\S]*?)\n---/);
 	if (!match) throw new Error(`${file}: missing frontmatter`);
 	const fm = parse(match[1]) as Partial<Frontmatter>;
@@ -59,6 +61,7 @@ function frontmatterOf(file: string): Frontmatter {
 }
 
 mkdirSync(metricsOutDir, { recursive: true });
+mkdirSync(postsOutDir, { recursive: true });
 mkdirSync(boardOutDir, { recursive: true });
 
 // The /-/metrics hub itself — keep in sync with src/routes/[-].metrics.index.tsx.
@@ -71,8 +74,18 @@ await renderMetricsCard(
 
 for (const file of readdirSync(contentDir)) {
 	if (!file.endsWith(".mdx")) continue;
-	const { title, description } = frontmatterOf(file);
+	const { title, description } = frontmatterOf(contentDir, file);
 	await renderMetricsCard(file.replace(/\.mdx$/, ""), title, description);
+}
+
+// Standalone posts (/-/<slug>) — same card style; the kicker is just the site path.
+for (const file of readdirSync(postsContentDir)) {
+	if (!file.endsWith(".mdx")) continue;
+	const { title, description } = frontmatterOf(postsContentDir, file);
+	const slug = file.replace(/\.mdx$/, "");
+	// No section kicker — these live flat at the site root, so the wordmark stands alone.
+	const png = await renderPng(contentCard("", title, description));
+	write(join(postsOutDir, `${slug}.png`), png, `posts/${slug}.png`);
 }
 
 // The /-/sponsoring pitch card — keep in sync with src/routes/[-].sponsoring.tsx.

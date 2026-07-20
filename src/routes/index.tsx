@@ -43,6 +43,19 @@ interface HomeSearch {
 // LEADERBOARD_PAGE_STOPS infinite-scroll pattern when it outgrows this.
 const ORG_PAGE_SIZE = 100;
 
+// Metrics that have an editorial "top 10" post (src/content/posts). Surfaced as a link right in
+// the board heading so the ranking on screen points at the article about it. Metrics without a
+// post (issues, repos, private, total) simply don't get a link.
+const RANKING_POST_SLUG: Partial<Record<LeaderMode, string>> = {
+	public: "most-commits-on-github",
+	prs: "most-pull-requests-on-github",
+	reviews: "most-code-reviews-on-github",
+	followers: "most-followed-github-users",
+	issues: "most-issues-on-github",
+	repos: "most-repositories-on-github",
+	private: "most-private-contributions-on-github",
+};
+
 export const Route = createFileRoute("/")({
 	// `?metric=` selects the leaderboard type so a view can be shared; invalid/absent → commits.
 	// `?kind=org` flips the board to organizations (same clean-URL convention: default is absent).
@@ -629,6 +642,20 @@ function Leaderboard({ initialPage }: { initialPage: LeaderEntry[] }) {
 				</h2>
 				<p className="mt-1.5 text-xs text-muted-foreground">
 					{subtitle} <ExplainerLink metric={mode} />
+					{/* Boards with an editorial companion post link to it right where the ranking
+					    they describe is on screen. */}
+					{RANKING_POST_SLUG[mode] && (
+						<>
+							{" "}
+							<Link
+								to="/-/$slug"
+								params={{ slug: RANKING_POST_SLUG[mode] as string }}
+								className="whitespace-nowrap underline decoration-dotted underline-offset-2 hover:text-foreground"
+							>
+								Meet the top 10 →
+							</Link>
+						</>
+					)}
 				</p>
 			</div>
 			<ol>

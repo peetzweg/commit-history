@@ -1,0 +1,185 @@
+---
+title: "The 10 developers with the most commits on GitHub"
+description: "Who has the most commits on GitHub? The top 10 is not the famous framework authors, it's Linux-distribution maintainers and big-monorepo engineers. The 2026 ranking, with charts."
+publishedAt: "2026-07-20"
+updatedAt: "2026-07-20"
+order: 2
+people:
+  - { login: felixonmars, name: Felix Yan }
+  - { login: brianchandotcom, name: Brian Chan }
+  - { login: chrisguttandin, name: Christoph Guttandin }
+  - { login: mgorny, name: Michał Górny }
+  - { login: a17r, name: Andreas Sturmlechner }
+  - { login: thesamesam, name: Sam James }
+  - { login: mkartashev, name: Maxim Kartashev }
+  - { login: mcdonnnj, name: Nick }
+  - { login: Dicklesworthstone, name: Jeffrey Emanuel }
+  - { login: jsf9k, name: Shane Frasier }
+---
+
+The developer with the most public commits on GitHub is **Felix Yan**
+(@felixonmars), an Arch Linux maintainer, with more than 1.7 million. If that
+name surprises you, that is the point of this list: the commit board ranks
+*volume*, and the biggest volumes come from Linux-distribution packaging and
+giant company monorepos, not from the people whose names you know. Linus
+Torvalds, who created both Linux and Git, has about 35,000.
+
+<RankBoard unit="commits" rows={[
+	{ login: "felixonmars", name: "Felix Yan", value: "1.78M" },
+	{ login: "brianchandotcom", name: "Brian Chan", value: "468k" },
+	{ login: "chrisguttandin", name: "Christoph Guttandin", value: "324k" },
+	{ login: "mgorny", name: "Michał Górny", value: "253k" },
+	{ login: "a17r", name: "Andreas Sturmlechner", value: "178k" },
+	{ login: "thesamesam", name: "Sam James", value: "173k" },
+	{ login: "mkartashev", name: "Maxim Kartashev", value: "171k" },
+	{ login: "mcdonnnj", name: "Nick", value: "165k" },
+	{ login: "Dicklesworthstone", name: "Jeffrey Emanuel", value: "146k" },
+	{ login: "jsf9k", name: "Shane Frasier", value: "130k" },
+]} />
+
+## 1. Felix Yan
+
+<Person login="felixonmars" stats="1.78M commits · Arch Linux" />
+
+An Arch Linux developer and RISC-V porter based in Wuhan. Packaging a
+distribution is a commit factory: every version bump and patch rebase is a
+commit, across thousands of packages. That workflow, not superhuman typing,
+is how you reach seven figures.
+
+![Lifetime commit history chart of Felix Yan](/embed/felixonmars?metric=commits)
+
+## 2. Brian Chan
+
+<Person login="brianchandotcom" stats="468k commits · Liferay" />
+
+Founder and long-time chief software architect of Liferay, now its CEO.
+Nearly half a million commits reflect two decades inside one large Java
+monorepo where a merge-commit workflow lands every change on the default
+branch.
+
+![Lifetime commit history chart of Brian Chan](/embed/brianchandotcom?metric=commits)
+
+## 3. Christoph Guttandin
+
+<Person login="chrisguttandin" stats="324k commits · Web Audio" />
+
+An independent developer in Berlin behind a family of Web Audio API libraries
+(`standardized-audio-context`, `worker-timers`) and a contributor to the W3C
+Audio Working Group. Proof you don't need a distribution behind you to commit
+constantly.
+
+![Lifetime commit history chart of Christoph Guttandin](/embed/chrisguttandin?metric=commits)
+
+## 4. Michał Górny
+
+<Person login="mgorny" stats="253k commits · Gentoo" />
+
+A Gentoo developer since 2010, maintaining Python packages, LLVM, and Xfce,
+and now working at Quansight Labs. Gentoo is source-based, which makes its
+packaging especially commit-heavy, and it puts three of its maintainers in
+this top ten.
+
+![Lifetime commit history chart of Michał Górny](/embed/mgorny?metric=commits)
+
+## 5. Andreas Sturmlechner
+
+<Person login="a17r" stats="178k commits · Gentoo" />
+
+Another Gentoo developer, focused on packaging KDE and Qt. His curve is what
+a decade of desktop-stack maintenance looks like: relentless and near-linear.
+
+![Lifetime commit history chart of Andreas Sturmlechner](/embed/a17r?metric=commits)
+
+## 6. Sam James
+
+<Person login="thesamesam" stats="173k commits · Gentoo" />
+
+A Gentoo maintainer who is also a well-known contributor to GCC and the wider
+toolchain. Between distribution packaging and compiler work, few people touch
+more default branches.
+
+![Lifetime commit history chart of Sam James](/embed/thesamesam?metric=commits)
+
+## 7. Maxim Kartashev
+
+<Person login="mkartashev" stats="171k commits · JetBrains" />
+
+An engineer at JetBrains. The other route to a giant commit count is a large
+corporate codebase, and JetBrains's runtime and tooling repositories generate
+commits at industrial scale.
+
+![Lifetime commit history chart of Maxim Kartashev](/embed/mkartashev?metric=commits)
+
+## 8. Nick
+
+<Person login="mcdonnnj" stats="165k commits · @cisagov" />
+
+A maintainer working under [@cisagov](https://github.com/cisagov), the US
+Cybersecurity and Infrastructure Security Agency's open-source org. Large
+public-sector security tooling, spread across many repositories, adds up fast.
+
+![Lifetime commit history chart of Nick](/embed/mcdonnnj?metric=commits)
+
+## 9. Jeffrey Emanuel
+
+<Person login="Dicklesworthstone" stats="146k commits · independent" />
+
+An independent builder in New York, a former equity analyst who now ships AI
+and agentic-coding tooling. One of the few here whose volume comes from
+personal projects rather than a distribution or monorepo.
+
+![Lifetime commit history chart of Jeffrey Emanuel](/embed/Dicklesworthstone?metric=commits)
+
+## 10. Shane Frasier
+
+<Person login="jsf9k" stats="130k commits · @cisagov" />
+
+A self-described public servant, the second [@cisagov](https://github.com/cisagov)
+engineer in the top ten. Government cybersecurity work, like distribution
+packaging, is repository-heavy and automation-adjacent, exactly the shape that
+tops this board.
+
+![Lifetime commit history chart of Shane Frasier](/embed/jsf9k?metric=commits)
+
+## What the commit board actually measures
+
+Commit count rewards a workflow, not a person. Squash-merge teams compress a
+30-commit pull request into one; distribution packaging and direct-push
+monorepos keep every commit, which is why they own the top. It is a real
+signal, just not the one people assume: it tracks how your world turns changes
+into default-branch commits, not how good those changes are. The
+[commits metric explainer](/-/metrics/commits) has the full mechanics.
+
+## Common questions
+
+### Who has the most commits on GitHub?
+
+By our count, Felix Yan (@felixonmars), an Arch Linux maintainer, with over
+1.7 million public commits. The rest of the top ten is mostly other
+Linux-distribution maintainers (Gentoo especially) and large-monorepo
+engineers.
+
+### Why doesn't Linus Torvalds have the most commits?
+
+The Linux kernel takes changes largely as emailed patches applied by
+maintainers, so much of Linus's impact never lands as a commit authored by
+*him* on a GitHub default branch. His roughly 35,000 public commits reflect
+that workflow, not his contribution to computing.
+
+### Do more commits mean a better developer?
+
+No. Commit totals are dominated by merge style and automation. A squash-merge
+team and a direct-push packager can do identical work and differ 10× or more
+in commits. Read the count as a workflow fingerprint, not a scoreboard.
+
+## See where you land
+
+**[Look yourself up on commit-history](/)** to see your own lifetime commit
+curve and where it puts you on the [global leaderboard](/).
+
+*More GitHub rankings: [most-followed developers](/-/most-followed-github-users),
+[most pull requests](/-/most-pull-requests-on-github),
+[most code reviews](/-/most-code-reviews-on-github),
+[most issues](/-/most-issues-on-github),
+[most repositories](/-/most-repositories-on-github), and
+[most private contributions](/-/most-private-contributions-on-github).*
