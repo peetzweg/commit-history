@@ -4,10 +4,11 @@
  * snapshots — a person suspended after publication stays frozen in the article and its ItemList
  * structured data unless we catch it — so run this before refreshing or on a schedule.
  *
- * Run with bun, which auto-loads the local `.env` (point DATABASE_URL at the DB you want to check;
- * see CLAUDE.md — normally the dev copy):
+ * IMPORTANT: point DATABASE_URL at PRODUCTION, not the dev copy. Suspensions are applied to prod
+ * (via `pnpm suspend`); the dev DB is a periodic snapshot that lags moderation, so checking it
+ * gives false "all active" results. Run with bun (auto-loads `.env`); override the DB if needed:
  *
- *   bun run check:posts
+ *   DATABASE_URL=<prod-url> bun run check:posts
  *
  * Exits non-zero if any featured login is suspended or missing, listing which post to fix.
  */

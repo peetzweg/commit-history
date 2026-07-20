@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import type { MDXComponents } from "mdx/types";
 import type { ComponentProps } from "react";
 import { Person } from "#/components/Person";
+import { RankBoard } from "#/components/RankBoard";
 
 /**
  * Element overrides passed to every rendered MDX article.
@@ -42,6 +43,8 @@ function MdxImage({ alt = "", ...rest }: ComponentProps<"img">) {
 export const mdxComponents: MDXComponents = {
 	a: MdxAnchor,
 	img: MdxImage,
-	// Custom block available to posts (e.g. the per-developer profile header in rankings).
+	// Custom blocks available to posts: the per-developer profile header and the styled
+	// leaderboard that opens each ranking article (mirrors the homepage board).
 	Person,
+	RankBoard,
 };

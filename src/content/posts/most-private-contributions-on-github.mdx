@@ -11,31 +11,31 @@ people:
   - { login: taylorotwell, name: Taylor Otwell }
   - { login: fabpot, name: Fabien Potencier }
   - { login: levelsio, name: Pieter Levels }
-  - { login: dfinley, name: dfinley }
   - { login: cheshire137, name: Sarah Vessels }
   - { login: designorant, name: Michał Ordon }
   - { login: zkochan, name: Zoltan Kochan }
+  - { login: riderx, name: Martin Donadieu }
 ---
 
 The developer with the most private contributions on GitHub is **Ryan
 Hartlage** (@ryanplusplus), an embedded-firmware engineer at GE Appliances,
 with over 366,000. Private contributions are the iceberg below the waterline:
-work in private repositories, which GitHub only reveals if you opt in. So
-this board is a specific mix, the people whose real output is mostly hidden
-*and* who chose to show the count anyway.
+work in private repositories, which GitHub only reveals if you opt in. So this
+board is a specific mix, the people whose real output is mostly hidden *and*
+who chose to show the count anyway.
 
-| # | Developer | Private contributions |
-| --- | --- | ---: |
-| 1 | [Ryan Hartlage](/ryanplusplus) | 367k |
-| 2 | [Prince Chaddha](/princechaddha) | 343k |
-| 3 | [Johannes Schindelin](/dscho) | 293k |
-| 4 | [Taylor Otwell](/taylorotwell) | 168k |
-| 5 | [Fabien Potencier](/fabpot) | 168k |
-| 6 | [Pieter Levels](/levelsio) | 162k |
-| 7 | [dfinley](/dfinley) | 145k |
-| 8 | [Sarah Vessels](/cheshire137) | 143k |
-| 9 | [Michał Ordon](/designorant) | 135k |
-| 10 | [Zoltan Kochan](/zkochan) | 130k |
+<RankBoard unit="private contributions" rows={[
+	{ login: "ryanplusplus", name: "Ryan Hartlage", value: "367k" },
+	{ login: "princechaddha", name: "Prince Chaddha", value: "343k" },
+	{ login: "dscho", name: "Johannes Schindelin", value: "293k" },
+	{ login: "taylorotwell", name: "Taylor Otwell", value: "168k" },
+	{ login: "fabpot", name: "Fabien Potencier", value: "168k" },
+	{ login: "levelsio", name: "Pieter Levels", value: "162k" },
+	{ login: "cheshire137", name: "Sarah Vessels", value: "143k" },
+	{ login: "designorant", name: "Michał Ordon", value: "135k" },
+	{ login: "zkochan", name: "Zoltan Kochan", value: "130k" },
+	{ login: "riderx", name: "Martin Donadieu", value: "127k" },
+]} />
 
 ## 1. Ryan Hartlage
 
@@ -53,7 +53,7 @@ work that tops this board.
 <Person login="princechaddha" stats="343k private contributions · ProjectDiscovery" />
 
 A core member of ProjectDiscovery, makers of the Nuclei vulnerability scanner.
-Security tooling companies do much of their development privately before it
+Security-tooling companies do much of their development privately before it
 ships, and the private-contribution count captures that.
 
 ![Lifetime private-contribution chart of Prince Chaddha](/embed/princechaddha?metric=private)
@@ -99,18 +99,7 @@ almost nothing public.
 
 ![Lifetime private-contribution chart of Pieter Levels](/embed/levelsio?metric=private)
 
-## 7. dfinley
-
-<Person login="dfinley" stats="145k private contributions · unidentified" />
-
-An account with almost no public footprint: no name, no bio, a handful of
-small repositories. It is the perfect illustration of the metric. You can sit
-near the top of the private-contributions board while being effectively
-invisible on GitHub, because the work is, by definition, private.
-
-![Lifetime private-contribution chart of dfinley](/embed/dfinley?metric=private)
-
-## 8. Sarah Vessels
+## 7. Sarah Vessels
 
 <Person login="cheshire137" stats="143k private contributions · GitHub" />
 
@@ -120,7 +109,7 @@ of the job.
 
 ![Lifetime private-contribution chart of Sarah Vessels](/embed/cheshire137?metric=private)
 
-## 9. Michał Ordon
+## 8. Michał Ordon
 
 <Person login="designorant" stats="135k private contributions · independent" />
 
@@ -130,15 +119,25 @@ independent racks up a six-figure hidden count.
 
 ![Lifetime private-contribution chart of Michał Ordon](/embed/designorant?metric=private)
 
-## 10. Zoltan Kochan
+## 9. Zoltan Kochan
 
 <Person login="zkochan" stats="130k private contributions · pnpm" />
 
 The maintainer of pnpm, the fast package manager, now at Bit. A rare case
-where a very public open-source figure also carries an enormous private
-count, from the commercial work alongside the open project.
+where a very public open-source figure also carries an enormous private count,
+from the commercial work alongside the open project.
 
 ![Lifetime private-contribution chart of Zoltan Kochan](/embed/zkochan?metric=private)
+
+## 10. Martin Donadieu
+
+<Person login="riderx" stats="127k private contributions · Capgo" />
+
+The founder of Capgo, an open-source live-update platform for Capacitor apps,
+built solo and bootstrapped. Another indie maker whose product work happens
+mostly in private, alongside the open-source core.
+
+![Lifetime private-contribution chart of Martin Donadieu](/embed/riderx?metric=private)
 
 ## What the private-contributions board measures
 
@@ -147,8 +146,7 @@ single opaque count of contributions in private repositories, and only if the
 user turns on "include private contributions." So the board has a built-in
 selection effect: it is not everyone with lots of private work, only those who
 also chose to reveal the number. The names reflect that: framework creators
-who build commercially, company engineers, indie hackers, and the occasional
-account that is otherwise a ghost. The
+who build commercially, company engineers, and indie hackers. The
 [private-contributions explainer](/-/metrics/private-contributions) covers how
 the count works and why it can vanish.
 
@@ -177,9 +175,8 @@ contributions live.
 ## See where you land
 
 **[Look yourself up on commit-history](/)** and switch your chart to
-[private](/?metric=private) to see your own hidden curve, if you have
-private contributions enabled, and where it lands on the
-[global leaderboard](/).
+[private](/?metric=private) to see your own hidden curve, if you have private
+contributions enabled, and where it lands on the [global leaderboard](/).
 
 *More GitHub rankings: [most-followed developers](/-/most-followed-github-users),
 [most commits](/-/most-commits-on-github),
