@@ -1,0 +1,123 @@
+---
+title: "The 10 accounts with the most pull requests on GitHub"
+description: "Who has opened the most pull requests on GitHub? The 2026 top 10, from a Liferay CI bot to the busiest human contributors, and why the pull-request board rewards automation and package maintenance."
+publishedAt: "2026-07-20"
+updatedAt: "2026-07-20"
+order: 3
+people:
+  - { login: liferay-continuous-integration, name: Liferay Continuous Integration }
+  - { login: chenrui333, name: Rui Chen }
+  - { login: bfoley13, name: Brandon Foley }
+  - { login: AlCutter, name: Al Cutter }
+  - { login: fabaff, name: Fabian Affolter }
+  - { login: bdraco, name: J. Nick Koston }
+  - { login: p-linnane, name: Patrick Linnane }
+  - { login: kim-em, name: Kim Morrison }
+  - { login: vkameswaran, name: Vaishant Kameswaran }
+  - { login: shuyangzhou, name: Shuyang Zhou }
+---
+
+The account that has opened the most pull requests on GitHub is not a person
+at all. It is **Liferay's continuous-integration bot**
+(@liferay-continuous-integration), with more than 74,000. The most prolific
+*human* is **Rui Chen** (@chenrui333), a Homebrew maintainer, with about
+54,000. That one-two says almost everything about what the pull-request board
+measures: automation first, package maintenance second.
+
+| # | Account | Pull requests |
+| --- | --- | ---: |
+| 1 | [Liferay CI](/liferay-continuous-integration) *(bot)* | 74.7k |
+| 2 | [Rui Chen](/chenrui333) | 54.0k |
+| 3 | [Brandon Foley](/bfoley13) | 52.6k |
+| 4 | [Al Cutter](/AlCutter) | 27.3k |
+| 5 | [Fabian Affolter](/fabaff) | 24.1k |
+| 6 | [J. Nick Koston](/bdraco) | 21.7k |
+| 7 | [Patrick Linnane](/p-linnane) | 18.6k |
+| 8 | [Kim Morrison](/kim-em) | 18.4k |
+| 9 | [Vaishant Kameswaran](/vkameswaran) | 17.4k |
+| 10 | [Shuyang Zhou](/shuyangzhou) | 15.0k |
+
+A [pull request](/-/metrics/pull-requests) is counted the moment it is
+*opened*, in any public repository, whether or not it ever merges. Open one
+automatically, tens of thousands of times, and you top this board.
+
+## Why automation owns the top
+
+The number one account is a CI service that opens pull requests
+programmatically as part of Liferay's build pipeline. It is on the developer
+leaderboard because GitHub treats it as a user, but it is a machine. Bots and
+automation are the single biggest reason the extreme top of the PR board
+looks the way it does, and it is worth knowing that before reading too much
+into any raw count.
+
+## The human champions: package maintenance
+
+Strip out the bot and the humans who remain are mostly package and dependency
+maintainers, because keeping a package ecosystem current means opening a
+pull request for every single update.
+
+<Person login="chenrui333" stats="54.0k pull requests · Homebrew" />
+
+Rui Chen is a Homebrew maintainer (and an infrastructure engineer at
+Justworks). Homebrew's model turns every formula bump into a pull request, so
+its active maintainers rack up numbers no application developer ever could.
+
+<Person login="fabaff" stats="24.1k pull requests · Fedora & NixOS" />
+
+Fabian Affolter works across Fedora and NixOS, two more package universes
+where updates flow as pull requests by the thousand.
+
+<Person login="bdraco" stats="21.7k pull requests · Home Assistant" />
+
+J. Nick Koston is a core Home Assistant developer. A project that large, with
+a required-review workflow and constant dependency churn, produces pull
+requests endlessly, and its most active people sit near the top of every
+contribution board we have.
+
+![Lifetime pull-request history chart of J. Nick Koston](/embed/bdraco)
+
+The rest of the human top ten fits the same shape: Patrick Linnane leads
+Homebrew, Shuyang Zhou is another Liferay engineer, and Kim Morrison is a
+prolific contributor in the Lean theorem-prover ecosystem. High PR counts
+mark people who propose changes constantly, usually across many repositories.
+
+## What the pull-request board measures
+
+Of our metrics, PR count is the best single read on **collaboration across
+repositories**, because a pull request is a proposal made to a codebase,
+often someone else's. But at the extreme top it is dominated by two things
+that are not "great engineering": automated tooling, and the pull-request
+treadmill of package maintenance. Read it as a measure of *volume of
+proposals*, and check the [PR metric explainer](/-/metrics/pull-requests) for
+how it relates to commits and reviews.
+
+## Common questions
+
+### Who has opened the most pull requests on GitHub?
+
+By our count, the top account is Liferay's continuous-integration bot
+(@liferay-continuous-integration) with over 74,000 pull requests. The most
+prolific human is Homebrew maintainer Rui Chen (@chenrui333), with about
+54,000.
+
+### Why do bots rank so high for pull requests?
+
+GitHub counts a pull request when it is opened, and continuous-integration
+and dependency-update services open them automatically. A single automation
+account can open more pull requests in a month than a person does in years.
+
+### What is a high number of pull requests?
+
+For an individual, a few thousand lifetime pull requests already marks a very
+active open-source contributor. The five-figure counts on this board almost
+always come from package maintenance or automation, not ordinary development.
+
+## See where you land
+
+**[Look yourself up on commit-history](/)** and flip your chart to
+[pull requests](/?metric=prs) to see your own collaboration curve and where
+it lands on the [global leaderboard](/).
+
+*More rankings: the [most-followed developers](/-/most-followed-github-users),
+the [most commits](/-/most-commits-on-github), and the
+[most code reviews](/-/most-code-reviews-on-github).*

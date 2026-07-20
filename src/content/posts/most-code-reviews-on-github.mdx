@@ -1,0 +1,122 @@
+---
+title: "The 10 developers with the most code reviews on GitHub"
+description: "Who reviews the most pull requests on GitHub? The 2026 top 10 is dominated by Homebrew, Home Assistant, and other package-manager maintainers doing open source's most invisible work. Full ranking with charts."
+publishedAt: "2026-07-20"
+updatedAt: "2026-07-20"
+order: 4
+people:
+  - { login: chenrui333, name: Rui Chen }
+  - { login: frenck, name: Franck Nijhof }
+  - { login: krehel, name: Justin Krehel }
+  - { login: vinayakkulkarni, name: Vinayak Kulkarni }
+  - { login: cpanato, name: Carlos Panato }
+  - { login: khipp, name: Klaus Hipp }
+  - { login: SMillerDev, name: Sean Molenaar }
+  - { login: MartinHjelmare, name: Martin Hjelmare }
+  - { login: NickCao, name: Nick Cao }
+  - { login: p-linnane, name: Patrick Linnane }
+---
+
+The developer who has submitted the most pull-request reviews on GitHub is
+**Rui Chen** (@chenrui333), a Homebrew maintainer, with more than 66,000,
+just ahead of **Franck Nijhof** (@frenck), who leads engineering on Home
+Assistant. This is the most quietly impressive of our leaderboards. A
+[review](/-/metrics/reviews) is the work that keeps a project moving and
+leaves nothing under your own name, and the people at the top of this board
+do it tens of thousands of times.
+
+| # | Developer | Reviews |
+| --- | --- | ---: |
+| 1 | [Rui Chen](/chenrui333) | 66.4k |
+| 2 | [Franck Nijhof](/frenck) | 61.9k |
+| 3 | [Justin Krehel](/krehel) | 45.9k |
+| 4 | [Vinayak Kulkarni](/vinayakkulkarni) | 36.2k |
+| 5 | [Carlos Panato](/cpanato) | 33.5k |
+| 6 | [Klaus Hipp](/khipp) | 32.9k |
+| 7 | [Sean Molenaar](/SMillerDev) | 31.8k |
+| 8 | [Martin Hjelmare](/MartinHjelmare) | 30.4k |
+| 9 | [Nick Cao](/NickCao) | 29.9k |
+| 10 | [Patrick Linnane](/p-linnane) | 27.2k |
+
+Reviewing is the classic case of essential, invisible engineering. Reading a
+diff, checking the edge cases, testing it, and writing feedback can take
+longer than the change itself, and none of it produces a commit under the
+reviewer's name. What it produces is this number.
+
+## Two ecosystems own this board
+
+Almost every name here is a maintainer of a huge, high-throughput open-source
+project with a required-review workflow: every pull request needs an approval,
+so the active maintainers accumulate reviews as a structural consequence of
+the process.
+
+<Person login="chenrui333" stats="66.4k reviews · Homebrew" />
+
+<Person login="krehel" stats="45.9k reviews · Homebrew" />
+
+<Person login="p-linnane" stats="27.2k reviews · Homebrew" />
+
+Homebrew, the macOS package manager, puts three maintainers in the top ten.
+Every formula update is a pull request that another maintainer reviews, and
+the volume is staggering.
+
+<Person login="frenck" stats="61.9k reviews · Home Assistant" />
+
+<Person login="MartinHjelmare" stats="30.4k reviews · Home Assistant" />
+
+Franck Nijhof leads Home Assistant engineering at Nabu Casa and coordinates
+its releases; Martin Hjelmare is a fellow core developer. Home Assistant is
+one of the busiest projects on GitHub, and reviewing its firehose of
+contributions is a full-time discipline.
+
+![Lifetime review history chart of Franck Nijhof](/embed/frenck)
+
+<Person login="cpanato" stats="33.5k reviews · Chainguard" />
+
+Carlos Panato at Chainguard rounds out the pattern from the cloud-native and
+supply-chain-security world, with Red Hat's Nick Cao close behind. Different
+ecosystem, same story: maintainers whose job is increasingly to vet other
+people's code rather than write their own.
+
+## Why the review board is the interesting one
+
+Sort GitHub by [commits](/-/metrics/commits) and you get packaging and
+monorepos. Sort by [followers](/-/metrics/followers) and you get famous
+educators. Sort by reviews and you get the maintainers who keep large
+ecosystems flowing, most of whom you have never heard of. As engineers grow
+senior, their output shifts from writing changes to vetting them, so a
+steepening review curve is often a promotion drawn as a chart. It is the
+metric most likely to re-rank the developers you think you know. The
+[reviews explainer](/-/metrics/reviews) covers exactly what counts.
+
+## Common questions
+
+### Who reviews the most pull requests on GitHub?
+
+By our count, Homebrew maintainer Rui Chen (@chenrui333) with over 66,000
+reviews, narrowly ahead of Home Assistant's Franck Nijhof (@frenck) at about
+62,000.
+
+### Are code reviews counted on a GitHub profile?
+
+Yes. Submitting a review on a pull request (an approval, a change request, or
+a review comment) counts as a contribution. Plain inline comments and issue
+discussion do not. Reviews in private repositories fold into
+[private contributions](/-/metrics/private-contributions).
+
+### Why do package-manager maintainers dominate the review board?
+
+Projects like Homebrew and Home Assistant require an approving review on every
+pull request and receive enormous volumes of them. Their active maintainers
+therefore accumulate tens of thousands of reviews simply by keeping the
+project running.
+
+## See where you land
+
+**[Look yourself up on commit-history](/)** and switch your chart to
+[reviews](/?metric=reviews) to see how much of your work is the invisible
+kind, and where it puts you on the [global leaderboard](/).
+
+*More rankings: the [most-followed developers](/-/most-followed-github-users),
+the [most commits](/-/most-commits-on-github), and the
+[most pull requests](/-/most-pull-requests-on-github).*

@@ -1,0 +1,133 @@
+---
+title: "The 10 developers with the most commits on GitHub"
+description: "Who has the most commits on GitHub? The top 10 is not the famous framework authors, it's Linux-distribution maintainers and monorepo teams. The 2026 ranking, with charts and the reason why."
+publishedAt: "2026-07-20"
+updatedAt: "2026-07-20"
+order: 2
+people:
+  - { login: felixonmars, name: Felix Yan }
+  - { login: brianchandotcom, name: Brian Chan }
+  - { login: chrisguttandin, name: Christoph Guttandin }
+  - { login: mgorny, name: Michał Górny }
+  - { login: a17r, name: Andreas Sturmlechner }
+  - { login: thesamesam, name: Sam James }
+  - { login: mkartashev, name: Maxim Kartashev }
+  - { login: mcdonnnj, name: Nick }
+  - { login: Dicklesworthstone, name: Jeff Emanuel }
+  - { login: jsf9k, name: Shane Frasier }
+---
+
+The developer with the most public commits on GitHub is **Felix Yan**
+(@felixonmars), an Arch Linux maintainer, with more than 1.7 million. If
+that name surprises you, that is the whole point of this list. The commit
+leaderboard is not a ranking of the famous. It is a ranking of *volume*, and
+the biggest volumes on GitHub come from Linux-distribution packaging and
+giant company monorepos, not from the people whose names you know.
+
+| # | Developer | Commits |
+| --- | --- | ---: |
+| 1 | [Felix Yan](/felixonmars) | 1.78M |
+| 2 | [Brian Chan](/brianchandotcom) | 468k |
+| 3 | [Christoph Guttandin](/chrisguttandin) | 324k |
+| 4 | [Michał Górny](/mgorny) | 253k |
+| 5 | [Andreas Sturmlechner](/a17r) | 178k |
+| 6 | [Sam James](/thesamesam) | 173k |
+| 7 | [Maxim Kartashev](/mkartashev) | 171k |
+| 8 | [Nick](/mcdonnnj) | 165k |
+| 9 | [Jeff Emanuel](/Dicklesworthstone) | 146k |
+| 10 | [Shane Frasier](/jsf9k) | 130k |
+
+For contrast: Linus Torvalds, who created both Linux and Git, has about
+35,000 public commits. Every developer in the table above out-commits him by
+at least 3×. That gap has almost nothing to do with productivity and almost
+everything to do with how [GitHub counts commits](/-/metrics/commits).
+
+## Why the top is all Linux distributions
+
+Packaging a Linux distribution is a commit factory. Every version bump, every
+patch rebase, every dependency update is a commit on a default branch, and a
+distribution has tens of thousands of packages. Maintain a slice of that and
+your commit count climbs into six and seven figures without a single line of
+application code.
+
+<Person login="felixonmars" stats="1.78M commits · Arch Linux" />
+
+Felix Yan is an Arch Linux developer and RISC-V porter. A large share of his
+enormous count flows through Arch's package repositories, where keeping
+software current *is* the work, and the work is measured in commits.
+
+![Lifetime commit history chart of Felix Yan](/embed/felixonmars)
+
+The same pattern puts three Gentoo developers in the top six. Gentoo is a
+source-based distribution, so its packaging is especially commit-heavy.
+
+<Person login="mgorny" stats="253k commits · Gentoo" />
+
+<Person login="thesamesam" stats="173k commits · Gentoo" />
+
+Michał Górny and Sam James (with Andreas Sturmlechner close behind) are
+long-time Gentoo maintainers. Sam James is also a well-known contributor to
+GCC and the wider toolchain. Their profiles are what a decade of distribution
+maintenance looks like drawn as a curve: relentless, almost linear, and huge.
+
+## The monorepo effect
+
+The other route to a giant commit count is a single enormous codebase.
+
+<Person login="brianchandotcom" stats="468k commits · Liferay" />
+
+Brian Chan founded Liferay and was its chief software architect for seventeen
+years (he is now CEO). Nearly half a million commits reflect two decades
+inside one large Java monorepo, where a merge-commit workflow lands every
+change on the default branch. Maxim Kartashev at JetBrains sits at number
+seven for a similar reason: big corporate repositories generate commits at
+industrial scale.
+
+The rest of the table is a mix of distribution and infrastructure
+maintainers, including two engineers at the US government's
+[@cisagov](https://github.com/cisagov), plus a couple of independent
+developers whose day-to-day workflow commits directly and often. None of them
+is a household name. All of them commit more than almost anyone alive.
+
+## What the commit board actually measures
+
+Commit count rewards a workflow, not a person. Squash-merge teams compress a
+30-commit pull request into one; merge-commit and direct-push workflows keep
+every one. Distribution packaging and monorepos are the direct-push extreme,
+which is why they own the top of this board. It is a real signal, just not the
+one people assume: it measures how a developer's world turns changes into
+default-branch commits, not how good or important those changes are. The
+[commits metric explainer](/-/metrics/commits) has the full mechanics.
+
+## Common questions
+
+### Who has the most commits on GitHub?
+
+By our count, Felix Yan (@felixonmars), an Arch Linux maintainer, with over
+1.7 million public commits. The rest of the top ten is dominated by other
+Linux-distribution maintainers (Gentoo especially) and large-monorepo
+engineers.
+
+### Why doesn't Linus Torvalds have the most commits?
+
+The Linux kernel takes changes largely as emailed patches applied by
+subsystem maintainers, so a great deal of Linus's impact never lands as a
+commit authored by *him* on a GitHub default branch. His roughly 35,000
+public commits reflect that workflow, not his contribution to computing.
+
+### Do more commits mean a better developer?
+
+No. Commit totals are dominated by merge style and automation. A squash-merge
+team and a direct-push packager can do identical amounts of work and differ
+10× or more in commits. Read the count as a workflow fingerprint, not a
+scoreboard.
+
+## See where you land
+
+**[Look yourself up on commit-history](/)** to see your own lifetime commit
+curve and where it puts you on the [global leaderboard](/). Then compare
+yourself against a distribution maintainer and watch the slopes diverge.
+
+*More rankings: the [most-followed developers](/-/most-followed-github-users),
+the [most pull requests](/-/most-pull-requests-on-github), and the
+[most code reviews](/-/most-code-reviews-on-github).*
