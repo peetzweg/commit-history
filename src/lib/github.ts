@@ -57,6 +57,23 @@ const MAX_BACKOFF_MS = 4000;
 // the shared token for every visitor. Fail fast and let the cache serve what it has.
 const RETRYABLE_STATUS = new Set([500, 502, 503, 504]);
 
+/**
+ * GitHub aborts an over-expensive query with a GraphQL "resource limits for this query exceeded"
+ * error — a *dynamic* per-query cost/timeout limit (~10s of execution), tripped when a batch
+ * bundles too many EXPENSIVE aliased `contributionsCollection` windows for a hyper-active account
+ * (e.g. a recent month with hundreds of commits/private contributions). It is deterministic for a
+ * given query shape+data, so retrying the identical query is futile — the caller must split the
+ * batch into smaller windows instead (see `fetchMonthlyCommits`). We map it to 502 like other
+ * heavy-query failures, but detect it by message so both the retry loop (fail fast, don't burn
+ * ~10s per doomed attempt) and the batch fetchers (split rather than give up) can special-case it.
+ */
+function isResourceLimit(e: unknown): e is GitHubError {
+	return (
+		e instanceof GitHubError &&
+		/resource limits? for this query exceeded/i.test(e.message)
+	);
+}
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
@@ -336,6 +353,9 @@ async function graphql<T>(token: string, query: string): Promise<T> {
 		lastError = result.error;
 		if (
 			!RETRYABLE_STATUS.has(result.error.status) ||
+			// Resource-limit aborts are deterministic — retrying the same query only burns ~10s
+			// per attempt. Throw immediately so the caller can split the batch and try smaller.
+			isResourceLimit(result.error) ||
 			attempt === MAX_ATTEMPTS
 		) {
 			throw result.error;
@@ -663,6 +683,15 @@ export async function fetchOrgMemberContributions(
  * with bounded concurrency (see CONCURRENCY). Returns counts aligned 1:1 with `windows`. The cache
  * uses this to refresh only the trailing months instead of refetching a whole lifetime.
  */
+const ZERO_MONTH: MonthlyCount = {
+	commits: 0,
+	restricted: 0,
+	issues: 0,
+	pullRequests: 0,
+	reviews: 0,
+	repos: 0,
+};
+
 export async function fetchMonthlyCommits(
 	rawLogin: string,
 	token: string,
@@ -671,19 +700,15 @@ export async function fetchMonthlyCommits(
 	const login = assertLogin(rawLogin);
 	if (windows.length === 0) return [];
 
-	const batches: MonthWindow[][] = [];
-	for (let i = 0; i < windows.length; i += BATCH) {
-		batches.push(windows.slice(i, i + BATCH));
-	}
-
-	const results = await mapWithConcurrency(batches, CONCURRENCY, (batch) => {
+	// One GraphQL request for a batch of windows, returning counts aligned 1:1 with `batch`.
+	async function fetchBatch(batch: MonthWindow[]): Promise<MonthlyCount[]> {
 		const aliases = batch
 			.map(
 				(w, i) =>
 					`w${i}: contributionsCollection(from: "${w.from}", to: "${w.to}") { totalCommitContributions restrictedContributionsCount totalIssueContributions totalPullRequestContributions totalPullRequestReviewContributions totalRepositoryContributions }`,
 			)
 			.join("\n");
-		return graphql<{
+		const res = await graphql<{
 			user: Record<
 				string,
 				{
@@ -696,10 +721,7 @@ export async function fetchMonthlyCommits(
 				}
 			>;
 		}>(token, `query { user(login: "${login}") { ${aliases} } }`);
-	});
-
-	return results.flatMap((res, b) =>
-		batches[b].map((_, i) => {
+		return batch.map((_, i) => {
 			const w = res.user[`w${i}`];
 			return {
 				commits: w?.totalCommitContributions ?? 0,
@@ -709,8 +731,36 @@ export async function fetchMonthlyCommits(
 				reviews: w?.totalPullRequestReviewContributions ?? 0,
 				repos: w?.totalRepositoryContributions ?? 0,
 			};
-		}),
-	);
+		});
+	}
+
+	// A batch of hyper-active months can exceed GitHub's per-query resource limit (see
+	// isResourceLimit) or hit a transient server hiccup. Both are isolated the same way
+	// `fetchOrgMemberContributions` isolates a poisoned window: split the batch and retry the
+	// halves *sequentially* (so we never burst past the outer CONCURRENCY cap into a secondary
+	// rate limit). A single window that still fails after graphql()'s retries degrades to a
+	// zero month rather than sinking the whole build — the same last-resort the org path takes,
+	// and it self-heals on the frontier re-fetch.
+	async function fetchAdaptive(batch: MonthWindow[]): Promise<MonthlyCount[]> {
+		try {
+			return await fetchBatch(batch);
+		} catch (err) {
+			if (!isResourceLimit(err) && !isServerHiccup(err)) throw err;
+			if (batch.length === 1) return [ZERO_MONTH];
+			const mid = Math.ceil(batch.length / 2);
+			const left = await fetchAdaptive(batch.slice(0, mid));
+			const right = await fetchAdaptive(batch.slice(mid));
+			return [...left, ...right];
+		}
+	}
+
+	const batches: MonthWindow[][] = [];
+	for (let i = 0; i < windows.length; i += BATCH) {
+		batches.push(windows.slice(i, i + BATCH));
+	}
+
+	const results = await mapWithConcurrency(batches, CONCURRENCY, fetchAdaptive);
+	return results.flat();
 }
 
 /** Accumulate per-month counts into separate cumulative series (public + private). */
