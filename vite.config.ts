@@ -46,18 +46,16 @@ const config = defineConfig({
 			}),
 		},
 		tanstackStart({
-			// Generated into the client output as /sitemap.xml (replaces the old static file;
-			// robots.txt already points there). Only pages listed below are included — the
-			// dynamic per-user sitemap (#70) will join as a sitemap index later.
-			sitemap: { host: "https://commit-history.com" },
-			// Only the explicit list below — never crawl into DB-backed routes.
+			// Prerender config only. The sitemap is NOT generated here: a single-segment file
+			// like /sitemap.xml written into the client output isn't in nitro's static-asset
+			// manifest, so the `$user` catch-all shadows it at runtime. It's served instead by
+			// an explicit route (src/routes/sitemap[.]xml.tsx), the same trick robots.txt uses.
 			prerender: { autoStaticPathsDiscovery: false },
 			pages: [
-				// Homepage is DB-driven — sitemap entry only, never prerendered.
+				// Homepage is DB-driven — never prerendered (and listed in the sitemap route).
 				{
 					path: "/",
 					prerender: { enabled: false },
-					sitemap: { changefreq: "weekly", priority: 1.0 },
 				},
 				// `enabled: true` must be explicit — it's what switches prerendering on for
 				// the whole build (a page relying on the schema default doesn't). And
@@ -73,31 +71,25 @@ const config = defineConfig({
 				{
 					path: "/-/metrics",
 					prerender: { enabled: true, crawlLinks: false },
-					sitemap: { changefreq: "monthly", priority: 0.8 },
 				},
 				// The sponsor pitch page — static content, so prerendered like the explainers.
 				{
 					path: "/-/sponsoring",
 					prerender: { enabled: true, crawlLinks: false },
-					sitemap: { changefreq: "monthly", priority: 0.5 },
 				},
 				...metricSlugs.map((slug) => ({
 					path: `/-/metrics/${slug}`,
 					prerender: { enabled: true, crawlLinks: false },
-					sitemap: { changefreq: "monthly" as const, priority: 0.7 },
 				})),
 				// Organization-context explainers.
 				...orgSlugs.map((slug) => ({
 					path: `/-/organizations/${slug}`,
 					prerender: { enabled: true, crawlLinks: false },
-					sitemap: { changefreq: "monthly" as const, priority: 0.7 },
 				})),
-				// Standalone posts, flat under /-/ (leaderboard rankings etc). Refreshed in place,
-				// so weekly signals crawlers to revisit as the underlying boards move.
+				// Standalone posts, flat under /-/ (leaderboard rankings etc).
 				...postSlugs.map((slug) => ({
 					path: `/-/${slug}`,
 					prerender: { enabled: true, crawlLinks: false },
-					sitemap: { changefreq: "weekly" as const, priority: 0.8 },
 				})),
 			],
 		}),
