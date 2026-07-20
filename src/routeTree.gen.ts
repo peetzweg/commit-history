@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SponsoringRouteImport } from './routes/sponsoring'
+import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as UserRouteImport } from './routes/$user'
 import { Route as IndexRouteImport } from './routes/index'
@@ -28,6 +29,11 @@ import { Route as Char91Char93MetricsSlugRouteImport } from './routes/[-].metric
 const SponsoringRoute = SponsoringRouteImport.update({
   id: '/sponsoring',
   path: '/sponsoring',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RobotsDottxtRoute = RobotsDottxtRouteImport.update({
@@ -107,6 +113,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$user': typeof UserRoute
   '/robots.txt': typeof RobotsDottxtRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/sponsoring': typeof SponsoringRoute
   '/-/$slug': typeof Char91Char93SlugRoute
   '/-/sponsoring': typeof Char91Char93SponsoringRoute
@@ -124,6 +131,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$user': typeof UserRoute
   '/robots.txt': typeof RobotsDottxtRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/sponsoring': typeof SponsoringRoute
   '/-/$slug': typeof Char91Char93SlugRoute
   '/-/sponsoring': typeof Char91Char93SponsoringRoute
@@ -142,6 +150,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/$user': typeof UserRoute
   '/robots.txt': typeof RobotsDottxtRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/sponsoring': typeof SponsoringRoute
   '/-/$slug': typeof Char91Char93SlugRoute
   '/-/sponsoring': typeof Char91Char93SponsoringRoute
@@ -161,6 +170,7 @@ export interface FileRouteTypes {
     | '/'
     | '/$user'
     | '/robots.txt'
+    | '/sitemap.xml'
     | '/sponsoring'
     | '/-/$slug'
     | '/-/sponsoring'
@@ -178,6 +188,7 @@ export interface FileRouteTypes {
     | '/'
     | '/$user'
     | '/robots.txt'
+    | '/sitemap.xml'
     | '/sponsoring'
     | '/-/$slug'
     | '/-/sponsoring'
@@ -195,6 +206,7 @@ export interface FileRouteTypes {
     | '/'
     | '/$user'
     | '/robots.txt'
+    | '/sitemap.xml'
     | '/sponsoring'
     | '/-/$slug'
     | '/-/sponsoring'
@@ -213,6 +225,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   UserRoute: typeof UserRoute
   RobotsDottxtRoute: typeof RobotsDottxtRoute
+  SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   SponsoringRoute: typeof SponsoringRoute
   Char91Char93SlugRoute: typeof Char91Char93SlugRoute
   Char91Char93SponsoringRoute: typeof Char91Char93SponsoringRoute
@@ -234,6 +247,13 @@ declare module '@tanstack/react-router' {
       path: '/sponsoring'
       fullPath: '/sponsoring'
       preLoaderRoute: typeof SponsoringRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/robots.txt': {
@@ -341,6 +361,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   UserRoute: UserRoute,
   RobotsDottxtRoute: RobotsDottxtRoute,
+  SitemapDotxmlRoute: SitemapDotxmlRoute,
   SponsoringRoute: SponsoringRoute,
   Char91Char93SlugRoute: Char91Char93SlugRoute,
   Char91Char93SponsoringRoute: Char91Char93SponsoringRoute,

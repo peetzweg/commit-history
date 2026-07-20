@@ -1,6 +1,7 @@
 import {
 	createFileRoute,
 	Link,
+	notFound,
 	useNavigate,
 	useRouter,
 } from "@tanstack/react-router";
@@ -55,7 +56,13 @@ export const Route = createFileRoute("/$user")({
 		isMetricParam(search.metric) ? { metric: search.metric } : {},
 	// GitHub logins are one namespace across users and orgs, so this route serves both:
 	// /paritytech renders the org view, /peetzweg the user view (see getLookup).
-	loader: ({ params }) => getLookup({ data: parseLogins(params.user) }),
+	loader: ({ params }) => {
+		// A dot is never valid in a GitHub login, so a single segment containing one is a static
+		// file (sitemap.xml, foo.php probes, …), not a user. Refuse it here so this catch-all can
+		// never render a bogus "<file>'s commit history" page and shadow a real asset/route.
+		if (params.user.includes(".")) throw notFound();
+		return getLookup({ data: parseLogins(params.user) });
+	},
 	head: ({
 		params,
 		loaderData,
