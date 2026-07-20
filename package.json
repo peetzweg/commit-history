@@ -16,6 +16,7 @@
     "format": "biome format",
     "lint": "biome lint",
     "check": "biome check",
+    "check:posts": "bun scripts/check-post-people.ts",
     "suspend": "bun scripts/suspend.ts",
     "refresh": "bun scripts/refresh.ts",
     "backfill": "bun scripts/backfill-contributions.ts",
