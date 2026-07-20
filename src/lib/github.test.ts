@@ -1,5 +1,11 @@
-import { describe, expect, it } from "vitest";
-import { isValidLogin, monthlyWindows, yearlyWindows } from "#/lib/github";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+	fetchMonthlyCommits,
+	isValidLogin,
+	type MonthWindow,
+	monthlyWindows,
+	yearlyWindows,
+} from "#/lib/github";
 
 const YEAR_MS = 365 * 24 * 60 * 60 * 1000;
 
@@ -84,5 +90,90 @@ describe("yearlyWindows", () => {
 		expect(yearly.at(-1)?.to.slice(0, 7)).toBe(
 			monthly.at(-1)?.label.slice(0, 7),
 		);
+	});
+});
+
+describe("fetchMonthlyCommits adaptive batching", () => {
+	afterEach(() => vi.unstubAllGlobals());
+
+	// A GraphQL "resource limits exceeded" body (HTTP 200 with errors), as GitHub returns when
+	// a batch bundles too many expensive contributionsCollection windows.
+	const resourceLimit = {
+		ok: true,
+		status: 200,
+		headers: { get: () => null },
+		json: async () => ({
+			errors: [{ message: "Resource limits for this query exceeded." }],
+		}),
+	};
+	const dataFor = (aliasCount: number) => {
+		const user: Record<string, unknown> = {};
+		for (let i = 0; i < aliasCount; i++) {
+			user[`w${i}`] = {
+				totalCommitContributions: 1,
+				restrictedContributionsCount: 0,
+				totalIssueContributions: 0,
+				totalPullRequestContributions: 0,
+				totalPullRequestReviewContributions: 0,
+				totalRepositoryContributions: 0,
+			};
+		}
+		return {
+			ok: true,
+			status: 200,
+			headers: { get: () => null },
+			json: async () => ({ data: { user } }),
+		};
+	};
+	const aliasCount = (init: RequestInit) => {
+		const { query } = JSON.parse(init.body as string) as { query: string };
+		return (query.match(/contributionsCollection/g) ?? []).length;
+	};
+	const windows = (n: number): MonthWindow[] =>
+		monthlyWindows(new Date("2019-01-01T00:00:00Z"), new Date()).slice(0, n);
+
+	it("splits an over-limit batch and reassembles all windows in order", async () => {
+		let maxAliasSeen = 0;
+		// Any query wider than 3 windows trips the limit; 3-or-fewer succeed — so the initial
+		// 6-window batch must be split before it can complete.
+		vi.stubGlobal("fetch", async (_url: string, init: RequestInit) => {
+			const n = aliasCount(init);
+			maxAliasSeen = Math.max(maxAliasSeen, n);
+			return n > 3 ? resourceLimit : dataFor(n);
+		});
+
+		const ws = windows(6);
+		const counts = await fetchMonthlyCommits("someactiveuser", "tok", ws);
+
+		expect(maxAliasSeen).toBe(6); // the wide batch was attempted (and rejected) first
+		expect(counts).toHaveLength(6); // every window survives the split
+		expect(counts.every((c) => c.commits === 1)).toBe(true);
+	});
+
+	it("degrades a single window that always exceeds the limit to a zero month", async () => {
+		// Even a one-window query is rejected — the last-resort zero path must engage.
+		vi.stubGlobal("fetch", async () => resourceLimit);
+
+		const counts = await fetchMonthlyCommits("someuser", "tok", windows(2));
+
+		expect(counts).toHaveLength(2);
+		expect(counts).toEqual([
+			{
+				commits: 0,
+				restricted: 0,
+				issues: 0,
+				pullRequests: 0,
+				reviews: 0,
+				repos: 0,
+			},
+			{
+				commits: 0,
+				restricted: 0,
+				issues: 0,
+				pullRequests: 0,
+				reviews: 0,
+				repos: 0,
+			},
+		]);
 	});
 });
