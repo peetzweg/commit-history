@@ -24,6 +24,7 @@ function contentSlugs(collection: string): string[] {
 }
 const metricSlugs = contentSlugs("metrics");
 const orgSlugs = contentSlugs("organizations");
+const postSlugs = contentSlugs("posts");
 
 const config = defineConfig({
 	resolve: { tsconfigPaths: true },
@@ -90,6 +91,13 @@ const config = defineConfig({
 					path: `/-/organizations/${slug}`,
 					prerender: { enabled: true, crawlLinks: false },
 					sitemap: { changefreq: "monthly" as const, priority: 0.7 },
+				})),
+				// Standalone posts, flat under /-/ (leaderboard rankings etc). Refreshed in place,
+				// so weekly signals crawlers to revisit as the underlying boards move.
+				...postSlugs.map((slug) => ({
+					path: `/-/${slug}`,
+					prerender: { enabled: true, crawlLinks: false },
+					sitemap: { changefreq: "weekly" as const, priority: 0.8 },
 				})),
 			],
 		}),

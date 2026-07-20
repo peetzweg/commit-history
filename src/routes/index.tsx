@@ -629,6 +629,20 @@ function Leaderboard({ initialPage }: { initialPage: LeaderEntry[] }) {
 				</h2>
 				<p className="mt-1.5 text-xs text-muted-foreground">
 					{subtitle} <ExplainerLink metric={mode} />
+					{/* The followers board has an editorial companion — surface it right where
+					    the ranking it describes is on screen. */}
+					{mode === "followers" && (
+						<>
+							{" "}
+							<Link
+								to="/-/$slug"
+								params={{ slug: "most-followed-github-users" }}
+								className="whitespace-nowrap underline decoration-dotted underline-offset-2 hover:text-foreground"
+							>
+								Meet the top 10 →
+							</Link>
+						</>
+					)}
 				</p>
 			</div>
 			<ol>

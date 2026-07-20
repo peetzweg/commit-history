@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import type { MDXComponents } from "mdx/types";
 import type { ComponentProps } from "react";
+import { Person } from "#/components/Person";
 
 /**
  * Element overrides passed to every rendered MDX article.
@@ -32,6 +33,15 @@ function MdxAnchor({ href = "", children, ...rest }: ComponentProps<"a">) {
 	);
 }
 
+/** Article images (e.g. the /embed charts in ranking articles) load lazily — a listicle can
+ *  carry ten of them, and none should compete with the text for bandwidth. */
+function MdxImage({ alt = "", ...rest }: ComponentProps<"img">) {
+	return <img alt={alt} loading="lazy" decoding="async" {...rest} />;
+}
+
 export const mdxComponents: MDXComponents = {
 	a: MdxAnchor,
+	img: MdxImage,
+	// Custom block available to posts (e.g. the per-developer profile header in rankings).
+	Person,
 };

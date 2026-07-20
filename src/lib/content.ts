@@ -5,6 +5,9 @@
  * - src/content/organizations/<slug>.mdx → /-/organizations/<slug> (organization context —
  *   deliberately its own collection, NOT mixed into the individuals' hub: the definitions differ,
  *   e.g. org-scoped vs global contributions)
+ * - src/content/posts/<slug>.mdx → /-/<slug> (standalone long-form pieces, e.g. leaderboard
+ *   rankings — flat under /-/ so each gets a clean article slug with no section prefix;
+ *   time-sensitive ones carry a visible updatedAt)
  *
  * Two globs per collection with different costs:
  * - an eager, frontmatter-only glob (tiny — just the exported metadata objects), used
@@ -99,5 +102,37 @@ export function loadOrgArticle(
 	slug: string,
 ): Promise<{ default: MDXContent }> | undefined {
 	const load = orgComponents[`../content/organizations/${slug}.mdx`];
+	return load?.();
+}
+
+// ── Standalone posts collection (/-/<slug>) ──────────────────────────────────
+
+const postFrontmatters = import.meta.glob<ArticleFrontmatter>(
+	"../content/posts/*.mdx",
+	{ eager: true, import: "frontmatter" },
+);
+
+const postComponents = import.meta.glob<{ default: MDXContent }>(
+	"../content/posts/*.mdx",
+);
+
+/** All standalone posts in curated reading order. */
+export const posts: ArticleMeta[] = Object.entries(postFrontmatters)
+	.map(([path, fm]) => ({ slug: slugOf(path), ...fm }))
+	.sort(
+		(a, b) =>
+			(a.order ?? Number.MAX_SAFE_INTEGER) -
+				(b.order ?? Number.MAX_SAFE_INTEGER) || a.title.localeCompare(b.title),
+	);
+
+export function getPostMeta(slug: string): ArticleMeta | undefined {
+	return posts.find((a) => a.slug === slug);
+}
+
+/** Lazily import a post's compiled MDX module (shape fits React.lazy). */
+export function loadPost(
+	slug: string,
+): Promise<{ default: MDXContent }> | undefined {
+	const load = postComponents[`../content/posts/${slug}.mdx`];
 	return load?.();
 }
