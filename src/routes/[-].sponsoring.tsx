@@ -75,10 +75,15 @@ function SponsoringPage() {
 				thing people scroll past on every visit.
 			</p>
 
-			{thanks && <ThanksBanner />}
-
-			{/* Live per-slot status: rent on the spot when a slot is open, mailto fallback otherwise. */}
-			<SlotsSection />
+			{/* After a purchase (?thanks=1) show only the confirmation — hiding the slot cards, since
+			    the buyer's own slot may still read "Available" for the moment before the webhook busts
+			    the status cache, which reads as confusing right after paying. */}
+			{thanks ? (
+				<ThanksBanner />
+			) : (
+				// Live per-slot status: rent on the spot when a slot is open, mailto fallback otherwise.
+				<SlotsSection />
+			)}
 
 			<h2 className="mt-12 text-xl font-semibold">The numbers</h2>
 			<p className="mt-2 text-muted-foreground">
