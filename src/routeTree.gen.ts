@@ -9,36 +9,27 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as SponsoringRouteImport } from './routes/sponsoring'
-import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
-import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
-import { Route as UserRouteImport } from './routes/$user'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as OrganizationsSlugRouteImport } from './routes/organizations.$slug'
-import { Route as MetricsExplainedRouteImport } from './routes/metrics.explained'
-import { Route as MetricsSlugRouteImport } from './routes/metrics.$slug'
-import { Route as EmbedUserRouteImport } from './routes/embed.$user'
-import { Route as CompanySlugRouteImport } from './routes/company.$slug'
-import { Route as Char91Char93SponsoringRouteImport } from './routes/[-].sponsoring'
+import { Route as UserRouteImport } from './routes/$user'
+import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
+import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
+import { Route as SponsoringRouteImport } from './routes/sponsoring'
 import { Route as Char91Char93SlugRouteImport } from './routes/[-].$slug'
+import { Route as Char91Char93SponsoringRouteImport } from './routes/[-].sponsoring'
+import { Route as CompanySlugRouteImport } from './routes/company.$slug'
+import { Route as EmbedUserRouteImport } from './routes/embed.$user'
+import { Route as MetricsSlugRouteImport } from './routes/metrics.$slug'
+import { Route as MetricsExplainedRouteImport } from './routes/metrics.explained'
+import { Route as OrganizationsSlugRouteImport } from './routes/organizations.$slug'
+import { Route as Char91Char93ApiStripeWebhookRouteImport } from './routes/[-].api.stripe-webhook'
 import { Route as Char91Char93MetricsIndexRouteImport } from './routes/[-].metrics.index'
-import { Route as OgKindLoginRouteImport } from './routes/og.$kind.$login'
-import { Route as Char91Char93OrganizationsSlugRouteImport } from './routes/[-].organizations.$slug'
 import { Route as Char91Char93MetricsSlugRouteImport } from './routes/[-].metrics.$slug'
+import { Route as Char91Char93OrganizationsSlugRouteImport } from './routes/[-].organizations.$slug'
+import { Route as OgKindLoginRouteImport } from './routes/og.$kind.$login'
 
-const SponsoringRoute = SponsoringRouteImport.update({
-  id: '/sponsoring',
-  path: '/sponsoring',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
-  id: '/sitemap.xml',
-  path: '/sitemap.xml',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RobotsDottxtRoute = RobotsDottxtRouteImport.update({
-  id: '/robots.txt',
-  path: '/robots.txt',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const UserRoute = UserRouteImport.update({
@@ -46,39 +37,19 @@ const UserRoute = UserRouteImport.update({
   path: '/$user',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const RobotsDottxtRoute = RobotsDottxtRouteImport.update({
+  id: '/robots.txt',
+  path: '/robots.txt',
   getParentRoute: () => rootRouteImport,
 } as any)
-const OrganizationsSlugRoute = OrganizationsSlugRouteImport.update({
-  id: '/organizations/$slug',
-  path: '/organizations/$slug',
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
   getParentRoute: () => rootRouteImport,
 } as any)
-const MetricsExplainedRoute = MetricsExplainedRouteImport.update({
-  id: '/metrics/explained',
-  path: '/metrics/explained',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const MetricsSlugRoute = MetricsSlugRouteImport.update({
-  id: '/metrics/$slug',
-  path: '/metrics/$slug',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const EmbedUserRoute = EmbedUserRouteImport.update({
-  id: '/embed/$user',
-  path: '/embed/$user',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CompanySlugRoute = CompanySlugRouteImport.update({
-  id: '/company/$slug',
-  path: '/company/$slug',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const Char91Char93SponsoringRoute = Char91Char93SponsoringRouteImport.update({
-  id: '/-/sponsoring',
-  path: '/-/sponsoring',
+const SponsoringRoute = SponsoringRouteImport.update({
+  id: '/sponsoring',
+  path: '/sponsoring',
   getParentRoute: () => rootRouteImport,
 } as any)
 const Char91Char93SlugRoute = Char91Char93SlugRouteImport.update({
@@ -86,15 +57,51 @@ const Char91Char93SlugRoute = Char91Char93SlugRouteImport.update({
   path: '/-/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const Char91Char93SponsoringRoute = Char91Char93SponsoringRouteImport.update({
+  id: '/-/sponsoring',
+  path: '/-/sponsoring',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CompanySlugRoute = CompanySlugRouteImport.update({
+  id: '/company/$slug',
+  path: '/company/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EmbedUserRoute = EmbedUserRouteImport.update({
+  id: '/embed/$user',
+  path: '/embed/$user',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MetricsSlugRoute = MetricsSlugRouteImport.update({
+  id: '/metrics/$slug',
+  path: '/metrics/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MetricsExplainedRoute = MetricsExplainedRouteImport.update({
+  id: '/metrics/explained',
+  path: '/metrics/explained',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OrganizationsSlugRoute = OrganizationsSlugRouteImport.update({
+  id: '/organizations/$slug',
+  path: '/organizations/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const Char91Char93ApiStripeWebhookRoute =
+  Char91Char93ApiStripeWebhookRouteImport.update({
+    id: '/-/api/stripe-webhook',
+    path: '/-/api/stripe-webhook',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const Char91Char93MetricsIndexRoute =
   Char91Char93MetricsIndexRouteImport.update({
     id: '/-/metrics/',
     path: '/-/metrics/',
     getParentRoute: () => rootRouteImport,
   } as any)
-const OgKindLoginRoute = OgKindLoginRouteImport.update({
-  id: '/og/$kind/$login',
-  path: '/og/$kind/$login',
+const Char91Char93MetricsSlugRoute = Char91Char93MetricsSlugRouteImport.update({
+  id: '/-/metrics/$slug',
+  path: '/-/metrics/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
 const Char91Char93OrganizationsSlugRoute =
@@ -103,9 +110,9 @@ const Char91Char93OrganizationsSlugRoute =
     path: '/-/organizations/$slug',
     getParentRoute: () => rootRouteImport,
   } as any)
-const Char91Char93MetricsSlugRoute = Char91Char93MetricsSlugRouteImport.update({
-  id: '/-/metrics/$slug',
-  path: '/-/metrics/$slug',
+const OgKindLoginRoute = OgKindLoginRouteImport.update({
+  id: '/og/$kind/$login',
+  path: '/og/$kind/$login',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -122,6 +129,7 @@ export interface FileRoutesByFullPath {
   '/metrics/$slug': typeof MetricsSlugRoute
   '/metrics/explained': typeof MetricsExplainedRoute
   '/organizations/$slug': typeof OrganizationsSlugRoute
+  '/-/api/stripe-webhook': typeof Char91Char93ApiStripeWebhookRoute
   '/-/metrics/$slug': typeof Char91Char93MetricsSlugRoute
   '/-/organizations/$slug': typeof Char91Char93OrganizationsSlugRoute
   '/og/$kind/$login': typeof OgKindLoginRoute
@@ -140,6 +148,7 @@ export interface FileRoutesByTo {
   '/metrics/$slug': typeof MetricsSlugRoute
   '/metrics/explained': typeof MetricsExplainedRoute
   '/organizations/$slug': typeof OrganizationsSlugRoute
+  '/-/api/stripe-webhook': typeof Char91Char93ApiStripeWebhookRoute
   '/-/metrics/$slug': typeof Char91Char93MetricsSlugRoute
   '/-/organizations/$slug': typeof Char91Char93OrganizationsSlugRoute
   '/og/$kind/$login': typeof OgKindLoginRoute
@@ -159,6 +168,7 @@ export interface FileRoutesById {
   '/metrics/$slug': typeof MetricsSlugRoute
   '/metrics/explained': typeof MetricsExplainedRoute
   '/organizations/$slug': typeof OrganizationsSlugRoute
+  '/-/api/stripe-webhook': typeof Char91Char93ApiStripeWebhookRoute
   '/-/metrics/$slug': typeof Char91Char93MetricsSlugRoute
   '/-/organizations/$slug': typeof Char91Char93OrganizationsSlugRoute
   '/og/$kind/$login': typeof OgKindLoginRoute
@@ -179,6 +189,7 @@ export interface FileRouteTypes {
     | '/metrics/$slug'
     | '/metrics/explained'
     | '/organizations/$slug'
+    | '/-/api/stripe-webhook'
     | '/-/metrics/$slug'
     | '/-/organizations/$slug'
     | '/og/$kind/$login'
@@ -197,6 +208,7 @@ export interface FileRouteTypes {
     | '/metrics/$slug'
     | '/metrics/explained'
     | '/organizations/$slug'
+    | '/-/api/stripe-webhook'
     | '/-/metrics/$slug'
     | '/-/organizations/$slug'
     | '/og/$kind/$login'
@@ -215,6 +227,7 @@ export interface FileRouteTypes {
     | '/metrics/$slug'
     | '/metrics/explained'
     | '/organizations/$slug'
+    | '/-/api/stripe-webhook'
     | '/-/metrics/$slug'
     | '/-/organizations/$slug'
     | '/og/$kind/$login'
@@ -234,6 +247,7 @@ export interface RootRouteChildren {
   MetricsSlugRoute: typeof MetricsSlugRoute
   MetricsExplainedRoute: typeof MetricsExplainedRoute
   OrganizationsSlugRoute: typeof OrganizationsSlugRoute
+  Char91Char93ApiStripeWebhookRoute: typeof Char91Char93ApiStripeWebhookRoute
   Char91Char93MetricsSlugRoute: typeof Char91Char93MetricsSlugRoute
   Char91Char93OrganizationsSlugRoute: typeof Char91Char93OrganizationsSlugRoute
   OgKindLoginRoute: typeof OgKindLoginRoute
@@ -242,25 +256,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/sponsoring': {
-      id: '/sponsoring'
-      path: '/sponsoring'
-      fullPath: '/sponsoring'
-      preLoaderRoute: typeof SponsoringRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/sitemap.xml': {
-      id: '/sitemap.xml'
-      path: '/sitemap.xml'
-      fullPath: '/sitemap.xml'
-      preLoaderRoute: typeof SitemapDotxmlRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/robots.txt': {
-      id: '/robots.txt'
-      path: '/robots.txt'
-      fullPath: '/robots.txt'
-      preLoaderRoute: typeof RobotsDottxtRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/$user': {
@@ -270,53 +270,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof UserRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/robots.txt': {
+      id: '/robots.txt'
+      path: '/robots.txt'
+      fullPath: '/robots.txt'
+      preLoaderRoute: typeof RobotsDottxtRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/organizations/$slug': {
-      id: '/organizations/$slug'
-      path: '/organizations/$slug'
-      fullPath: '/organizations/$slug'
-      preLoaderRoute: typeof OrganizationsSlugRouteImport
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/metrics/explained': {
-      id: '/metrics/explained'
-      path: '/metrics/explained'
-      fullPath: '/metrics/explained'
-      preLoaderRoute: typeof MetricsExplainedRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/metrics/$slug': {
-      id: '/metrics/$slug'
-      path: '/metrics/$slug'
-      fullPath: '/metrics/$slug'
-      preLoaderRoute: typeof MetricsSlugRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/embed/$user': {
-      id: '/embed/$user'
-      path: '/embed/$user'
-      fullPath: '/embed/$user'
-      preLoaderRoute: typeof EmbedUserRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/company/$slug': {
-      id: '/company/$slug'
-      path: '/company/$slug'
-      fullPath: '/company/$slug'
-      preLoaderRoute: typeof CompanySlugRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/-/sponsoring': {
-      id: '/-/sponsoring'
-      path: '/-/sponsoring'
-      fullPath: '/-/sponsoring'
-      preLoaderRoute: typeof Char91Char93SponsoringRouteImport
+    '/sponsoring': {
+      id: '/sponsoring'
+      path: '/sponsoring'
+      fullPath: '/sponsoring'
+      preLoaderRoute: typeof SponsoringRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/-/$slug': {
@@ -326,6 +298,55 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof Char91Char93SlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/-/sponsoring': {
+      id: '/-/sponsoring'
+      path: '/-/sponsoring'
+      fullPath: '/-/sponsoring'
+      preLoaderRoute: typeof Char91Char93SponsoringRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/company/$slug': {
+      id: '/company/$slug'
+      path: '/company/$slug'
+      fullPath: '/company/$slug'
+      preLoaderRoute: typeof CompanySlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/embed/$user': {
+      id: '/embed/$user'
+      path: '/embed/$user'
+      fullPath: '/embed/$user'
+      preLoaderRoute: typeof EmbedUserRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/metrics/$slug': {
+      id: '/metrics/$slug'
+      path: '/metrics/$slug'
+      fullPath: '/metrics/$slug'
+      preLoaderRoute: typeof MetricsSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/metrics/explained': {
+      id: '/metrics/explained'
+      path: '/metrics/explained'
+      fullPath: '/metrics/explained'
+      preLoaderRoute: typeof MetricsExplainedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/organizations/$slug': {
+      id: '/organizations/$slug'
+      path: '/organizations/$slug'
+      fullPath: '/organizations/$slug'
+      preLoaderRoute: typeof OrganizationsSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/-/api/stripe-webhook': {
+      id: '/-/api/stripe-webhook'
+      path: '/-/api/stripe-webhook'
+      fullPath: '/-/api/stripe-webhook'
+      preLoaderRoute: typeof Char91Char93ApiStripeWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/-/metrics/': {
       id: '/-/metrics/'
       path: '/-/metrics'
@@ -333,11 +354,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof Char91Char93MetricsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/og/$kind/$login': {
-      id: '/og/$kind/$login'
-      path: '/og/$kind/$login'
-      fullPath: '/og/$kind/$login'
-      preLoaderRoute: typeof OgKindLoginRouteImport
+    '/-/metrics/$slug': {
+      id: '/-/metrics/$slug'
+      path: '/-/metrics/$slug'
+      fullPath: '/-/metrics/$slug'
+      preLoaderRoute: typeof Char91Char93MetricsSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/-/organizations/$slug': {
@@ -347,11 +368,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof Char91Char93OrganizationsSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/-/metrics/$slug': {
-      id: '/-/metrics/$slug'
-      path: '/-/metrics/$slug'
-      fullPath: '/-/metrics/$slug'
-      preLoaderRoute: typeof Char91Char93MetricsSlugRouteImport
+    '/og/$kind/$login': {
+      id: '/og/$kind/$login'
+      path: '/og/$kind/$login'
+      fullPath: '/og/$kind/$login'
+      preLoaderRoute: typeof OgKindLoginRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -370,6 +391,7 @@ const rootRouteChildren: RootRouteChildren = {
   MetricsSlugRoute: MetricsSlugRoute,
   MetricsExplainedRoute: MetricsExplainedRoute,
   OrganizationsSlugRoute: OrganizationsSlugRoute,
+  Char91Char93ApiStripeWebhookRoute: Char91Char93ApiStripeWebhookRoute,
   Char91Char93MetricsSlugRoute: Char91Char93MetricsSlugRoute,
   Char91Char93OrganizationsSlugRoute: Char91Char93OrganizationsSlugRoute,
   OgKindLoginRoute: OgKindLoginRoute,

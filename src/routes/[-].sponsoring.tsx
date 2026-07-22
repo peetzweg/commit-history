@@ -1,4 +1,7 @@
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import type { SponsorSlotId } from "#/content/sponsors";
+import { getSponsorSlots, type SlotState } from "#/lib/sponsor";
 
 const SITE = "https://commit-history.com";
 const TITLE = "Sponsoring commit-history.com";
@@ -23,7 +26,14 @@ const STATS = [
 	{ value: "38%", label: "bounce rate" },
 ] as const;
 
+interface SponsoringSearch {
+	/** Set by the Stripe Payment Link's after-payment redirect (?thanks=1) → shows the banner. */
+	thanks?: true;
+}
+
 export const Route = createFileRoute("/-/sponsoring")({
+	validateSearch: (search: Record<string, unknown>): SponsoringSearch =>
+		search.thanks === "1" || search.thanks === true ? { thanks: true } : {},
 	head: () => ({
 		meta: [
 			{ title: `${TITLE} · Commit History` },
@@ -44,6 +54,7 @@ export const Route = createFileRoute("/-/sponsoring")({
 });
 
 function SponsoringPage() {
+	const { thanks } = Route.useSearch();
 	return (
 		<main className="mx-auto max-w-3xl px-6 py-12">
 			<Link
@@ -59,18 +70,15 @@ function SponsoringPage() {
 				</span>
 			</h1>
 			<p className="mt-3 text-muted-foreground">
-				One sponsor slot, rendered like a leaderboard entry, in 5th place of
-				both the developer and the organization leaderboard — the first thing
-				people scroll past on every visit.
+				One sponsor slot on each leaderboard, rendered like a leaderboard entry
+				in 5th place of the developer and the organization board — the first
+				thing people scroll past on every visit.
 			</p>
 
-			{/* CTA up top: interested sponsors shouldn't have to scroll to find the contact. */}
-			<div className="mt-6 flex flex-wrap items-center gap-3">
-				<a href={MAILTO} className="btn-primary">
-					Get in touch
-				</a>
-				<span className="text-sm text-muted-foreground">{CONTACT}</span>
-			</div>
+			{thanks && <ThanksBanner />}
+
+			{/* Live per-slot status: rent on the spot when a slot is open, mailto fallback otherwise. */}
+			<SlotsSection />
 
 			<h2 className="mt-12 text-xl font-semibold">The numbers</h2>
 			<p className="mt-2 text-muted-foreground">
@@ -115,12 +123,118 @@ function SponsoringPage() {
 			</p>
 
 			<p className="mt-12 text-muted-foreground">
-				Interested?{" "}
+				Questions, or want to sort out a logo and the details first?{" "}
 				<a href={MAILTO} className="font-medium text-foreground underline">
 					Send a mail to {CONTACT}
 				</a>{" "}
 				and we’ll figure out the rest.
 			</p>
 		</main>
+	);
+}
+
+// Copy shown alongside each slot's status card.
+const SLOT_META: Record<SponsorSlotId, { title: string; blurb: string }> = {
+	dev: {
+		title: "Developer board",
+		blurb: "5th place on the developer leaderboard.",
+	},
+	org: {
+		title: "Organization board",
+		blurb:
+			"5th place on the organization leaderboard, shown on every org’s page.",
+	},
+};
+
+const SLOT_ORDER: readonly SponsorSlotId[] = ["dev", "org"];
+
+/**
+ * The two slot cards with live status. Loads client-side (no initialData) so the page stays
+ * prerendered — the card starts on the mailto fallback and upgrades to "Rent this slot" / "Booked"
+ * once Stripe answers. Any unconfigured/failed slot simply stays on the fallback.
+ */
+function SlotsSection() {
+	const { data } = useQuery({
+		queryKey: ["sponsor-slots"],
+		queryFn: () => getSponsorSlots(),
+		staleTime: 60_000,
+	});
+	const byId = new Map((data ?? []).map((s) => [s.id, s]));
+	return (
+		<section className="mt-10">
+			<h2 className="text-xl font-semibold">The slots</h2>
+			<p className="mt-2 text-muted-foreground">
+				Two slots, one sponsor each. Rent one and it’s yours until you cancel —
+				billed monthly, no double-booking.
+			</p>
+			<div className="mt-6 grid gap-4 sm:grid-cols-2">
+				{SLOT_ORDER.map((id) => (
+					<SlotCard key={id} id={id} state={byId.get(id)} />
+				))}
+			</div>
+		</section>
+	);
+}
+
+function SlotCard({ id, state }: { id: SponsorSlotId; state?: SlotState }) {
+	const meta = SLOT_META[id];
+	const status = state?.status ?? "unknown";
+	return (
+		<div className="flex flex-col rounded-lg border p-5">
+			<div className="flex items-center justify-between gap-2">
+				<h3 className="font-semibold">{meta.title}</h3>
+				{status === "available" && (
+					<span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+						Available
+					</span>
+				)}
+				{status === "booked" && (
+					<span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+						Booked
+					</span>
+				)}
+			</div>
+			<p className="mt-1 flex-1 text-sm text-muted-foreground">{meta.blurb}</p>
+			<div className="mt-4">
+				{status === "available" && state?.buyUrl ? (
+					// External Stripe-hosted checkout — full page nav, not client routing.
+					<a
+						href={state.buyUrl}
+						className="btn-primary flex w-full justify-center"
+					>
+						Rent this slot
+					</a>
+				) : status === "booked" ? (
+					<p className="text-sm text-muted-foreground">
+						Taken right now.{" "}
+						<a href={MAILTO} className="underline hover:text-foreground">
+							Ask to be next
+						</a>
+						.
+					</p>
+				) : (
+					// Unknown: Stripe unconfigured or unreachable → the reliable mailto path.
+					<a href={MAILTO} className="btn-secondary flex w-full justify-center">
+						Get in touch
+					</a>
+				)}
+			</div>
+		</div>
+	);
+}
+
+/** Shown after a successful Payment Link checkout (?thanks=1): the next step is the logo email. */
+function ThanksBanner() {
+	return (
+		<div className="mt-6 rounded-lg border border-primary/30 bg-primary/5 p-4">
+			<p className="font-medium">Thanks for renting a slot! 🎉</p>
+			<p className="mt-1 text-sm text-muted-foreground">
+				One thing left: email your logo (SVG or PNG) to{" "}
+				<a href={MAILTO} className="underline hover:text-foreground">
+					{CONTACT}
+				</a>{" "}
+				and we’ll put your creative live on the leaderboard.
+			</p>
+		</div>
 	);
 }
