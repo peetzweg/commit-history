@@ -19,6 +19,7 @@
     "check:posts": "bun scripts/check-post-people.ts",
     "suspend": "bun scripts/suspend.ts",
     "refresh": "bun scripts/refresh.ts",
+    "refresh-user": "bun scripts/refresh-user.ts",
     "backfill": "bun scripts/backfill-contributions.ts",
     "backup": "bash scripts/backup.sh",
     "db:generate": "drizzle-kit generate",
