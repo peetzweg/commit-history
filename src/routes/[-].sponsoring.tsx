@@ -136,13 +136,12 @@ function SponsoringPage() {
 // Copy shown alongside each slot's status card.
 const SLOT_META: Record<SponsorSlotId, { title: string; blurb: string }> = {
 	dev: {
-		title: "Developer board",
-		blurb: "5th place on the developer leaderboard.",
+		title: "Slot #5 on the Developer Leaderboard",
+		blurb: "The sponsor row in 5th place, seen on every visit.",
 	},
 	org: {
-		title: "Organization board",
-		blurb:
-			"5th place on the organization leaderboard, shown on every org’s page.",
+		title: "Slot #5 on the Organization Leaderboards",
+		blurb: "Including each organization’s internal leaderboard.",
 	},
 };
 
