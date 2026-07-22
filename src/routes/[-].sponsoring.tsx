@@ -16,6 +16,12 @@ const OG_IMAGE = `${SITE}/og/sponsoring.png`;
 
 const CONTACT = "phil.czek@gmail.com";
 const MAILTO = `mailto:${CONTACT}?subject=${encodeURIComponent("Sponsoring commit-history.com")}`;
+// Prefilled logo email for the post-purchase confirmation — the buyer's one remaining step.
+const MAILTO_LOGO = `mailto:${CONTACT}?subject=${encodeURIComponent(
+	"My sponsor logo for commit-history.com",
+)}&body=${encodeURIComponent(
+	"Hi! I just rented a sponsor slot. My logo is attached (SVG or PNG).\n\nProduct name:\nTagline:\nLink URL:",
+)}`;
 
 // Site analytics, collected since June 27, 2026. Update LAST_UPDATED when refreshing numbers.
 const LAST_UPDATED = "July 14, 2026";
@@ -55,6 +61,11 @@ export const Route = createFileRoute("/-/sponsoring")({
 
 function SponsoringPage() {
 	const { thanks } = Route.useSearch();
+	// After a purchase (?thanks=1) the whole page becomes a focused confirmation — the pitch and
+	// the slot cards are hidden so the one remaining step (email the logo) can't be missed. Hiding
+	// the cards also sidesteps the confusing moment where the buyer's own slot still reads
+	// "Available" until the webhook busts the status cache.
+	if (thanks) return <ThanksView />;
 	return (
 		<main className="mx-auto max-w-3xl px-6 py-12">
 			<Link
@@ -74,8 +85,6 @@ function SponsoringPage() {
 				in 5th place of the developer and the organization board — the first
 				thing people scroll past on every visit.
 			</p>
-
-			{thanks && <ThanksBanner />}
 
 			{/* Live per-slot status: rent on the spot when a slot is open, mailto fallback otherwise. */}
 			<SlotsSection />
@@ -222,18 +231,49 @@ function SlotCard({ id, state }: { id: SponsorSlotId; state?: SlotState }) {
 	);
 }
 
-/** Shown after a successful Payment Link checkout (?thanks=1): the next step is the logo email. */
-function ThanksBanner() {
+/**
+ * The whole page after a successful Payment Link checkout (?thanks=1): a focused confirmation with
+ * one clear call to action — email the logo — and nothing else competing for attention.
+ */
+function ThanksView() {
 	return (
-		<div className="mt-6 rounded-lg border border-primary/30 bg-primary/5 p-4">
-			<p className="font-medium">Thanks for renting a slot! 🎉</p>
-			<p className="mt-1 text-sm text-muted-foreground">
-				One thing left: email your logo (SVG or PNG) to{" "}
-				<a href={MAILTO} className="underline hover:text-foreground">
-					{CONTACT}
-				</a>{" "}
-				and we’ll put your creative live on the leaderboard.
+		<main className="mx-auto flex min-h-[70vh] max-w-xl flex-col items-center justify-center px-6 py-16 text-center">
+			<div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 text-3xl">
+				🎉
+			</div>
+			<h1 className="mt-6 text-3xl font-bold leading-tight">You’re in!</h1>
+			<p className="mt-3 text-muted-foreground">
+				Thanks for renting a sponsor slot on{" "}
+				<span className="font-hand text-primary">commit-history.com</span>. Your
+				subscription is active.
 			</p>
-		</div>
+
+			{/* The one remaining step, given its own emphasised card + primary action so it can't be
+			    scrolled past or missed. */}
+			<div className="mt-8 w-full rounded-xl border border-primary/30 bg-primary/5 p-6 text-left">
+				<p className="font-semibold">One last step: send us your logo</p>
+				<p className="mt-1 text-sm text-muted-foreground">
+					Email your logo (SVG or PNG) — plus your product name, tagline, and
+					link if you didn’t add them at checkout — and we’ll put your creative
+					live on the leaderboard.
+				</p>
+				<a href={MAILTO_LOGO} className="btn-primary mt-4 inline-flex">
+					Email your logo →
+				</a>
+				<p className="mt-3 text-xs text-muted-foreground">
+					Or write to{" "}
+					<a href={MAILTO_LOGO} className="underline hover:text-foreground">
+						{CONTACT}
+					</a>
+				</p>
+			</div>
+
+			<Link
+				to="/"
+				className="mt-8 text-sm text-muted-foreground hover:text-foreground"
+			>
+				← Back to the leaderboard
+			</Link>
+		</main>
 	);
 }
