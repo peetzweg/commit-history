@@ -217,8 +217,26 @@ async function queryLeaderboard(
 	return scoped.orderBy(order, tiebreak).limit(limit).offset(offset);
 }
 
+/**
+ * How many raw lookup rows queryRecent inspects. The strip needs RECENT_LIMIT *distinct* entities,
+ * so this needs headroom for repeat searches of the same login (and the odd suspended/repo row) —
+ * but it must stay a constant: `lookups` is append-only and unbounded, and aggregating the whole
+ * table made every strip poll scan the full search history.
+ */
+const RECENT_SCAN_WINDOW = 400;
+
 async function queryRecent(limit: number): Promise<RecentEntry[]> {
 	if (!db) return [];
+	// Newest slice first (walks lookups_searched_at_idx, stops after the window), dedupe after.
+	const recent = db
+		.select({
+			entityId: lookups.entityId,
+			searchedAt: lookups.searchedAt,
+		})
+		.from(lookups)
+		.orderBy(desc(lookups.searchedAt))
+		.limit(RECENT_SCAN_WINDOW)
+		.as("recent");
 	const rows = await db
 		.select({
 			login: entities.login,
@@ -226,10 +244,10 @@ async function queryRecent(limit: number): Promise<RecentEntry[]> {
 			avatarUrl: entities.avatarUrl,
 			kind: entities.kind,
 			isVerified: entities.isVerified,
-			last: sql<string>`max(${lookups.searchedAt})`,
+			last: sql<string>`max(${recent.searchedAt})`,
 		})
-		.from(lookups)
-		.innerJoin(entities, eq(entities.id, lookups.entityId))
+		.from(recent)
+		.innerJoin(entities, eq(entities.id, recent.entityId))
 		// Users and orgs both belong in the strip (each links to /$user, which resolves either);
 		// repos are the only other kind and don't get a page here, so they're excluded.
 		.where(
@@ -239,7 +257,7 @@ async function queryRecent(limit: number): Promise<RecentEntry[]> {
 			),
 		)
 		.groupBy(entities.id)
-		.orderBy(desc(sql`max(${lookups.searchedAt})`))
+		.orderBy(desc(sql`max(${recent.searchedAt})`))
 		.limit(limit);
 	return rows.map((r) => ({
 		login: r.login,
