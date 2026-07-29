@@ -370,6 +370,31 @@ async function graphql<T>(token: string, query: string): Promise<T> {
 	throw lastError ?? new GitHubError("GitHub request failed.", 502);
 }
 
+export interface RateLimitBudget {
+	/** Points left in the current hour. */
+	remaining: number;
+	/** ISO timestamp when the window resets and `remaining` returns to the full quota. */
+	resetAt: string;
+}
+
+/**
+ * Current GraphQL points budget for the token. `rateLimit` queries cost 0 points, so batch jobs
+ * can poll this to stay above a reserved floor (the token is SHARED with live site traffic).
+ * Best-effort: returns null if the poll itself fails, so a caller can only ever *add* caution.
+ */
+export async function fetchRateLimitBudget(
+	token: string,
+): Promise<RateLimitBudget | null> {
+	try {
+		const data = await graphql<{
+			rateLimit: { remaining: number; resetAt: string } | null;
+		}>(token, `query { rateLimit { remaining resetAt } }`);
+		return data.rateLimit ?? null;
+	} catch {
+		return null;
+	}
+}
+
 function assertLogin(rawLogin: string): string {
 	const login = rawLogin.trim();
 	if (!isValidLogin(login)) {

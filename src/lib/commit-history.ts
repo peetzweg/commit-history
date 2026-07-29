@@ -1,8 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import {
-	type AnyColumn,
 	and,
-	asc,
 	desc,
 	eq,
 	gt,
@@ -20,6 +18,15 @@ import {
 	type CommitHistory,
 	GitHubError,
 } from "#/lib/github";
+import {
+	activeRankedUser,
+	type LeaderMetric,
+	metricOrder,
+	metricPositiveColumn,
+	metricTiebreak,
+	metricTotalExpr,
+	RANK_COLUMN,
+} from "#/lib/leaderboard-rank";
 import { availableMetrics, METRIC_TOTAL } from "#/lib/metrics";
 
 /**
@@ -125,15 +132,8 @@ export interface StartPageData {
 	leaderboard: LeaderEntry[];
 }
 
-export type LeaderMode =
-	| "public"
-	| "prs"
-	| "issues"
-	| "reviews"
-	| "repos"
-	| "private"
-	| "total"
-	| "followers";
+/** Leaderboard metric. Defined with the ranking rules in `leaderboard-rank.ts`. */
+export type LeaderMode = LeaderMetric;
 
 /**
  * Cumulative row counts revealed at each scroll step. The list is capped at the final value
@@ -153,32 +153,6 @@ async function queryLeaderboard(
 	limit: number,
 ): Promise<LeaderEntry[]> {
 	if (!db) return [];
-	// The column each mode ranks by. `total` is the one that isn't a single column (see below).
-	const rankCol = {
-		public: entities.totalCommits,
-		prs: entities.totalPullRequests,
-		issues: entities.totalIssues,
-		reviews: entities.totalReviews,
-		repos: entities.totalRepos,
-		private: entities.totalRestricted,
-		followers: entities.followers,
-		total: entities.totalCommits, // unused — `total` orders by a sum, handled below
-	}[mode];
-	// `total` = every contribution type summed. The per-type columns are nullable (null until a
-	// row is backfilled), so COALESCE them to 0 — else the whole sum would be NULL and the row
-	// would sink regardless of its commits. (totalCommits/totalRestricted are NOT NULL.)
-	// NULLS LAST so not-yet-backfilled rows (null type totals / followers) sink to the bottom.
-	const order =
-		mode === "total"
-			? desc(
-					sql`${entities.totalCommits} + coalesce(${entities.totalIssues}, 0) + coalesce(${entities.totalPullRequests}, 0) + coalesce(${entities.totalReviews}, 0) + coalesce(${entities.totalRepos}, 0) + ${entities.totalRestricted}`,
-				)
-			: sql`${rankCol} desc nulls last`;
-	// Deterministic tiebreaker. Without it, Postgres returns tied rows in arbitrary,
-	// query-to-query-different order — and since each scroll stop is a separate OFFSET query,
-	// a tie group straddling a page boundary gets shuffled between fetches: some users appear
-	// twice in the stitched list and others silently vanish from the board entirely.
-	const tiebreak = asc(entities.id);
 	const cols = {
 		login: entities.login,
 		name: entities.name,
@@ -192,29 +166,15 @@ async function queryLeaderboard(
 		followers: entities.followers,
 	};
 	const base = db.select(cols).from(entities);
-	// Suspended entities (gamed/under-investigation) are hidden from every mode. Only users:
-	// org rows rank on their own board, and the org build creates not-yet-built user *stubs*
-	// (builtAt null, zero months) which must not pad the bottom of the board — hence builtAt.
-	const active = and(
-		isNull(entities.suspendedAt),
-		eq(entities.kind, "user"),
-		isNotNull(entities.builtAt),
-	);
-	// The per-type, private and followers boards only list users with a positive count — no point
-	// ranking a wall of zeros, and it naturally excludes not-yet-backfilled (null) rows. `public`
-	// and `both` list everyone active.
-	const positive = {
-		prs: entities.totalPullRequests,
-		issues: entities.totalIssues,
-		reviews: entities.totalReviews,
-		repos: entities.totalRepos,
-		private: entities.totalRestricted,
-		followers: entities.followers,
-	}[mode as "prs" | "issues" | "reviews" | "repos" | "private" | "followers"];
+	const active = activeRankedUser();
+	const positive = metricPositiveColumn(mode);
 	const scoped = positive
 		? base.where(and(active, gt(positive, 0)))
 		: base.where(active);
-	return scoped.orderBy(order, tiebreak).limit(limit).offset(offset);
+	return scoped
+		.orderBy(metricOrder(mode), metricTiebreak())
+		.limit(limit)
+		.offset(offset);
 }
 
 async function queryRecent(limit: number): Promise<RecentEntry[]> {
@@ -319,17 +279,6 @@ async function suspendedSet(logins: string[]): Promise<Set<string>> {
 	return new Set(rows.map((r) => r.login.toLowerCase()));
 }
 
-// The column each single-column metric ranks by — mirrors the leaderboard ordering in
-// `queryLeaderboard`. "total" isn't a single column (it's a sum) and is handled inline below.
-const RANK_COL: Record<Exclude<ChartMode, "total">, AnyColumn> = {
-	public: entities.totalCommits,
-	prs: entities.totalPullRequests,
-	issues: entities.totalIssues,
-	reviews: entities.totalReviews,
-	repos: entities.totalRepos,
-	private: entities.totalRestricted,
-};
-
 /**
  * Leaderboard position for a user with `value` in `mode`: how many active entities sit ahead of
  * them, plus one — same ordering as that metric's leaderboard, so the number matches where you'd
@@ -344,20 +293,13 @@ async function metricRankFor(
 	if (!db) return null;
 	const ahead =
 		mode === "total"
-			? sql`${entities.totalCommits} + coalesce(${entities.totalIssues}, 0) + coalesce(${entities.totalPullRequests}, 0) + coalesce(${entities.totalReviews}, 0) + coalesce(${entities.totalRepos}, 0) + ${entities.totalRestricted} > ${value}`
-			: gt(RANK_COL[mode], value);
+			? sql`${metricTotalExpr()} > ${value}`
+			: gt(RANK_COLUMN[mode], value);
 	const [row] = await db
 		.select({ ahead: sql<number>`count(*)` })
 		.from(entities)
-		// Same population as queryLeaderboard's `active` — rank numbers must match the board.
-		.where(
-			and(
-				isNull(entities.suspendedAt),
-				eq(entities.kind, "user"),
-				isNotNull(entities.builtAt),
-				ahead,
-			),
-		);
+		// Same population as the board itself — rank numbers must match where you'd land on it.
+		.where(and(activeRankedUser(), ahead));
 	return Number(row?.ahead ?? 0) + 1;
 }
 

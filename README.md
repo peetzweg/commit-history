@@ -105,6 +105,33 @@ bun run refresh           # refresh only un-backfilled rows (followers is null)
 bun run refresh --all     # refresh every user
 ```
 
+### Monthly contribution refresh (scheduled)
+
+Contribution *months* are a separate axis from profile metadata. Lookups only ever fetch completed
+months, so the month that just ended stays missing from a cached profile until someone views it.
+A scheduled worker fills it in for the users who are actually visible: the deduped union of the
+top 500 of every leaderboard.
+
+```bash
+pnpm monthly:user --dry-run            # preview the cohort, no GitHub calls, no writes
+pnpm monthly:user --help               # every flag and its env var
+```
+
+In production it runs as a Coolify **scheduled task** on the app image, no separate service:
+
+| Setting | Value |
+| --- | --- |
+| **Command** | `node .output/worker/monthly-user-refresh.mjs` |
+| **Schedule (UTC)** | `0 3 1 * *` main pass · `0 9 1 * *` and `0 3 2 * *` retry passes |
+
+Run it several times rather than once. Every pass is idempotent: users that already have the
+target month are skipped without a GitHub call, so a missing month row *is* the retry queue.
+Overlapping runs are prevented by a Postgres advisory lock (the loser exits 0). The worker
+enforces the UTC month boundary itself — it refuses to touch an incomplete month and exits early
+if invoked before `MONTHLY_USER_SAFE_AFTER_UTC` on the 1st — so scheduler timezone drift can't
+record a half-finished month. It also stays above a reserved GraphQL points floor, since the
+token is shared with live traffic.
+
 ## ☁️ Deploy (self-hosted)
 
 The build emits a standalone Node server via [nitro](https://nitro.build) — `pnpm build && pnpm start` serves the whole app on port 3000. The multi-stage `Dockerfile` packages exactly that, so any Docker host works; production runs on [Coolify](https://coolify.io) (build pack: Dockerfile, port 3000) behind Cloudflare, which edge-caches `/embed/*` — the embeds already send `s-maxage` for any CDN.
@@ -113,6 +140,7 @@ The build emits a standalone Node server via [nitro](https://nitro.build) — `p
 | --- | --- |
 | **Build** | `docker build .` (or `pnpm build` for bare Node) |
 | **Run** | container `CMD` / `pnpm start` → listens on `:3000` (`PORT` overridable) |
+| **Scheduled task** | `node .output/worker/monthly-user-refresh.mjs` (see above) |
 | **Environment variables** | `GITHUB_TOKEN` (required), `DATABASE_URL` (for the persistent cache + leaderboard) |
 
 ## 🛠️ Tech
