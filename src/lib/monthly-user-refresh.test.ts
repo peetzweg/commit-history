@@ -27,6 +27,10 @@ class FakeStore implements MonthlyRefreshStore {
 		return (this.metricRows[metric] ?? []).slice(0, limit);
 	}
 
+	async countMissingMonth(ids: string[], month: string) {
+		return ids.filter((id) => !this.existing.has(`${id}:${month}`)).length;
+	}
+
 	async hasMonth(id: string, month: string) {
 		return this.existing.has(`${id}:${month}`);
 	}
@@ -126,6 +130,7 @@ describe("runMonthlyUserRefresh", () => {
 		expect(result).toMatchObject({
 			targetMonth: "2026-07-01",
 			candidates: 3,
+			missingTargetMonth: 2,
 			skippedFresh: 1,
 			refreshed: 2,
 			failed: 0,
@@ -161,6 +166,132 @@ describe("runMonthlyUserRefresh", () => {
 		});
 
 		expect(attempts).toBe(2);
+		expect(result.failed).toBe(1);
+		expect(store.existing.has("user:failing:2026-07-01")).toBe(false);
+	});
+
+	it("waits for the window to reset when the budget dips below the floor", async () => {
+		const store = new FakeStore({
+			public: [candidate("Ada"), candidate("Grace")],
+		});
+		const clock = 1_800_000_000_000;
+		const slept: number[] = [];
+		const budgets = [
+			{ remaining: 5_000, resetAt: new Date(clock + 600_000).toISOString() },
+			{ remaining: 120, resetAt: new Date(clock + 600_000).toISOString() },
+			{ remaining: 5_000, resetAt: new Date(clock + 4_200_000).toISOString() },
+		];
+		let polls = 0;
+
+		const result = await runMonthlyUserRefresh({
+			store,
+			token: "token",
+			now: new Date("2026-08-01T04:00:00Z"),
+			targetMonth: "2026-07-01",
+			metrics: ["public"],
+			limitPerMetric: 2,
+			ratePerHour: 3600,
+			remainingFloor: 500,
+			pollEvery: 1,
+			maxRuntimeMs: 60 * 60_000,
+			timeMs: () => clock,
+			sleep: async (ms) => {
+				slept.push(ms);
+			},
+			fetchRateLimit: async () => budgets[polls++] ?? budgets[2],
+			fetchMonthlyCommits: async () => [
+				{
+					commits: 1,
+					restricted: 0,
+					issues: 0,
+					pullRequests: 0,
+					reviews: 0,
+					repos: 0,
+				},
+			],
+		});
+
+		expect(result.status).toBe("completed");
+		expect(result.refreshed).toBe(2);
+		// Slept until the reported reset (+1s) rather than spending below the floor.
+		expect(slept).toContain(601_000);
+	});
+
+	it("stops instead of sleeping past its max runtime when below the floor", async () => {
+		const store = new FakeStore({ public: [candidate("Ada")] });
+		const clock = 1_800_000_000_000;
+		let fetches = 0;
+
+		const result = await runMonthlyUserRefresh({
+			store,
+			token: "token",
+			now: new Date("2026-08-01T04:00:00Z"),
+			targetMonth: "2026-07-01",
+			metrics: ["public"],
+			limitPerMetric: 1,
+			ratePerHour: 3600,
+			remainingFloor: 500,
+			maxRuntimeMs: 10 * 60_000,
+			timeMs: () => clock,
+			sleep: async () => {},
+			// Window resets in 50 minutes, well past the 10-minute runtime budget.
+			fetchRateLimit: async () => ({
+				remaining: 12,
+				resetAt: new Date(clock + 50 * 60_000).toISOString(),
+			}),
+			fetchMonthlyCommits: async () => {
+				fetches += 1;
+				return [];
+			},
+		});
+
+		expect(fetches).toBe(0);
+		expect(result.status).toBe("stopped");
+		expect(result.stopReason).toBe("rate_limit_floor");
+		expect(store.existing.size).toBe(0);
+	});
+
+	it("re-polls the real budget before retrying a failed user", async () => {
+		const store = new FakeStore({ public: [candidate("Failing")] });
+		const clock = 1_800_000_000_000;
+		let polls = 0;
+		let attempts = 0;
+
+		const result = await runMonthlyUserRefresh({
+			store,
+			token: "token",
+			now: new Date("2026-08-01T04:00:00Z"),
+			targetMonth: "2026-07-01",
+			metrics: ["public"],
+			limitPerMetric: 1,
+			ratePerHour: 3600,
+			remainingFloor: 500,
+			maxRuntimeMs: 10 * 60_000,
+			timeMs: () => clock,
+			sleep: async () => {},
+			fetchRateLimit: async () => {
+				polls += 1;
+				// Healthy before the request, exhausted by the time it fails.
+				return polls === 1
+					? {
+							remaining: 5_000,
+							resetAt: new Date(clock + 600_000).toISOString(),
+						}
+					: {
+							remaining: 3,
+							resetAt: new Date(clock + 50 * 60_000).toISOString(),
+						};
+			},
+			fetchMonthlyCommits: async () => {
+				attempts += 1;
+				throw new Error("You have exceeded a secondary rate limit");
+			},
+		});
+
+		// The failure was the rate limit: the second attempt is abandoned rather than fired into
+		// a wall, and the missing month row stays as the retry queue for the next pass.
+		expect(attempts).toBe(1);
+		expect(polls).toBe(2);
 		expect(result.failed).toBe(1);
 		expect(store.existing.has("user:failing:2026-07-01")).toBe(false);
 	});

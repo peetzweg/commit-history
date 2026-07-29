@@ -1,17 +1,13 @@
-import {
-	type AnyColumn,
-	and,
-	asc,
-	desc,
-	eq,
-	gt,
-	isNotNull,
-	isNull,
-	sql,
-} from "drizzle-orm";
+import { and, eq, gt, inArray, isNotNull, sql } from "drizzle-orm";
 import type { DB } from "#/lib/db";
 import { entities, monthlyCommits } from "#/lib/db/schema";
 import type { MonthlyCount } from "#/lib/github";
+import {
+	activeRankedUser,
+	metricOrder,
+	metricPositiveColumn,
+	metricTiebreak,
+} from "#/lib/leaderboard-rank";
 import type {
 	MonthlyRefreshStore,
 	RefreshCandidate,
@@ -21,33 +17,61 @@ import type {
 const USER_REFRESH_LOCK_KEY_1 = 20260701;
 const USER_REFRESH_LOCK_KEY_2 = 1;
 
-const RANK_COL: Record<Exclude<UserRefreshMetric, "total">, AnyColumn> = {
-	public: entities.totalCommits,
-	prs: entities.totalPullRequests,
-	issues: entities.totalIssues,
-	reviews: entities.totalReviews,
-	repos: entities.totalRepos,
-	private: entities.totalRestricted,
-	followers: entities.followers,
-};
+export function createMonthlyUserRefreshStore(
+	database: DB,
+): MonthlyRefreshStore {
+	// Advisory locks are SESSION-scoped, and `database.execute` takes an arbitrary connection out
+	// of the postgres.js pool. Unlocking from a different connection than the one holding the lock
+	// silently returns false, so the lock is pinned to a reserved connection for the run's
+	// lifetime. (Mutual exclusion would work either way — a second process is a second session —
+	// but a release that quietly no-ops is a trap for whoever reuses this next.)
+	let lockConn: Awaited<ReturnType<DB["$client"]["reserve"]>> | null = null;
 
-export function createMonthlyUserRefreshStore(database: DB): MonthlyRefreshStore {
 	return {
 		async tryLock() {
-			const rows = (await database.execute(
-				sql`select pg_try_advisory_lock(${USER_REFRESH_LOCK_KEY_1}, ${USER_REFRESH_LOCK_KEY_2}) as acquired`,
-			)) as unknown as Array<{ acquired: boolean }>;
-			return Boolean(rows[0]?.acquired);
+			lockConn = await database.$client.reserve();
+			const [row] = await lockConn<Array<{ acquired: boolean }>>`
+				select pg_try_advisory_lock(${USER_REFRESH_LOCK_KEY_1}, ${USER_REFRESH_LOCK_KEY_2}) as acquired`;
+			const acquired = Boolean(row?.acquired);
+			if (!acquired) {
+				lockConn.release();
+				lockConn = null;
+			}
+			return acquired;
 		},
 
 		async releaseLock() {
-			await database.execute(
-				sql`select pg_advisory_unlock(${USER_REFRESH_LOCK_KEY_1}, ${USER_REFRESH_LOCK_KEY_2})`,
-			);
+			if (!lockConn) return;
+			try {
+				const [row] = await lockConn<Array<{ released: boolean }>>`
+					select pg_advisory_unlock(${USER_REFRESH_LOCK_KEY_1}, ${USER_REFRESH_LOCK_KEY_2}) as released`;
+				if (!row?.released) {
+					console.warn(
+						"monthly-user-refresh lock=release_returned_false (was it held by this session?)",
+					);
+				}
+			} finally {
+				lockConn.release();
+				lockConn = null;
+			}
 		},
 
 		async usersForMetric(metric, limit) {
-			return usersForMetric(database, metric as UserRefreshMetric, limit);
+			return usersForMetric(database, metric, limit);
+		},
+
+		async countMissingMonth(ids, month) {
+			if (ids.length === 0) return 0;
+			const [row] = await database
+				.select({ n: sql<number>`count(*)` })
+				.from(entities)
+				.where(
+					and(
+						inArray(entities.id, ids),
+						sql`not exists (select 1 from ${monthlyCommits} mc where mc.entity_id = ${entities.id} and mc.month = ${month})`,
+					),
+				);
+			return Number(row?.n ?? 0);
 		},
 
 		async hasMonth(id, month) {
@@ -88,22 +112,36 @@ export function createMonthlyUserRefreshStore(database: DB): MonthlyRefreshStore
 		},
 
 		async recomputeTotals(id, fetchedAt) {
-			const totals = await aggregateMonthlyTotals(database, id);
+			const row = await monthlyTotals(database, id);
 			// `last_fetched` is the contribution-month freshness marker for this worker. It does
 			// not mean profile metadata was refreshed; profile columns stay on-demand/manual.
+			//
+			// commits/restricted are NOT NULL and the app's own tail refresh already restamps
+			// total_commits from the month rows, so summing them here is the same operation.
+			//
+			// The four per-type columns are different: NULL means "never backfilled", and a
+			// not-yet-backfilled user's month rows sit at 0 (see the monthly_commits schema note
+			// and `persistEntity` in cache.ts, which refuses to write these on a tail refresh for
+			// exactly this reason). Summing those would replace "unknown" with a fabricated small
+			// number AND retire the marker `pnpm backfill` selects on, so the user could never be
+			// repaired. Leave NULL as NULL and let the backfill own it.
 			await database
 				.update(entities)
 				.set({
-					totalCommits: totals.commits,
-					totalRestricted: totals.restricted,
-					totalIssues: totals.issues,
-					totalPullRequests: totals.pullRequests,
-					totalReviews: totals.reviews,
-					totalRepos: totals.repos,
+					totalCommits: row.totals.commits,
+					totalRestricted: row.totals.restricted,
 					lastFetched: fetchedAt,
+					...(row.backfilled.issues ? { totalIssues: row.totals.issues } : {}),
+					...(row.backfilled.pullRequests
+						? { totalPullRequests: row.totals.pullRequests }
+						: {}),
+					...(row.backfilled.reviews
+						? { totalReviews: row.totals.reviews }
+						: {}),
+					...(row.backfilled.repos ? { totalRepos: row.totals.repos } : {}),
 				})
 				.where(eq(entities.id, id));
-			return totals;
+			return row.totals;
 		},
 	};
 }
@@ -113,42 +151,30 @@ async function usersForMetric(
 	metric: UserRefreshMetric,
 	limit: number,
 ): Promise<RefreshCandidate[]> {
-	const active = and(
-		isNull(entities.suspendedAt),
-		eq(entities.kind, "user"),
-		isNotNull(entities.builtAt),
-	);
-	const rankCol = metric === "total" ? entities.totalCommits : RANK_COL[metric];
-	const order =
-		metric === "total"
-			? desc(totalExpr())
-			: sql`${rankCol} desc nulls last`;
-	const positive = {
-		prs: entities.totalPullRequests,
-		issues: entities.totalIssues,
-		reviews: entities.totalReviews,
-		repos: entities.totalRepos,
-		private: entities.totalRestricted,
-		followers: entities.followers,
-	}[metric as "prs" | "issues" | "reviews" | "repos" | "private" | "followers"];
-
-	const where = positive ? and(active, gt(positive, 0)) : active;
+	// Same population, order and tiebreak as the metric's leaderboard — the cohort is defined as
+	// "the top N of each board", so any divergence here means a visible user never gets refreshed.
+	const active = activeRankedUser();
+	const positive = metricPositiveColumn(metric);
 	return database
 		.select({ id: entities.id, login: entities.login })
 		.from(entities)
-		.where(where)
-		.orderBy(order, asc(entities.id))
+		.where(positive ? and(active, gt(positive, 0)) : active)
+		.orderBy(metricOrder(metric), metricTiebreak())
 		.limit(limit);
 }
 
-function totalExpr() {
-	return sql<number>`${entities.totalCommits} + coalesce(${entities.totalIssues}, 0) + coalesce(${entities.totalPullRequests}, 0) + coalesce(${entities.totalReviews}, 0) + coalesce(${entities.totalRepos}, 0) + ${entities.totalRestricted}`;
-}
-
-async function aggregateMonthlyTotals(
+/**
+ * One round-trip for both halves of the recompute decision: the summed month rows, and which
+ * per-type totals have ever been backfilled (grouping by the PK lets us select the entity's own
+ * columns alongside the aggregates).
+ */
+async function monthlyTotals(
 	database: DB,
 	id: string,
-): Promise<MonthlyCount> {
+): Promise<{
+	totals: MonthlyCount;
+	backfilled: Record<"issues" | "pullRequests" | "reviews" | "repos", boolean>;
+}> {
 	const [row] = await database
 		.select({
 			commits: sql<number>`coalesce(sum(${monthlyCommits.commits}), 0)`,
@@ -157,16 +183,30 @@ async function aggregateMonthlyTotals(
 			pullRequests: sql<number>`coalesce(sum(${monthlyCommits.pullRequests}), 0)`,
 			reviews: sql<number>`coalesce(sum(${monthlyCommits.reviews}), 0)`,
 			repos: sql<number>`coalesce(sum(${monthlyCommits.repos}), 0)`,
+			issuesBackfilled: isNotNull(entities.totalIssues),
+			prsBackfilled: isNotNull(entities.totalPullRequests),
+			reviewsBackfilled: isNotNull(entities.totalReviews),
+			reposBackfilled: isNotNull(entities.totalRepos),
 		})
-		.from(monthlyCommits)
-		.where(eq(monthlyCommits.entityId, id));
+		.from(entities)
+		.leftJoin(monthlyCommits, eq(monthlyCommits.entityId, entities.id))
+		.where(eq(entities.id, id))
+		.groupBy(entities.id);
 
 	return {
-		commits: Number(row?.commits ?? 0),
-		restricted: Number(row?.restricted ?? 0),
-		issues: Number(row?.issues ?? 0),
-		pullRequests: Number(row?.pullRequests ?? 0),
-		reviews: Number(row?.reviews ?? 0),
-		repos: Number(row?.repos ?? 0),
+		totals: {
+			commits: Number(row?.commits ?? 0),
+			restricted: Number(row?.restricted ?? 0),
+			issues: Number(row?.issues ?? 0),
+			pullRequests: Number(row?.pullRequests ?? 0),
+			reviews: Number(row?.reviews ?? 0),
+			repos: Number(row?.repos ?? 0),
+		},
+		backfilled: {
+			issues: Boolean(row?.issuesBackfilled),
+			pullRequests: Boolean(row?.prsBackfilled),
+			reviews: Boolean(row?.reviewsBackfilled),
+			repos: Boolean(row?.reposBackfilled),
+		},
 	};
 }

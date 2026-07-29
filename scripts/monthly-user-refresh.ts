@@ -1,15 +1,18 @@
 /**
  * Refresh the newest completed contribution month for visible leaderboard users.
  *
- * Intended for Coolify scheduled tasks:
+ * Bundled by `pnpm build` into `.output/worker/monthly-user-refresh.mjs`, which is what the
+ * production image runs as a Coolify scheduled task:
  *
- *   node --env-file-if-exists=.env --import tsx scripts/monthly-user-refresh.ts
+ *   node .output/worker/monthly-user-refresh.mjs
+ *
+ * Locally, `pnpm monthly:user` runs this source directly through tsx.
  *
  * Execute-by-default. Use `--dry-run` to inspect the candidate set without spending GitHub API
  * requests or writing rows. Current/future months require `--allow-incomplete-month`.
  */
 import { db } from "#/lib/db";
-import { fetchMonthlyCommits } from "#/lib/github";
+import { fetchMonthlyCommits, fetchRateLimitBudget } from "#/lib/github";
 import {
 	runMonthlyUserRefresh,
 	USER_REFRESH_METRICS,
@@ -26,7 +29,9 @@ const VALID_FLAGS = new Set([
 	"max-users",
 	"max-runtime-minutes",
 	"metrics",
+	"poll-every",
 	"rate-per-hour",
+	"remaining-floor",
 	"safe-after-utc",
 	"target-month",
 ]);
@@ -58,6 +63,11 @@ await runMonthlyUserRefresh({
 	maxRuntimeMs: config.maxRuntimeMinutes * 60_000,
 	dryRun: config.dryRun,
 	allowIncompleteMonth: config.allowIncompleteMonth,
+	remainingFloor: config.remainingFloor,
+	pollEvery: config.pollEvery,
+	// The token is shared with live site traffic, so the run polls its own GraphQL budget and
+	// refuses to spend below the floor. `rateLimit` queries cost 0 points.
+	fetchRateLimit: () => fetchRateLimitBudget(GITHUB_TOKEN),
 	fetchMonthlyCommits,
 	logger: console,
 });
@@ -75,6 +85,8 @@ interface Config {
 	maxUsers?: number;
 	ratePerHour: number;
 	maxRuntimeMinutes: number;
+	remainingFloor: number;
+	pollEvery: number;
 	metrics: UserRefreshMetric[];
 }
 
@@ -114,6 +126,13 @@ function parseConfig(argv: string[], env: NodeJS.ProcessEnv): Config {
 			env.MONTHLY_USER_MAX_RUNTIME_MINUTES,
 			360,
 		),
+		remainingFloor: numberValue(
+			flags,
+			"remaining-floor",
+			env.MONTHLY_USER_REMAINING_FLOOR,
+			500,
+		),
+		pollEvery: numberValue(flags, "poll-every", env.MONTHLY_USER_POLL_EVERY, 25),
 		metrics: parseMetrics(metrics),
 	};
 }
@@ -195,7 +214,8 @@ function parseMetrics(raw: string | undefined): UserRefreshMetric[] {
 function usage(): string {
 	return [
 		"Usage:",
-		"  node --env-file-if-exists=.env --import tsx scripts/monthly-user-refresh.ts [flags]",
+		"  node .output/worker/monthly-user-refresh.mjs [flags]      # built image",
+		"  pnpm monthly:user [flags]                                 # local source via tsx",
 		"",
 		"Flags override env vars:",
 		"  --dry-run",
@@ -205,6 +225,8 @@ function usage(): string {
 		"  --limit-per-metric=N               env MONTHLY_USER_LIMIT_PER_METRIC, default 500",
 		"  --max-users=N                      env MONTHLY_USER_MAX_USERS",
 		"  --rate-per-hour=N                  env MONTHLY_USER_RATE_PER_HOUR, default 1000",
+		"  --remaining-floor=N                env MONTHLY_USER_REMAINING_FLOOR, default 500",
+		"  --poll-every=N                     env MONTHLY_USER_POLL_EVERY, default 25",
 		"  --max-runtime-minutes=N            env MONTHLY_USER_MAX_RUNTIME_MINUTES, default 360",
 		"  --metrics=public,prs,...           env MONTHLY_USER_METRICS",
 	].join("\n");
