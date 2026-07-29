@@ -20,6 +20,7 @@
     "suspend": "bun scripts/suspend.ts",
     "refresh": "bun scripts/refresh.ts",
     "refresh-user": "bun scripts/refresh-user.ts",
+    "monthly:user": "node --env-file-if-exists=.env --import tsx scripts/monthly-user-refresh.ts",
     "backfill": "bun scripts/backfill-contributions.ts",
     "backup": "bash scripts/backup.sh",
     "db:generate": "drizzle-kit generate",
