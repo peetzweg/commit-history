@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
+import type { MonthlyCount, MonthWindow } from "#/lib/github";
 import {
-	resolveTargetMonth,
-	runMonthlyUserRefresh,
 	type MonthlyRefreshStore,
 	type RefreshCandidate,
+	resolveTargetMonth,
+	runMonthlyUserRefresh,
 } from "#/lib/monthly-user-refresh";
-import type { MonthlyCount, MonthWindow } from "#/lib/github";
 
 class FakeStore implements MonthlyRefreshStore {
 	readonly metricRows: Partial<Record<string, RefreshCandidate[]>>;

@@ -22,6 +22,28 @@ the self-hosting playbook live in the private `peetzweg/devops` repo.
 - **Ambient `GITHUB_TOKEN` in the shell shadows `.env`** and lacks `read:org` — prefix
   dev/bun script runs with `env -u GITHUB_TOKEN` when org lookups misbehave.
 
+## Background jobs
+
+Recipe, proven by `monthly-user-refresh` and `backfill-orgs`: a CLI in `scripts/` (flags,
+each mirrored by an env var) → bundled by `build:worker` into `.output/worker/<job>.mjs` →
+the Dockerfile already copies `.output`, so shipping a new job needs no Dockerfile change →
+a Coolify **scheduled task** runs `node .output/worker/<job>.mjs` (cron + `docker exec` into
+the running app container; container TZ is UTC). Logic goes in a pure engine
+(`src/lib/<job>.ts`) over an injected store (`<job>-store.ts`) so it unit-tests against fakes.
+
+Every job must: take its advisory lock from `LOCK_KEYS` in `src/lib/job-runner.ts` (unique key
+per job); use `createBudgetGuard` so it can't drain the GitHub token below the floor that live
+traffic needs; stop cleanly on a wall-clock cap instead of being killed; resume off a DB
+freshness marker (**the missing row is the retry queue** — no job-state table); write only
+idempotent upserts; isolate per-item failures to a narrow status allowlist; and emit one
+greppable `<job> done status=… ` summary line. Stagger schedules: the prod box has no swap and
+`docker exec` adds a second node process inside the app container.
+
+Two failure modes worth knowing: cleanup must release the lock **first and defensively**, or a
+crash mid-teardown leaves it held by a server-side session that outlives the process and every
+later run reports `status=locked` and silently does nothing; and never let pool shutdown throw,
+or a completed run shows up as a failed Coolify execution.
+
 ## Domain guardrails
 
 - Single-segment paths are GitHub logins (`$user` route); editorial pages live under the

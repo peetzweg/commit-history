@@ -72,8 +72,24 @@ await runMonthlyUserRefresh({
 	logger: console,
 });
 
-await db.$client.end();
-process.exit(0);
+await shutdown(0);
+
+/**
+ * Close the pool so Postgres isn't left holding an idle backend until TCP keepalive reaps it —
+ * best-effort only. postgres.js can throw *asynchronously* while tearing sockets down (seen when
+ * the link to the database blipped mid-run), and an uncaught throw at this point would turn a run
+ * that already did its work and logged its summary into a failed Coolify execution.
+ */
+async function shutdown(code: number): Promise<never> {
+	process.on("uncaughtException", (err) => {
+		console.warn(
+			`monthly-user-refresh status=shutdown_error error=${JSON.stringify(String(err))}`,
+		);
+		process.exit(code);
+	});
+	await db?.$client.end({ timeout: 5 }).catch(() => {});
+	process.exit(code);
+}
 
 interface Config {
 	help: boolean;
