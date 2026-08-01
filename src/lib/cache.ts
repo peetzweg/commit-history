@@ -260,7 +260,9 @@ async function getFromDb(
 			}
 			const chunk = todo.slice(i, i + CHUNK_MONTHS);
 			const counts = await fetchMonthlyCommits(login, token, chunk);
-			await persistMonths(database, id, chunk, counts);
+			// `now`, not the loop's clock: monthlyWindows only ever yields completed months, so any
+			// row written here is final, and the stamp is what proves it to the monthly refresh.
+			await persistMonths(database, id, chunk, counts, now);
 			points = appendTail(points, chunk, counts);
 		}
 	} catch (err) {
@@ -303,6 +305,10 @@ async function upsertProfile(database: DB, id: string, user: Profile) {
 		location: user.location,
 		websiteUrl: user.websiteUrl,
 		twitterUsername: user.twitterUsername,
+		// GitHub just resolved this login, so whatever made the refresh worker mark it unreachable
+		// is over (un-deleted, renamed back). This is the only path that clears the flag — the
+		// worker itself skips unreachable entities, so it can never un-mark one.
+		unreachableAt: null,
 	};
 	await database
 		.insert(entities)
@@ -326,6 +332,7 @@ async function persistMonths(
 	id: string,
 	windows: MonthWindow[],
 	counts: MonthlyCount[],
+	fetchedAt: Date,
 ) {
 	if (windows.length === 0) return;
 	await database
@@ -340,6 +347,7 @@ async function persistMonths(
 				pullRequests: counts[i]?.pullRequests ?? 0,
 				reviews: counts[i]?.reviews ?? 0,
 				repos: counts[i]?.repos ?? 0,
+				fetchedAt,
 			})),
 		)
 		.onConflictDoUpdate({
@@ -351,6 +359,7 @@ async function persistMonths(
 				pullRequests: sql`excluded.pull_requests`,
 				reviews: sql`excluded.reviews`,
 				repos: sql`excluded.repos`,
+				fetchedAt: sql`excluded.fetched_at`,
 			},
 		});
 }
