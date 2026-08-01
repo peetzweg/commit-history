@@ -51,9 +51,18 @@ export const entities = pgTable("entities", {
 	// "recently looked up" (still directly viewable, with an under-review notice) until cleared.
 	suspendedAt: timestamp("suspended_at", { withTimezone: true }),
 	suspendedReason: text("suspended_reason"), // internal note — never shown publicly
+	// GitHub no longer resolves this login (GraphQL NOT_FOUND / REST 404) — deleted, renamed, or
+	// blocked. Deliberately NOT moderation: the contributions we already stored were real, so the
+	// entity stays ranked and viewable (with a notice). It only drops out of the monthly refresh
+	// cohort, so a dead login can't burn a request and fail the scheduled task every pass.
+	// Cleared automatically the next time the login resolves.
+	unreachableAt: timestamp("unreachable_at", { withTimezone: true }),
 });
 
-/** Per-month commit counts. Past months are immutable; only the current month changes. */
+/**
+ * Per-month commit counts. GitHub's numbers for a past month are settled, but a *stored* row for
+ * one is only final if it was read after the month closed — see `fetchedAt`.
+ */
 export const monthlyCommits = pgTable(
 	"monthly_commits",
 	{
@@ -69,6 +78,13 @@ export const monthlyCommits = pgTable(
 		pullRequests: integer("pull_requests").notNull().default(0), // public PRs opened
 		reviews: integer("reviews").notNull().default(0), // public PR reviews
 		repos: integer("repos").notNull().default(0), // public repositories created
+		// When these counts were read from GitHub. The row is only trustworthy as a *final* month
+		// if this is at/after the month's end — before the in-progress month was excluded from
+		// monthlyWindows (a44f442, 2026-07-01) a lookup mid-month stored a few days of data under
+		// the month's label, and "a row exists" then wrongly looked like "the month is done".
+		// Null = written before this column existed, i.e. provenance unknown; the monthly refresh
+		// treats that as incomplete and re-fetches. Never gate on row existence alone.
+		fetchedAt: timestamp("fetched_at", { withTimezone: true }),
 	},
 	(t) => [primaryKey({ columns: [t.entityId, t.month] })],
 );

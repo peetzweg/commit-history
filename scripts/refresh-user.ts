@@ -138,6 +138,7 @@ if (points.length > 0) {
 				pullRequests: p.pullRequests,
 				reviews: p.reviews,
 				repos: p.repos,
+				fetchedAt: now,
 			})),
 		)
 		.onConflictDoUpdate({
@@ -149,6 +150,7 @@ if (points.length > 0) {
 				pullRequests: sql`excluded.pull_requests`,
 				reviews: sql`excluded.reviews`,
 				repos: sql`excluded.repos`,
+				fetchedAt: sql`excluded.fetched_at`,
 			},
 		});
 }

@@ -7,6 +7,7 @@ import {
 	inArray,
 	isNotNull,
 	isNull,
+	or,
 	sql,
 } from "drizzle-orm";
 import type { ChartMode } from "#/components/CommitChart";
@@ -96,6 +97,9 @@ export interface UserResult {
 	// True when the entity is suspended (under investigation) — the profile is still shown, but
 	// with an under-review notice. The internal reason is never sent to the client.
 	suspended: boolean;
+	// True when GitHub no longer resolves this login. Not moderation: the profile stays ranked and
+	// viewable (the stored history was real), it just carries a notice and stops being refreshed.
+	unreachable: boolean;
 	// Leaderboard position per metric (1 = top), among active entities, mirroring each metric's
 	// board ordering. Keyed by the metrics this profile has data for (always includes "public").
 	// Empty without a DB; suppressed in the UI for suspended profiles (hidden from every board).
@@ -268,15 +272,43 @@ export const getRecentLookups = createServerFn({ method: "GET" }).handler(
 	(): Promise<RecentEntry[]> => queryRecent(RECENT_LIMIT),
 );
 
-/** Which of these logins are currently suspended (lower-cased). Empty without a DB. */
-async function suspendedSet(logins: string[]): Promise<Set<string>> {
-	if (!db || logins.length === 0) return new Set();
+/**
+ * Per-login flags that live on the entity row rather than in the fetched history. One query for
+ * both, since a lookup needs them together. Logins are lower-cased. Empty without a DB.
+ */
+interface EntityFlags {
+	suspended: Set<string>;
+	unreachable: Set<string>;
+}
+
+const noFlags = (): EntityFlags => ({
+	suspended: new Set(),
+	unreachable: new Set(),
+});
+
+async function entityFlags(logins: string[]): Promise<EntityFlags> {
+	const flags = noFlags();
+	if (!db || logins.length === 0) return flags;
 	const ids = logins.map((l) => `user:${l.trim().toLowerCase()}`);
 	const rows = await db
-		.select({ login: entities.login })
+		.select({
+			login: entities.login,
+			suspendedAt: entities.suspendedAt,
+			unreachableAt: entities.unreachableAt,
+		})
 		.from(entities)
-		.where(and(inArray(entities.id, ids), isNotNull(entities.suspendedAt)));
-	return new Set(rows.map((r) => r.login.toLowerCase()));
+		.where(
+			and(
+				inArray(entities.id, ids),
+				or(isNotNull(entities.suspendedAt), isNotNull(entities.unreachableAt)),
+			),
+		);
+	for (const r of rows) {
+		const login = r.login.toLowerCase();
+		if (r.suspendedAt) flags.suspended.add(login);
+		if (r.unreachableAt) flags.unreachable.add(login);
+	}
+	return flags;
 }
 
 /**
@@ -332,18 +364,20 @@ export async function lookupUsers(rawLogins: string[]): Promise<UserResult[]> {
 	const logins = normalizeLogins(rawLogins);
 	const token = serverToken();
 	// allSettled (not all): one user's failed GitHub fetch must not reject the whole batch and
-	// blank out the others. suspendedSet is fetched alongside and is best-effort — a DB hiccup
-	// there shouldn't drop already-loaded profiles, so it falls back to "none suspended".
-	const [settled, suspended] = await Promise.all([
+	// blank out the others. entityFlags is fetched alongside and is best-effort — a DB hiccup
+	// there shouldn't drop already-loaded profiles, so it falls back to "no flags set".
+	const [settled, flags] = await Promise.all([
 		Promise.allSettled(
 			logins.map((login) => getCachedCommitHistory(login, token)),
 		),
-		suspendedSet(logins).catch(() => new Set<string>()),
+		entityFlags(logins).catch(noFlags),
 	]);
 	return Promise.all(
 		settled.map(async (outcome, i): Promise<UserResult> => {
 			const login = logins[i];
-			const isSuspended = suspended.has(login.toLowerCase());
+			const key = login.toLowerCase();
+			const isSuspended = flags.suspended.has(key);
+			const isUnreachable = flags.unreachable.has(key);
 			if (outcome.status === "rejected") {
 				const e = outcome.reason;
 				// The 503 "still building" rejection carries progress — surface it as `building`
@@ -362,6 +396,7 @@ export async function lookupUsers(rawLogins: string[]): Promise<UserResult[]> {
 							? e.message
 							: "Failed to load",
 					suspended: isSuspended,
+					unreachable: isUnreachable,
 					ranks: {},
 					building,
 				};
@@ -374,6 +409,7 @@ export async function lookupUsers(rawLogins: string[]): Promise<UserResult[]> {
 				history,
 				error: null,
 				suspended: isSuspended,
+				unreachable: isUnreachable,
 				ranks,
 				building: null,
 			};

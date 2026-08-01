@@ -1,4 +1,4 @@
-import { and, eq, gt, inArray, isNotNull, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import type { DB } from "#/lib/db";
 import { entities, monthlyCommits } from "#/lib/db/schema";
 import type { MonthlyCount } from "#/lib/github";
@@ -16,6 +16,20 @@ import type {
 
 const USER_REFRESH_LOCK_KEY_1 = 20260701;
 const USER_REFRESH_LOCK_KEY_2 = 1;
+
+/**
+ * "This stored month is final": read at/after the month's own end. A null `fetched_at` predates the
+ * column and so is explicitly NOT complete — that is what makes the pre-a44f442 partial rows
+ * eligible for repair instead of being skipped forever.
+ *
+ * `at time zone 'UTC'` is load-bearing: `month` is a bare date, so `month + interval '1 month'` is
+ * a timestamp *without* zone, and comparing it to a timestamptz would otherwise resolve against the
+ * session's TimeZone and move the boundary by hours. Months here are UTC by definition.
+ */
+const completeMonthRow = (table: string) =>
+	sql.raw(
+		`${table}.fetched_at is not null and ${table}.fetched_at >= ((${table}.month + interval '1 month') at time zone 'UTC')`,
+	);
 
 export function createMonthlyUserRefreshStore(
 	database: DB,
@@ -60,7 +74,7 @@ export function createMonthlyUserRefreshStore(
 			return usersForMetric(database, metric, limit);
 		},
 
-		async countMissingMonth(ids, month) {
+		async countIncompleteMonth(ids, month) {
 			if (ids.length === 0) return 0;
 			const [row] = await database
 				.select({ n: sql<number>`count(*)` })
@@ -68,24 +82,32 @@ export function createMonthlyUserRefreshStore(
 				.where(
 					and(
 						inArray(entities.id, ids),
-						sql`not exists (select 1 from ${monthlyCommits} mc where mc.entity_id = ${entities.id} and mc.month = ${month})`,
+						sql`not exists (
+							select 1 from ${monthlyCommits} mc
+							where mc.entity_id = ${entities.id}
+							  and mc.month = ${month}
+							  and ${completeMonthRow("mc")})`,
 					),
 				);
 			return Number(row?.n ?? 0);
 		},
 
-		async hasMonth(id, month) {
+		async hasCompleteMonth(id, month) {
 			const [row] = await database
 				.select({ entityId: monthlyCommits.entityId })
 				.from(monthlyCommits)
 				.where(
-					and(eq(monthlyCommits.entityId, id), eq(monthlyCommits.month, month)),
+					and(
+						eq(monthlyCommits.entityId, id),
+						eq(monthlyCommits.month, month),
+						completeMonthRow("monthly_commits"),
+					),
 				)
 				.limit(1);
 			return row != null;
 		},
 
-		async upsertMonth(id, month, counts) {
+		async upsertMonth(id, month, counts, fetchedAt) {
 			await database
 				.insert(monthlyCommits)
 				.values({
@@ -97,6 +119,7 @@ export function createMonthlyUserRefreshStore(
 					pullRequests: counts.pullRequests,
 					reviews: counts.reviews,
 					repos: counts.repos,
+					fetchedAt,
 				})
 				.onConflictDoUpdate({
 					target: [monthlyCommits.entityId, monthlyCommits.month],
@@ -107,14 +130,24 @@ export function createMonthlyUserRefreshStore(
 						pullRequests: sql`excluded.pull_requests`,
 						reviews: sql`excluded.reviews`,
 						repos: sql`excluded.repos`,
+						fetchedAt: sql`excluded.fetched_at`,
 					},
 				});
 		},
 
+		async markUnreachable(id, at) {
+			await database
+				.update(entities)
+				.set({ unreachableAt: at })
+				.where(eq(entities.id, id));
+		},
+
 		async recomputeTotals(id, fetchedAt) {
 			const row = await monthlyTotals(database, id);
-			// `last_fetched` is the contribution-month freshness marker for this worker. It does
-			// not mean profile metadata was refreshed; profile columns stay on-demand/manual.
+			// `last_fetched` records that this worker touched the entity; it does NOT mean profile
+			// metadata was refreshed (profile columns stay on-demand/manual), and it is NOT the
+			// month-freshness gate — that is `monthly_commits.fetched_at`, which is per month row and
+			// can't be bumped by an unrelated profile refresh (`scripts/refresh.ts` sets this column).
 			//
 			// commits/restricted are NOT NULL and the app's own tail refresh already restamps
 			// total_commits from the month rows, so summing them here is the same operation.
@@ -153,7 +186,13 @@ async function usersForMetric(
 ): Promise<RefreshCandidate[]> {
 	// Same population, order and tiebreak as the metric's leaderboard — the cohort is defined as
 	// "the top N of each board", so any divergence here means a visible user never gets refreshed.
-	const active = activeRankedUser();
+	//
+	// One deliberate divergence: logins GitHub no longer resolves. They stay on the board (their
+	// stored history was real) but there is nothing left to fetch, so refreshing them only burns a
+	// request and fails the scheduled task. Filtering here rather than in `activeRankedUser()` keeps
+	// the board and the rank badge unchanged — the cohort is "the top N we can still refresh", so it
+	// backfills from the next user down instead of leaving a hole.
+	const active = and(activeRankedUser(), isNull(entities.unreachableAt));
 	const positive = metricPositiveColumn(metric);
 	return database
 		.select({ id: entities.id, login: entities.login })
