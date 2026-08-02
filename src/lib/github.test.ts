@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	fetchMonthlyCommits,
+	fetchOrgMembers,
 	isValidLogin,
 	type MonthWindow,
 	monthlyWindows,
@@ -175,5 +176,61 @@ describe("fetchMonthlyCommits adaptive batching", () => {
 				repos: 0,
 			},
 		]);
+	});
+});
+
+describe("fetchOrgMembers pagination", () => {
+	afterEach(() => vi.unstubAllGlobals());
+
+	/** A membersWithRole page of `size` synthetic members, numbered from `from`. */
+	const page = (from: number, size: number, hasNextPage: boolean) => ({
+		ok: true,
+		status: 200,
+		headers: { get: () => null },
+		json: async () => ({
+			data: {
+				organization: {
+					membersWithRole: {
+						pageInfo: { hasNextPage, endCursor: `cur${from + size}` },
+						edges: Array.from({ length: size }, (_, i) => ({
+							role: "MEMBER",
+							node: {
+								login: `member${from + i}`,
+								name: null,
+								avatarUrl: "",
+								createdAt: "2015-01-01T00:00:00Z",
+							},
+						})),
+					},
+				},
+			},
+		}),
+	});
+
+	it("keeps paginating past the first ten pages", async () => {
+		// The regression behind #150: at the old 10-page cap, NixOS (1,494 public members) was
+		// silently stored as its first 1,000 — everyone past the cut was invisible forever.
+		const TOTAL_PAGES = 15;
+		let seen = 0;
+		vi.stubGlobal("fetch", async () => {
+			const p = seen++;
+			const size = p === TOTAL_PAGES - 1 ? 94 : 100;
+			return page(p * 100, size, p < TOTAL_PAGES - 1);
+		});
+
+		const members = await fetchOrgMembers("NixOS", "tok");
+
+		expect(members).toHaveLength(1494);
+		expect(members.at(-1)?.login).toBe("member1493");
+	});
+
+	it("throws rather than returning a truncated membership at the cap", async () => {
+		// A backstop that trims the result set lies about who is in the org; one that fails is
+		// merely unhelpful. Always claim another page so the loop runs into the cap.
+		vi.stubGlobal("fetch", async () => page(0, 100, true));
+
+		await expect(fetchOrgMembers("hugeorg", "tok")).rejects.toThrow(
+			/more than 10000 public members/,
+		);
 	});
 });

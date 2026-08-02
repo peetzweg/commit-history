@@ -539,9 +539,13 @@ export async function fetchOrgProfile(
 	};
 }
 
-// Hard stop for the members pagination loop (pages of 100). The org build enforces its own,
-// lower member cap before fetching contributions — this is just a runaway/mega-org backstop.
-const MAX_MEMBER_PAGES = 10;
+// Hard stop for the members pagination loop (pages of 100). The org build enforces its own, far
+// lower member cap before fetching contributions, so only the backfill/refresh scripts ever
+// paginate deep — this is a runaway backstop, not a policy cap, and sits well above GitHub's
+// largest orgs. It used to be 10, which silently truncated NixOS to the first 1,000 of its 1,494
+// public members (#150): every member past page 10 was invisible forever. A backstop that trims
+// the result set is worse than one that fails, so hitting it now throws.
+const MAX_MEMBER_PAGES = 100;
 
 /**
  * Enumerate an org's members visible to the token — public members only unless the token itself
@@ -590,7 +594,12 @@ export async function fetchOrgMembers(
 		if (!conn.pageInfo.hasNextPage) return members;
 		cursor = conn.pageInfo.endCursor;
 	}
-	return members;
+	// Never return a partial membership — a truncated list reads as "these are all the members"
+	// and permanently hides everyone past the cut (#150).
+	throw new GitHubError(
+		`Organization "${login}" has more than ${MAX_MEMBER_PAGES * 100} public members — refusing to enumerate a partial membership.`,
+		413,
+	);
 }
 
 /** A member's summed lifetime contributions to one org (org-scoped, not their global totals). */
