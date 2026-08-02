@@ -21,6 +21,8 @@
     "suspend": "bun scripts/suspend.ts",
     "refresh": "bun scripts/refresh.ts",
     "refresh-user": "bun scripts/refresh-user.ts",
+    "refresh-org": "bun scripts/refresh-org.ts",
+    "backfill-orgs": "bun scripts/backfill-orgs.ts",
     "monthly:user": "node --env-file-if-exists=.env --import tsx scripts/monthly-user-refresh.ts",
     "backfill": "bun scripts/backfill-contributions.ts",
     "backup": "bash scripts/backup.sh",
