@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	fetchMonthlyCommits,
+	fetchOrgMembers,
 	isValidLogin,
 	type MonthWindow,
 	monthlyWindows,
@@ -175,5 +176,80 @@ describe("fetchMonthlyCommits adaptive batching", () => {
 				repos: 0,
 			},
 		]);
+	});
+});
+
+describe("fetchOrgMembers pagination", () => {
+	afterEach(() => vi.unstubAllGlobals());
+
+	/** A membersWithRole page of `size` synthetic members, numbered from `from`. */
+	const page = (from: number, size: number, hasNextPage: boolean) => ({
+		ok: true,
+		status: 200,
+		headers: { get: () => null },
+		json: async () => ({
+			data: {
+				organization: {
+					membersWithRole: {
+						pageInfo: { hasNextPage, endCursor: `cur${from + size}` },
+						edges: Array.from({ length: size }, (_, i) => ({
+							role: "MEMBER",
+							node: {
+								login: `member${from + i}`,
+								name: null,
+								avatarUrl: "",
+								createdAt: "2015-01-01T00:00:00Z",
+							},
+						})),
+					},
+				},
+			},
+		}),
+	});
+
+	it("paginates past the default cap when the caller raises maxPages", async () => {
+		// The regression behind #150: the default 10-page cap stored NixOS (1,494 public members)
+		// as its first 1,000, and everyone past the cut was invisible forever. The worker raises
+		// the cap precisely so orgs of that size enumerate whole.
+		const TOTAL_PAGES = 15;
+		let seen = 0;
+		vi.stubGlobal("fetch", async () => {
+			const p = seen++;
+			const size = p === TOTAL_PAGES - 1 ? 94 : 100;
+			return page(p * 100, size, p < TOTAL_PAGES - 1);
+		});
+
+		const { members, truncated } = await fetchOrgMembers("NixOS", "tok", {
+			maxPages: 30,
+		});
+
+		expect(truncated).toBe(false);
+		expect(members).toHaveLength(1494);
+		expect(members.at(-1)?.login).toBe("member1493");
+	});
+
+	it("reports truncated when the cap stops it with pages still to come", async () => {
+		// The flag is the whole safeguard: a short list is indistinguishable from a complete one,
+		// so callers that stamp builtAt rely on this to tell the difference. Always claim another
+		// page so the loop runs into the cap.
+		vi.stubGlobal("fetch", async () => page(0, 100, true));
+
+		const { members, truncated } = await fetchOrgMembers("hugeorg", "tok", {
+			maxPages: 3,
+		});
+
+		expect(truncated).toBe(true);
+		expect(members).toHaveLength(300);
+	});
+
+	it("stops at the default cap when the caller does not raise it", async () => {
+		// The request path relies on the low default — it refuses orgs over 25 members anyway, so
+		// it should never pay for deep pagination.
+		vi.stubGlobal("fetch", async () => page(0, 100, true));
+
+		const { members, truncated } = await fetchOrgMembers("hugeorg", "tok");
+
+		expect(truncated).toBe(true);
+		expect(members).toHaveLength(1000);
 	});
 });

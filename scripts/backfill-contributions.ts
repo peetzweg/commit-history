@@ -136,6 +136,7 @@ async function backfill(id: string, login: string): Promise<{ log: string; reque
 					pullRequests: p.pullRequests,
 					reviews: p.reviews,
 					repos: p.repos,
+					fetchedAt: now,
 				})),
 			)
 			.onConflictDoUpdate({
@@ -147,6 +148,7 @@ async function backfill(id: string, login: string): Promise<{ log: string; reque
 					pullRequests: sql`excluded.pull_requests`,
 					reviews: sql`excluded.reviews`,
 					repos: sql`excluded.repos`,
+					fetchedAt: sql`excluded.fetched_at`,
 				},
 			});
 	}

@@ -124,13 +124,26 @@ In production it runs as a Coolify **scheduled task** on the app image, no separ
 | **Command** | `node .output/worker/monthly-user-refresh.mjs` |
 | **Schedule (UTC)** | `0 3 1 * *` main pass · `0 9 1 * *` and `0 3 2 * *` retry passes |
 
-Run it several times rather than once. Every pass is idempotent: users that already have the
-target month are skipped without a GitHub call, so a missing month row *is* the retry queue.
+Run it several times rather than once. Every pass is idempotent: users whose target month is
+already **complete** are skipped without a GitHub call, so an incomplete month row *is* the retry
+queue.
+
+"Complete" means the row's `monthly_commits.fetched_at` is at/after the month's own end — not
+merely that a row exists. Those differ: before `a44f442` a lookup mid-month stored a few days of
+data under the whole month's label, and the 2026-08-01 pass skipped 2229 of 2230 candidates
+because a row was present. A NULL `fetched_at` (written before the column existed) counts as
+incomplete, so anything unproven gets re-read rather than trusted.
 Overlapping runs are prevented by a Postgres advisory lock (the loser exits 0). The worker
 enforces the UTC month boundary itself — it refuses to touch an incomplete month and exits early
 if invoked before `MONTHLY_USER_SAFE_AFTER_UTC` on the 1st — so scheduler timezone drift can't
 record a half-finished month. It also stays above a reserved GraphQL points floor, since the
 token is shared with live traffic.
+
+A login GitHub stops resolving (deleted, renamed) is stamped `entities.unreachable_at` and drops
+out of the cohort. That is **not** moderation: unlike `suspended_at` it keeps the profile ranked and
+viewable, with a notice — the stored contributions were real, there is just nothing left to fetch.
+Without it one dead account fails every pass of every month forever, since an incomplete month row
+is the retry queue. A later lookup that resolves clears the flag automatically.
 
 ## ☁️ Deploy (self-hosted)
 

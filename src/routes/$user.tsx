@@ -472,6 +472,23 @@ function View() {
 	);
 }
 
+/**
+ * Shown when GitHub no longer resolves the login. The history stays on display and on the boards —
+ * it was really earned — so this explains the staleness rather than apologising for it.
+ */
+function UnreachableNotice() {
+	return (
+		<div className="mt-6 rounded-xl border border-muted-foreground/30 bg-muted/40 p-4 text-sm">
+			<p className="font-medium">This account is no longer on GitHub.</p>
+			<p className="mt-1 text-muted-foreground">
+				It was deleted or renamed, so these numbers stop where our last
+				successful read left off. The history stays here because the
+				contributions were real.
+			</p>
+		</div>
+	);
+}
+
 /** Shown on a suspended profile — public-facing, never reveals the internal reason. */
 function SuspendedNotice() {
 	return (
@@ -619,6 +636,7 @@ function SingleView({
 	return (
 		<>
 			{result.suspended && <SuspendedNotice />}
+			{result.unreachable && <UnreachableNotice />}
 			<div className="mt-6">
 				<ProfilePanel result={result} mode={effectiveMode} />
 			</div>
@@ -855,6 +873,7 @@ function ComparisonView({
 								color={SERIES_COLORS[i % SERIES_COLORS.length]}
 							/>
 							{r.suspended && <SuspendedNotice />}
+							{r.unreachable && <UnreachableNotice />}
 						</div>
 					))}
 				</div>

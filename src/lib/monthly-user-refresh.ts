@@ -30,11 +30,23 @@ export interface MonthlyRefreshStore {
 		metric: UserRefreshMetric,
 		limit: number,
 	): Promise<RefreshCandidate[]>;
-	/** How many of `ids` are still missing `month` — the startup log's retry-queue size. */
-	countMissingMonth(ids: string[], month: string): Promise<number>;
-	hasMonth(id: string, month: string): Promise<boolean>;
-	upsertMonth(id: string, month: string, counts: MonthlyCount): Promise<void>;
+	/** How many of `ids` still need `month` — the startup log's work-queue size. */
+	countIncompleteMonth(ids: string[], month: string): Promise<number>;
+	/**
+	 * Whether `month` is stored *and* was read after the month closed. Existence alone is not
+	 * enough: rows written before a44f442 hold a few mid-month days under the month's label, so
+	 * gating on existence froze them forever (2026-08-01 incident). See `monthly_commits.fetchedAt`.
+	 */
+	hasCompleteMonth(id: string, month: string): Promise<boolean>;
+	upsertMonth(
+		id: string,
+		month: string,
+		counts: MonthlyCount,
+		fetchedAt: Date,
+	): Promise<void>;
 	recomputeTotals(id: string, fetchedAt: Date): Promise<MonthlyCount>;
+	/** GitHub no longer resolves this login — drop it from future cohorts. */
+	markUnreachable(id: string, at: Date): Promise<void>;
 }
 
 export type MonthlyRefreshLogger = JobLogger;
@@ -66,7 +78,14 @@ export interface RunMonthlyUserRefreshOptions {
 		windows: MonthWindow[],
 	) => Promise<MonthlyCount[]>;
 	sleep?: (ms: number) => Promise<void>;
+	/** Runtime-budget clock only (may be a fake counter). Never use it for stored timestamps. */
 	timeMs?: () => number;
+	/**
+	 * Wall clock for stored timestamps (`monthly_commits.fetched_at`, `entities.last_fetched`).
+	 * Read per user rather than once per run, so a 2-hour pass doesn't stamp every row it touches
+	 * with its startup time — that made the 2026-08-01 logs unreadable.
+	 */
+	clock?: () => Date;
 	logger?: MonthlyRefreshLogger;
 }
 
@@ -76,11 +95,13 @@ export interface MonthlyUserRefreshResult {
 	stopReason?: "max_runtime" | "rate_limit_floor";
 	targetMonth: string;
 	candidates: number;
-	missingTargetMonth: number;
-	skippedFresh: number;
+	incompleteTargetMonth: number;
+	skippedComplete: number;
 	dryRunWouldRefresh: number;
 	refreshed: number;
 	failed: number;
+	/** Logins GitHub no longer resolves. Marked and skipped from now on, not counted as failures. */
+	unreachable: number;
 	dryRun: boolean;
 }
 
@@ -138,6 +159,7 @@ export async function runMonthlyUserRefresh(
 	const safeAfterUtc = opts.safeAfterUtc ?? "03:00";
 	const sleep = opts.sleep ?? defaultSleep;
 	const timeMs = opts.timeMs ?? Date.now;
+	const clock = opts.clock ?? (() => new Date());
 	const startedAt = timeMs();
 	const target = opts.targetMonth
 		? normalizeTargetMonth(opts.targetMonth)
@@ -195,12 +217,12 @@ export async function runMonthlyUserRefresh(
 			await candidateUnion(opts.store, metrics, limitPerMetric)
 		).slice(0, maxUsers);
 		result.candidates = candidates.length;
-		result.missingTargetMonth = await opts.store.countMissingMonth(
+		result.incompleteTargetMonth = await opts.store.countIncompleteMonth(
 			candidates.map((c) => c.id),
 			targetMonth,
 		);
 		logger.info(
-			`monthly-user-refresh target_month=${targetMonth} candidates=${candidates.length} missing_target_month=${result.missingTargetMonth}`,
+			`monthly-user-refresh target_month=${targetMonth} candidates=${candidates.length} incomplete_target_month=${result.incompleteTargetMonth}`,
 		);
 
 		for (const candidate of candidates) {
@@ -217,8 +239,8 @@ export async function runMonthlyUserRefresh(
 				break;
 			}
 
-			if (await opts.store.hasMonth(candidate.id, targetMonth)) {
-				result.skippedFresh += 1;
+			if (await opts.store.hasCompleteMonth(candidate.id, targetMonth)) {
+				result.skippedComplete += 1;
 				continue;
 			}
 
@@ -237,18 +259,19 @@ export async function runMonthlyUserRefresh(
 				break;
 			}
 
-			const refreshed = await refreshOne({
+			const outcome = await refreshOne({
 				candidate,
 				token: opts.token,
 				window,
 				targetMonth,
-				now,
 				store: opts.store,
 				fetchMonthlyCommits: opts.fetchMonthlyCommits,
 				budget,
 				logger,
+				clock,
 			});
-			if (refreshed) result.refreshed += 1;
+			if (outcome === "refreshed") result.refreshed += 1;
+			else if (outcome === "unreachable") result.unreachable += 1;
 			else result.failed += 1;
 
 			await sleep((1 / ratePerHour) * 3_600_000);
@@ -267,7 +290,7 @@ export async function runMonthlyUserRefresh(
 	}
 
 	logger.info(
-		`monthly-user-refresh done target_month=${targetMonth} status=${result.status}${result.stopReason ? ` reason=${result.stopReason}` : ""} candidates=${result.candidates} missing_target_month=${result.missingTargetMonth} refreshed=${result.refreshed} skipped_fresh=${result.skippedFresh} failed=${result.failed} dry_run_would_refresh=${result.dryRunWouldRefresh}`,
+		`monthly-user-refresh done target_month=${targetMonth} status=${result.status}${result.stopReason ? ` reason=${result.stopReason}` : ""} candidates=${result.candidates} incomplete_target_month=${result.incompleteTargetMonth} refreshed=${result.refreshed} skipped_complete=${result.skippedComplete} failed=${result.failed} unreachable=${result.unreachable} dry_run_would_refresh=${result.dryRunWouldRefresh}`,
 	);
 	return result;
 }
@@ -292,12 +315,28 @@ async function candidateUnion(
 	return [...byId.values()];
 }
 
+type RefreshOutcome = "refreshed" | "unreachable" | "failed";
+
+/**
+ * A login GitHub can't resolve any more (deleted, renamed, blocked). `github.ts` already maps the
+ * GraphQL "Could not resolve to a User" error to status 404, so this is a structural check — the
+ * worker deliberately keeps no runtime dependency on that module (tests replace the fetcher
+ * wholesale), hence duck-typing rather than `instanceof GitHubError`.
+ */
+function isMissingUser(err: unknown): boolean {
+	return (
+		typeof err === "object" &&
+		err !== null &&
+		"status" in err &&
+		(err as { status: unknown }).status === 404
+	);
+}
+
 async function refreshOne(opts: {
 	candidate: RefreshCandidate;
 	token: string;
 	window: MonthWindow;
 	targetMonth: string;
-	now: Date;
 	store: MonthlyRefreshStore;
 	fetchMonthlyCommits: (
 		login: string,
@@ -306,30 +345,47 @@ async function refreshOne(opts: {
 	) => Promise<MonthlyCount[]>;
 	budget: BudgetGuard;
 	logger: MonthlyRefreshLogger;
-}): Promise<boolean> {
+	clock: () => Date;
+}): Promise<RefreshOutcome> {
 	for (let attempt = 1; attempt <= 2; attempt++) {
 		try {
 			opts.budget.spend();
-			const [counts] = await opts.fetchMonthlyCommits(
-				opts.candidate.login,
-				opts.token,
-				[opts.window],
-			);
+			const counts = (
+				await opts.fetchMonthlyCommits(opts.candidate.login, opts.token, [
+					opts.window,
+				])
+			)[0];
+			// No counts means the fetcher returned nothing for a window it did not reject. Writing
+			// zeros here would look like a successful refresh and permanently blank the month, so
+			// treat it as a failure and leave the month incomplete for the next pass.
+			if (!counts) throw new Error("no counts returned for the target month");
+			const fetchedAt = opts.clock();
 			await opts.store.upsertMonth(
 				opts.candidate.id,
 				opts.targetMonth,
-				counts ?? zeroMonth(),
+				counts,
+				fetchedAt,
 			);
 			const totals = await opts.store.recomputeTotals(
 				opts.candidate.id,
-				opts.now,
+				fetchedAt,
 			);
 			opts.logger.info(
 				`monthly-user-refresh target_month=${opts.targetMonth} login=${opts.candidate.login} status=refreshed commits=${totals.commits} total=${totalContributions(totals)}`,
 			);
-			return true;
+			return "refreshed";
 		} catch (err) {
 			const message = err instanceof Error ? err.message : String(err);
+			// A login that no longer resolves will never resolve on a retry, and a missing month row
+			// is the retry queue — so without this marker one dead account fails every pass of every
+			// month forever. Mark it and move on; a later successful lookup clears the flag.
+			if (isMissingUser(err)) {
+				await opts.store.markUnreachable(opts.candidate.id, opts.clock());
+				opts.logger.warn(
+					`monthly-user-refresh target_month=${opts.targetMonth} login=${opts.candidate.login} status=unreachable error=${JSON.stringify(message)}`,
+				);
+				return "unreachable";
+			}
 			if (attempt === 1) {
 				opts.logger.warn(
 					`monthly-user-refresh target_month=${opts.targetMonth} login=${opts.candidate.login} status=retrying error=${JSON.stringify(message)}`,
@@ -341,17 +397,17 @@ async function refreshOne(opts: {
 					opts.logger.error(
 						`monthly-user-refresh target_month=${opts.targetMonth} login=${opts.candidate.login} status=failed reason=rate_limit_floor`,
 					);
-					return false;
+					return "failed";
 				}
 				continue;
 			}
 			opts.logger.error(
 				`monthly-user-refresh target_month=${opts.targetMonth} login=${opts.candidate.login} status=failed error=${JSON.stringify(message)}`,
 			);
-			return false;
+			return "failed";
 		}
 	}
-	return false;
+	return "failed";
 }
 
 function windowForMonth(month: string): MonthWindow {
@@ -405,17 +461,6 @@ function totalContributions(counts: MonthlyCount): number {
 	);
 }
 
-function zeroMonth(): MonthlyCount {
-	return {
-		commits: 0,
-		restricted: 0,
-		issues: 0,
-		pullRequests: 0,
-		reviews: 0,
-		repos: 0,
-	};
-}
-
 function emptyResult(
 	status: MonthlyUserRefreshResult["status"],
 	targetMonth: string,
@@ -425,11 +470,12 @@ function emptyResult(
 		status,
 		targetMonth,
 		candidates: 0,
-		missingTargetMonth: 0,
-		skippedFresh: 0,
+		incompleteTargetMonth: 0,
+		skippedComplete: 0,
 		dryRunWouldRefresh: 0,
 		refreshed: 0,
 		failed: 0,
+		unreachable: 0,
 		dryRun,
 	};
 }
