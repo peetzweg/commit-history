@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { motion } from "motion/react";
 import { useEffect, useState } from "react";
@@ -6,19 +7,22 @@ import {
 	type SponsorCreative,
 	type SponsorSlotId,
 } from "#/content/sponsors";
+import { sponsorSlotsQueryOptions } from "#/lib/sponsor";
 import { cn } from "#/lib/utils";
 
 /**
  * The sponsor slot row shown after rank 5 on a leaderboard.
  *
- * Driven purely by the static creative in `src/content/sponsors.ts`: a booked slot renders the
- * sponsor's creative, an empty slot advertises itself and links to the /-/sponsoring pitch page.
- * Reused across the developer board, the organization board, and each organization's internal
- * member board, so the same paid slot is seen everywhere its board appears.
+ * Two inputs: the static creative in `src/content/sponsors.ts` (what a booked slot looks like) and
+ * the live Stripe status from `src/lib/sponsor.ts` (whether the slot is still sold). No creative,
+ * or a slot Stripe says is available, renders the self-advertising empty row linking to the
+ * /-/sponsoring pitch page. Reused across the developer board, the organization board, and each
+ * organization's internal member board, so the same paid slot is seen everywhere its board appears.
  *
- * Live "is it sold" status (the "Rent this slot" buttons) is a separate, Stripe-driven concern on
- * the /-/sponsoring page (`src/lib/sponsor.ts`) — swapping the creative here stays a manual,
- * reviewable commit made once a sponsor mails their logo.
+ * The status check exists because the two used to be fully decoupled, and a lapsed subscription
+ * left the old sponsor's ad running on the boards while /-/sponsoring already offered the same slot
+ * for rent. Putting a *new* creative up is still a manual, reviewable commit (nobody can invent a
+ * logo from a Stripe event); taking a lapsed one *down* needs no creative, so it happens by itself.
  *
  * Takes an optional `ref` because on the home boards it's a direct child of AnimatePresence
  * (mode="popLayout"), which attaches a ref to each child to measure it.
@@ -31,7 +35,16 @@ export function SponsorRow({
 	ref?: React.Ref<HTMLLIElement>;
 }) {
 	const creative = SPONSORS[slot];
-	return creative ? (
+	// Skipped when there is no creative: an empty slot renders the same either way, so the common
+	// case costs no RPC — and the request only ever fires for a slot with an ad to justify.
+	const { data } = useQuery({
+		...sponsorSlotsQueryOptions,
+		enabled: creative !== null,
+	});
+	const status = data?.find((s) => s.id === slot)?.status ?? "unknown";
+	// Only a definitive "available" pulls the ad. On the server, during the first paint, and through
+	// any Stripe outage the status reads "unknown" — a paying sponsor keeps their row regardless.
+	return creative && status !== "available" ? (
 		<BookedRow creative={creative} ref={ref} />
 	) : (
 		<EmptyRow ref={ref} />
