@@ -47,6 +47,16 @@ export const entities = pgTable("entities", {
 	memberCount: integer("member_count"), // membersWithRole.totalCount (includes private members) — display only
 	lastFetched: timestamp("last_fetched", { withTimezone: true }), // staleness / trailing refresh; also "profile last updated"
 	builtAt: timestamp("built_at", { withTimezone: true }), // initial build completed; null = months still being fetched incrementally
+	// Org-only: when this org's membership was last re-read from `membersWithRole`. The org refresh
+	// worker re-enumerates monthly off this, which is how a member who joined (or made their
+	// membership public) after the initial build ever gets discovered — see #150.
+	//
+	// Deliberately NOT `lastFetched`: that column is bumped by any profile-only refresh
+	// (scripts/refresh.ts, the org-cache staleness path), which would mark the membership current
+	// when it was never re-read. Same trap #151 hit reusing it as a month-freshness gate.
+	membersEnumeratedAt: timestamp("members_enumerated_at", {
+		withTimezone: true,
+	}),
 	// Moderation: null = active. When set, the entity is hidden from the leaderboard and
 	// "recently looked up" (still directly viewable, with an under-review notice) until cleared.
 	suspendedAt: timestamp("suspended_at", { withTimezone: true }),

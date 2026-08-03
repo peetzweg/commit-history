@@ -24,7 +24,7 @@ the self-hosting playbook live in the private `peetzweg/devops` repo.
 
 ## Background jobs
 
-Recipe, proven by `monthly-user-refresh` and `backfill-orgs`: a CLI in `scripts/` (flags,
+Recipe, proven by `monthly-user-refresh` and `refresh-orgs`: a CLI in `scripts/` (flags,
 each mirrored by an env var) → bundled by `build:worker` into `.output/worker/<job>.mjs` →
 the Dockerfile already copies `.output`, so shipping a new job needs no Dockerfile change →
 a Coolify **scheduled task** runs `node .output/worker/<job>.mjs` (cron + `docker exec` into
@@ -36,7 +36,9 @@ per job); use `createBudgetGuard` so it can't drain the GitHub token below the f
 traffic needs; stop cleanly on a wall-clock cap instead of being killed; resume off a DB
 freshness marker (**the missing row is the retry queue** — no job-state table); write only
 idempotent upserts; isolate per-item failures to a narrow status allowlist; and emit one
-greppable `<job> done status=… ` summary line. Stagger schedules: the prod box has no swap and
+greppable `<job> done status=… ` summary line. Size the **unit of work** so no single item can
+monopolise a run — `refresh-orgs` works one (org, member) pair at a time precisely because
+one-org-at-a-time made a 4,000-member org an indivisible multi-hour job that could never finish. Stagger schedules: the prod box has no swap and
 `docker exec` adds a second node process inside the app container.
 
 Two failure modes worth knowing: cleanup must release the lock **first and defensively**, or a

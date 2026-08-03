@@ -104,7 +104,7 @@ export function createJobLock(
  */
 export const LOCK_KEYS = {
 	monthlyUserRefresh: [20260701, 1],
-	orgBackfill: [20260701, 2],
+	orgRefresh: [20260701, 2],
 } as const;
 
 export interface BudgetGuard {
@@ -126,7 +126,7 @@ export interface BudgetGuard {
  * window is worse than one that exits 0 and leaves the rest for the next pass.
  */
 export function createBudgetGuard(opts: {
-	/** Log prefix, e.g. `org-backfill` — every line is `<label> status=…`. */
+	/** Log prefix, e.g. `org-refresh` — every line is `<label> status=…`. */
 	label: string;
 	remainingFloor: number;
 	pollEvery: number;
