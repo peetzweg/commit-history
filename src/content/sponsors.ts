@@ -4,9 +4,13 @@
  * The creative lives in code — not a DB, not a CMS. A slot changes maybe once a quarter, a logo
  * has to be hosted somewhere regardless, and keeping it here means every change is a reviewable,
  * revertable commit. *Selling* a slot is a Stripe concern (`src/lib/sponsor.ts`); *showing* the
- * creative is this file. The two are deliberately decoupled: a fresh sale flips the /-/sponsoring
- * page to "Booked" automatically, while the row below is swapped by hand once the sponsor mails
- * their logo (same manual step the legacy Rebates deal uses today).
+ * creative is this file. A fresh sale flips the /-/sponsoring page to "Booked" automatically, and
+ * the entry below is added by hand once the sponsor mails their logo.
+ *
+ * An entry here is permission to show an ad, not proof the slot is still paid for: `SponsorRow`
+ * hides the creative whenever Stripe reports the slot available, so a lapsed subscription can't
+ * leave an ex-sponsor running for free. Do clear the stale entry anyway — the row falls back to
+ * the creative whenever Stripe is unreachable.
  *
  * `null` = the slot has no paid creative right now → the leaderboards show a self-advertising
  * "empty slot" row linking to the /-/sponsoring pitch page.
@@ -38,30 +42,11 @@ export interface SponsorCreative {
 	abVariants?: readonly SponsorVariant[];
 }
 
-// Rebates.ai occupies the developer slot (legacy deal, not a Stripe subscription). The slot-5
-// tagline A/B test rides along here — utm_content carries the arm so clicks are attributable.
-const rebatesHref = (utmContent: string) =>
-	`https://rebates.ai/?utm_source=commit-history.com&utm_medium=leaderboard&utm_campaign=commit-history_sponsorship&utm_content=${utmContent}`;
-
 export const SPONSORS: Record<SponsorSlotId, SponsorCreative | null> = {
-	dev: {
-		name: "Rebates.ai",
-		logo: "https://rebates.ai/brand/rebates-bandit.svg",
-		logoShape: "round",
-		// Arm "a" (control) is the SSR default; both arms live in abVariants for the client flip.
-		tagline: "The ads in your terminal pay you",
-		href: rebatesHref("slot5-test-79-a"),
-		abVariants: [
-			{
-				tagline: "The ads in your terminal pay you",
-				href: rebatesHref("slot5-test-79-a"),
-			},
-			{
-				tagline: "Watch ads while coding. Get paid.",
-				href: rebatesHref("slot5-test-79-b"),
-			},
-		],
-	},
+	// The Rebates.ai deal ended when its subscription lapsed — the board shows the self-advertising
+	// empty row again. Its creative (logo, the slot-5 tagline A/B test, utm_content arms) is in git
+	// history if the deal comes back.
+	dev: null,
 	// No paid org sponsor yet → the board shows the self-advertising empty row. When the org slot
 	// sells via Stripe, drop the sponsor's creative here and deploy.
 	org: null,

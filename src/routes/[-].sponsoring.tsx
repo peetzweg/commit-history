@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import type { SponsorSlotId } from "#/content/sponsors";
-import { getSponsorSlots, type SlotState } from "#/lib/sponsor";
+import { type SlotState, sponsorSlotsQueryOptions } from "#/lib/sponsor";
 
 const SITE = "https://commit-history.com";
 const TITLE = "Sponsoring commit-history.com";
@@ -162,11 +162,8 @@ const SLOT_ORDER: readonly SponsorSlotId[] = ["dev", "org"];
  * once Stripe answers. Any unconfigured/failed slot simply stays on the fallback.
  */
 function SlotsSection() {
-	const { data } = useQuery({
-		queryKey: ["sponsor-slots"],
-		queryFn: () => getSponsorSlots(),
-		staleTime: 60_000,
-	});
+	// Same query the leaderboard sponsor rows use, so both views of a slot can't disagree.
+	const { data } = useQuery(sponsorSlotsQueryOptions);
 	const byId = new Map((data ?? []).map((s) => [s.id, s]));
 	return (
 		<section className="mt-10">

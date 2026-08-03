@@ -4,9 +4,10 @@ import type { SponsorSlotId } from "#/content/sponsors";
 
 /**
  * Live per-slot sponsorship status, read from Stripe. Powers the "Rent this slot" / "Booked"
- * cards on the /-/sponsoring page — and nothing else. The leaderboard creative (the ad rows) is a
- * separate, static concern (`src/content/sponsors.ts`); this module never decides what is shown on
- * a board, only whether a slot is currently for sale.
+ * cards on the /-/sponsoring page, and gates the leaderboard creative (`SponsorRow`) so a slot
+ * offered for rent can never still be running the previous sponsor's ad. Which creative a booked
+ * slot shows stays a static, manual concern (`src/content/sponsors.ts`) — this module only decides
+ * whether a slot is currently for sale.
  *
  * No database: a slot's truth lives entirely in Stripe (subscription state per price) plus env
  * (which price/link maps to which slot). "Booked" is derived from an active subscription existing,
@@ -83,8 +84,9 @@ async function computeSlot(
 	env: SlotEnv,
 	stripe: Stripe | null,
 ): Promise<SlotState> {
-	// The dev slot is held by the legacy Rebates deal (not a Stripe sub) → forced "booked" via env
-	// until that deal ends. Checked before Stripe so it holds even with Stripe unconfigured.
+	// Escape hatch for a slot sold outside Stripe (the legacy Rebates deal used it until that deal
+	// lapsed): env forces "booked" so the slot isn't offered for rent and its creative keeps
+	// running. Checked before Stripe so it holds even with Stripe unconfigured.
 	if (id === "dev" && process.env.SPONSOR_DEV_SLOT_FORCE_BOOKED === "1") {
 		return { id, status: "booked" };
 	}
@@ -141,3 +143,13 @@ export const getSponsorSlots = createServerFn({ method: "GET" }).handler(
 		return slots;
 	},
 );
+
+/**
+ * Shared react-query wiring, so the /-/sponsoring cards and every leaderboard sponsor row read one
+ * cache instead of each firing their own RPC. staleTime matches the server-side cache window.
+ */
+export const sponsorSlotsQueryOptions = {
+	queryKey: ["sponsor-slots"] as const,
+	queryFn: () => getSponsorSlots(),
+	staleTime: CACHE_MS,
+};
