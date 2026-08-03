@@ -2,6 +2,7 @@ import { and, eq, gt, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import type { DB } from "#/lib/db";
 import { entities, monthlyCommits } from "#/lib/db/schema";
 import type { MonthlyCount } from "#/lib/github";
+import { createJobLock, LOCK_KEYS } from "#/lib/job-runner";
 import {
 	activeRankedUser,
 	metricOrder,
@@ -13,9 +14,6 @@ import type {
 	RefreshCandidate,
 	UserRefreshMetric,
 } from "#/lib/monthly-user-refresh";
-
-const USER_REFRESH_LOCK_KEY_1 = 20260701;
-const USER_REFRESH_LOCK_KEY_2 = 1;
 
 /**
  * "This stored month is final": read at/after the month's own end. A null `fetched_at` predates the
@@ -34,41 +32,15 @@ const completeMonthRow = (table: string) =>
 export function createMonthlyUserRefreshStore(
 	database: DB,
 ): MonthlyRefreshStore {
-	// Advisory locks are SESSION-scoped, and `database.execute` takes an arbitrary connection out
-	// of the postgres.js pool. Unlocking from a different connection than the one holding the lock
-	// silently returns false, so the lock is pinned to a reserved connection for the run's
-	// lifetime. (Mutual exclusion would work either way — a second process is a second session —
-	// but a release that quietly no-ops is a trap for whoever reuses this next.)
-	let lockConn: Awaited<ReturnType<DB["$client"]["reserve"]>> | null = null;
+	const lock = createJobLock(
+		database,
+		...LOCK_KEYS.monthlyUserRefresh,
+		"monthly-user-refresh",
+	);
 
 	return {
-		async tryLock() {
-			lockConn = await database.$client.reserve();
-			const [row] = await lockConn<Array<{ acquired: boolean }>>`
-				select pg_try_advisory_lock(${USER_REFRESH_LOCK_KEY_1}, ${USER_REFRESH_LOCK_KEY_2}) as acquired`;
-			const acquired = Boolean(row?.acquired);
-			if (!acquired) {
-				lockConn.release();
-				lockConn = null;
-			}
-			return acquired;
-		},
-
-		async releaseLock() {
-			if (!lockConn) return;
-			try {
-				const [row] = await lockConn<Array<{ released: boolean }>>`
-					select pg_advisory_unlock(${USER_REFRESH_LOCK_KEY_1}, ${USER_REFRESH_LOCK_KEY_2}) as released`;
-				if (!row?.released) {
-					console.warn(
-						"monthly-user-refresh lock=release_returned_false (was it held by this session?)",
-					);
-				}
-			} finally {
-				lockConn.release();
-				lockConn = null;
-			}
-		},
+		tryLock: lock.tryLock,
+		releaseLock: lock.releaseLock,
 
 		async usersForMetric(metric, limit) {
 			return usersForMetric(database, metric, limit);

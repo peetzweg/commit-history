@@ -207,9 +207,10 @@ describe("fetchOrgMembers pagination", () => {
 		}),
 	});
 
-	it("keeps paginating past the first ten pages", async () => {
-		// The regression behind #150: at the old 10-page cap, NixOS (1,494 public members) was
-		// silently stored as its first 1,000 — everyone past the cut was invisible forever.
+	it("paginates past the default cap when the caller raises maxPages", async () => {
+		// The regression behind #150: the default 10-page cap stored NixOS (1,494 public members)
+		// as its first 1,000, and everyone past the cut was invisible forever. The worker raises
+		// the cap precisely so orgs of that size enumerate whole.
 		const TOTAL_PAGES = 15;
 		let seen = 0;
 		vi.stubGlobal("fetch", async () => {
@@ -218,19 +219,37 @@ describe("fetchOrgMembers pagination", () => {
 			return page(p * 100, size, p < TOTAL_PAGES - 1);
 		});
 
-		const members = await fetchOrgMembers("NixOS", "tok");
+		const { members, truncated } = await fetchOrgMembers("NixOS", "tok", {
+			maxPages: 30,
+		});
 
+		expect(truncated).toBe(false);
 		expect(members).toHaveLength(1494);
 		expect(members.at(-1)?.login).toBe("member1493");
 	});
 
-	it("throws rather than returning a truncated membership at the cap", async () => {
-		// A backstop that trims the result set lies about who is in the org; one that fails is
-		// merely unhelpful. Always claim another page so the loop runs into the cap.
+	it("reports truncated when the cap stops it with pages still to come", async () => {
+		// The flag is the whole safeguard: a short list is indistinguishable from a complete one,
+		// so callers that stamp builtAt rely on this to tell the difference. Always claim another
+		// page so the loop runs into the cap.
 		vi.stubGlobal("fetch", async () => page(0, 100, true));
 
-		await expect(fetchOrgMembers("hugeorg", "tok")).rejects.toThrow(
-			/more than 10000 public members/,
-		);
+		const { members, truncated } = await fetchOrgMembers("hugeorg", "tok", {
+			maxPages: 3,
+		});
+
+		expect(truncated).toBe(true);
+		expect(members).toHaveLength(300);
+	});
+
+	it("stops at the default cap when the caller does not raise it", async () => {
+		// The request path relies on the low default — it refuses orgs over 25 members anyway, so
+		// it should never pay for deep pagination.
+		vi.stubGlobal("fetch", async () => page(0, 100, true));
+
+		const { members, truncated } = await fetchOrgMembers("hugeorg", "tok");
+
+		expect(truncated).toBe(true);
+		expect(members).toHaveLength(1000);
 	});
 });

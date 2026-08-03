@@ -1,4 +1,12 @@
 import type { MonthlyCount, MonthWindow, RateLimitBudget } from "#/lib/github";
+import {
+	type BudgetGuard,
+	createBudgetGuard,
+	defaultSleep,
+	type JobLogger,
+	positiveInteger,
+	quietLogger,
+} from "#/lib/job-runner";
 import { LEADER_METRICS, type LeaderMetric } from "#/lib/leaderboard-rank";
 
 /**
@@ -41,11 +49,7 @@ export interface MonthlyRefreshStore {
 	markUnreachable(id: string, at: Date): Promise<void>;
 }
 
-export interface MonthlyRefreshLogger {
-	info(message: string): void;
-	warn(message: string): void;
-	error(message: string): void;
-}
+export type MonthlyRefreshLogger = JobLogger;
 
 export interface RunMonthlyUserRefreshOptions {
 	store: MonthlyRefreshStore;
@@ -198,6 +202,7 @@ export async function runMonthlyUserRefresh(
 	const runtimeLeftMs = () =>
 		opts.maxRuntimeMs ? opts.maxRuntimeMs - (timeMs() - startedAt) : Infinity;
 	const budget = createBudgetGuard({
+		label: `monthly-user-refresh target_month=${targetMonth}`,
 		remainingFloor,
 		pollEvery,
 		fetchRateLimit: opts.fetchRateLimit,
@@ -205,7 +210,6 @@ export async function runMonthlyUserRefresh(
 		nowMs: timeMs,
 		runtimeLeftMs,
 		logger,
-		targetMonth,
 	});
 
 	try {
@@ -273,96 +277,22 @@ export async function runMonthlyUserRefresh(
 			await sleep((1 / ratePerHour) * 3_600_000);
 		}
 	} finally {
-		await opts.store.releaseLock();
+		// Never let the release throw: skipping `pg_advisory_unlock` leaves the lock held by a
+		// server-side session that outlives the crashed process, so every later run would report
+		// status=locked and quietly do nothing.
+		try {
+			await opts.store.releaseLock();
+		} catch (err) {
+			logger.error(
+				`monthly-user-refresh target_month=${targetMonth} status=lock_release_failed error=${JSON.stringify(err instanceof Error ? err.message : String(err))}`,
+			);
+		}
 	}
 
 	logger.info(
 		`monthly-user-refresh done target_month=${targetMonth} status=${result.status}${result.stopReason ? ` reason=${result.stopReason}` : ""} candidates=${result.candidates} incomplete_target_month=${result.incompleteTargetMonth} refreshed=${result.refreshed} skipped_complete=${result.skippedComplete} failed=${result.failed} unreachable=${result.unreachable} dry_run_would_refresh=${result.dryRunWouldRefresh}`,
 	);
 	return result;
-}
-
-interface BudgetGuard {
-	/** True to proceed; false when the run must stop rather than dip below the floor. */
-	ensure(force?: boolean): Promise<boolean>;
-	/** Account for a request that was just spent, between polls. */
-	spend(): void;
-}
-
-/**
- * Keeps the run above `remainingFloor` GraphQL points. The token is shared with live traffic, so
- * a batch job that drains the hourly quota takes the site down with it. Polling costs nothing but
- * a round-trip, so we poll every `pollEvery` users and decrement locally in between.
- *
- * Below the floor the only options are "wait for the window to reset" or "stop". Waiting is
- * allowed only if it fits inside the remaining max-runtime budget: a scheduled job that sleeps
- * past its window is worse than one that exits 0 and leaves the month for the next pass, since a
- * missing month row *is* the retry queue.
- */
-function createBudgetGuard(opts: {
-	remainingFloor: number;
-	pollEvery: number;
-	fetchRateLimit?: () => Promise<RateLimitBudget | null>;
-	sleep: (ms: number) => Promise<void>;
-	nowMs: () => number;
-	runtimeLeftMs: () => number;
-	logger: MonthlyRefreshLogger;
-	targetMonth: string;
-}): BudgetGuard {
-	const { fetchRateLimit, logger, targetMonth } = opts;
-	// A GraphQL window is an hour, so two waits is already a long-running scheduled job. Past
-	// that, stop and let the next scheduled pass pick up the still-missing months.
-	const MAX_RESET_WAITS = 2;
-	let remaining: number | null = null;
-	let sincePoll = Number.POSITIVE_INFINITY; // force a poll before the first request
-	let waits = 0;
-
-	return {
-		spend() {
-			if (remaining != null) remaining -= 1;
-			sincePoll += 1;
-		},
-
-		async ensure(force = false) {
-			if (!fetchRateLimit) return true;
-			// The local decrement is only trusted while it stays clear of the floor; once it gets
-			// close we re-poll for the real number rather than guessing in either direction.
-			const nearFloorLocally =
-				remaining != null && remaining <= opts.remainingFloor;
-			if (!force && !nearFloorLocally && sincePoll < opts.pollEvery)
-				return true;
-
-			const budget = await fetchRateLimit();
-			sincePoll = 0;
-			if (!budget) {
-				// The poll itself failed. Don't invent a budget; let the request try and fail.
-				logger.warn(
-					`monthly-user-refresh target_month=${targetMonth} status=budget_poll_failed`,
-				);
-				return true;
-			}
-			remaining = budget.remaining;
-			if (remaining > opts.remainingFloor) return true;
-
-			const waitMs = new Date(budget.resetAt).getTime() - opts.nowMs() + 1_000;
-			const runtimeLeft = opts.runtimeLeftMs();
-			if (!Number.isFinite(waitMs) || waitMs <= 0) return true;
-			if (waitMs > runtimeLeft || waits >= MAX_RESET_WAITS) {
-				logger.warn(
-					`monthly-user-refresh target_month=${targetMonth} status=stopped reason=rate_limit_floor remaining=${remaining} floor=${opts.remainingFloor} reset_at=${budget.resetAt} wait_ms=${waitMs} runtime_left_ms=${Math.max(0, Math.round(runtimeLeft))}`,
-				);
-				return false;
-			}
-			waits += 1;
-			logger.warn(
-				`monthly-user-refresh target_month=${targetMonth} status=waiting reason=rate_limit_floor remaining=${remaining} floor=${opts.remainingFloor} reset_at=${budget.resetAt} wait_ms=${waitMs} wait=${waits}/${MAX_RESET_WAITS}`,
-			);
-			await opts.sleep(waitMs);
-			remaining = null; // window reset; re-poll on the next ensure()
-			sincePoll = Number.POSITIVE_INFINITY;
-			return true;
-		},
-	};
 }
 
 async function candidateUnion(
@@ -520,13 +450,6 @@ function parseSafeAfterUtc(value: string): { minutesAfterMidnight: number } {
 	return { minutesAfterMidnight: hours * 60 + minutes };
 }
 
-function positiveInteger(value: number, name: string): number {
-	if (!Number.isInteger(value) || value <= 0) {
-		throw new Error(`${name} must be a positive integer.`);
-	}
-	return value;
-}
-
 function totalContributions(counts: MonthlyCount): number {
 	return (
 		counts.commits +
@@ -556,12 +479,3 @@ function emptyResult(
 		dryRun,
 	};
 }
-
-const defaultSleep = (ms: number) =>
-	new Promise<void>((resolve) => setTimeout(resolve, ms));
-
-const quietLogger: MonthlyRefreshLogger = {
-	info: () => {},
-	warn: () => {},
-	error: () => {},
-};

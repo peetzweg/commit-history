@@ -50,6 +50,13 @@
       "when": 1785614812438,
       "tag": "0006_brainy_the_hood",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1785750031946,
+      "tag": "0007_lonely_echo",
+      "breakpoints": true
     }
   ]
 }
