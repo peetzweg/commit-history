@@ -1,6 +1,6 @@
 /**
  * Discover organizations on GitHub and pre-record them (unbuilt) so they become look-up-able and
- * get filled later by backfill-orgs.ts. Companion to that script — kept separate on purpose.
+ * get filled later by the refresh-orgs worker. Companion to that job — kept separate on purpose.
  *
  * GitHub has NO endpoint that ranks orgs by public-member count (the Search API returns only
  * login/id, caps at 1,000 results, and won't sort or filter by member count). So we can't ask for
@@ -10,7 +10,8 @@
  *   2. enrich each with fetchOrgProfile to get its ACTUAL public member count,
  *   3. filter (--min-members) and sort by that count, most members first,
  *   4. record the survivors as `entities` rows (kind='org', builtAt null).
- * backfill-orgs.ts then fills them (it fills smallest-first, so small ones resolve quickly).
+ * The refresh-orgs worker then fills them: a never-enumerated org is first in its enumeration
+ * order, and its members outrank merely-stale ones in the refresh queue.
  *
  * Needs the read:org token from .env (member counts require it), so prefix with env -u
  * GITHUB_TOKEN if your shell exports one:
@@ -22,7 +23,7 @@
  *   env -u GITHUB_TOKEN bun scripts/discover-orgs.ts --dry-run        # preview, write nothing
  *
  * Idempotent: already-known orgs are skipped before enrichment; recording is an upsert. Afterwards:
- *   env -u GITHUB_TOKEN bun scripts/backfill-orgs.ts                  # fills the newly-recorded orgs
+ *   env -u GITHUB_TOKEN pnpm refresh:orgs                             # fills the newly-recorded orgs
  */
 import { inArray } from "drizzle-orm";
 import { db } from "#/lib/db";
@@ -172,7 +173,7 @@ if (DRY_RUN) {
 	process.exit(0);
 }
 
-// Record as unbuilt org rows (builtAt null) so backfill-orgs.ts picks them up.
+// Record as unbuilt org rows (builtAt null) so the refresh-orgs worker picks them up.
 let recorded = 0;
 for (const p of selected) {
 	const cols = {
@@ -198,5 +199,5 @@ for (const p of selected) {
 	recorded++;
 }
 console.log(
-	`\nRecorded ${recorded} org(s) (builtAt null). Fill them next:\n  env -u GITHUB_TOKEN bun scripts/backfill-orgs.ts`,
+	`\nRecorded ${recorded} org(s) (builtAt null). The nightly refresh-orgs worker will fill them, or now:\n  env -u GITHUB_TOKEN pnpm refresh:orgs`,
 );

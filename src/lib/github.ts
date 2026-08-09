@@ -539,27 +539,30 @@ export async function fetchOrgProfile(
 	};
 }
 
-// Hard stop for the members pagination loop (pages of 100). The org build enforces its own, far
-// lower member cap before fetching contributions, so only the backfill/refresh scripts ever
-// paginate deep — this is a runaway backstop, not a policy cap, and sits well above GitHub's
-// largest orgs. It used to be 10, which silently truncated NixOS to the first 1,000 of its 1,494
-// public members (#150): every member past page 10 was invisible forever. A backstop that trims
-// the result set is worse than one that fails, so hitting it now throws.
-const MAX_MEMBER_PAGES = 100;
+// Hard stop for the members pagination loop (pages of 100). The org build enforces its own,
+// lower member cap before fetching contributions — this is just a runaway/mega-org backstop.
+// The backfill worker raises it (see `maxPages`), since a 2,800-member org is exactly the case
+// the request path refuses and the worker exists to handle.
+const MAX_MEMBER_PAGES = 10;
 
 /**
  * Enumerate an org's members visible to the token — public members only unless the token itself
  * belongs to the org. Each node carries `createdAt`, so the caller can window every member's
  * contribution fetch without per-member profile requests.
+ *
+ * `truncated` means the page cap stopped us with more members still to come. Callers that stamp an
+ * org as built need it: rolling up a truncated membership silently undercounts the org forever.
  */
 export async function fetchOrgMembers(
 	rawLogin: string,
 	token: string,
-): Promise<OrgMember[]> {
+	opts: { maxPages?: number } = {},
+): Promise<{ members: OrgMember[]; truncated: boolean }> {
 	const login = assertLogin(rawLogin);
+	const maxPages = Math.max(1, opts.maxPages ?? MAX_MEMBER_PAGES);
 	const members: OrgMember[] = [];
 	let cursor: string | null = null;
-	for (let page = 0; page < MAX_MEMBER_PAGES; page++) {
+	for (let page = 0; page < maxPages; page++) {
 		const after: string = cursor ? `, after: "${cursor}"` : "";
 		const data = await graphql<{
 			organization: {
@@ -591,15 +594,10 @@ export async function fetchOrgMembers(
 			if (!edge.node) continue;
 			members.push({ ...edge.node, role: edge.role });
 		}
-		if (!conn.pageInfo.hasNextPage) return members;
+		if (!conn.pageInfo.hasNextPage) return { members, truncated: false };
 		cursor = conn.pageInfo.endCursor;
 	}
-	// Never return a partial membership — a truncated list reads as "these are all the members"
-	// and permanently hides everyone past the cut (#150).
-	throw new GitHubError(
-		`Organization "${login}" has more than ${MAX_MEMBER_PAGES * 100} public members — refusing to enumerate a partial membership.`,
-		413,
-	);
+	return { members, truncated: true };
 }
 
 /** A member's summed lifetime contributions to one org (org-scoped, not their global totals). */

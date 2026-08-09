@@ -204,7 +204,7 @@ async function getFromDb(
 	// Enumerate members once per build: every member becomes a pending org_members row, which
 	// doubles as the resume marker. Re-enumeration (membership drift) is the worker's job.
 	if ((await memberRowCount(database, id)) === 0) {
-		const members = await fetchOrgMembers(login, token);
+		const { members } = await fetchOrgMembers(login, token);
 		if (members.length > MAX_ORG_MEMBERS) {
 			throw new GitHubError(tooLargeMessage(login, members.length), 422);
 		}

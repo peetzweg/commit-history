@@ -1,0 +1,1 @@
+ALTER TABLE "entities" ADD COLUMN "members_enumerated_at" timestamp with time zone;
