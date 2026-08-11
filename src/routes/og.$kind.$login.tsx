@@ -5,6 +5,37 @@ import { METRIC_NOUN, METRIC_TOTAL } from "#/lib/metrics";
 import { developerCard, orgCard, renderPng } from "#/lib/og-card";
 import { orgRankFor, resolveOrg } from "#/lib/org";
 
+function metricValues(
+	history: Parameters<typeof METRIC_TOTAL.public>[0],
+	metric: ChartMode,
+) {
+	return history.points.map((point) => {
+		switch (metric) {
+			case "private":
+				return point.restricted;
+			case "prs":
+				return point.pullRequests;
+			case "issues":
+				return point.issues;
+			case "reviews":
+				return point.reviews;
+			case "repos":
+				return point.repos;
+			case "total":
+				return (
+					point.commits +
+					point.restricted +
+					point.issues +
+					point.pullRequests +
+					point.reviews +
+					point.repos
+				);
+			default:
+				return point.commits;
+		}
+	});
+}
+
 /**
  * Dynamic Open Graph card for a developer or an organization:
  *   /og/user/<login>   → avatar, name, overall + public-commits rank
@@ -20,12 +51,15 @@ import { orgRankFor, resolveOrg } from "#/lib/org";
  */
 
 /** Fetch an avatar and inline it as a data URL for satori. Best-effort — null on any failure. */
-async function fetchAvatar(url: string | null): Promise<string | null> {
+async function fetchAvatar(
+	url: string | null,
+	size = 400,
+): Promise<string | null> {
 	if (!url) return null;
 	try {
 		// GitHub avatars honour `s=` for a right-sized fetch (the card renders it at 200px).
 		const sep = url.includes("?") ? "&" : "?";
-		const res = await fetch(`${url}${sep}s=400`);
+		const res = await fetch(`${url}${sep}s=${size}`);
 		if (!res.ok) return null;
 		const mime = res.headers.get("content-type") ?? "image/png";
 		const base64 = Buffer.from(await res.arrayBuffer()).toString("base64");
@@ -67,12 +101,18 @@ export const Route = createFileRoute("/og/$kind/$login")({
 				const { kind, login } = params;
 				try {
 					if (kind === "org") {
-						const { org } = await resolveOrg(login);
+						const { org, members } = await resolveOrg(login);
 						if (!org) return fallback(request);
-						const [place, avatarDataUrl] = await Promise.all([
-							orgRankFor(org.totalCommits).catch(() => null),
-							fetchAvatar(org.avatarUrl),
-						]);
+						const [place, avatarDataUrl, memberAvatarDataUrls] =
+							await Promise.all([
+								orgRankFor(org.totalCommits).catch(() => null),
+								fetchAvatar(org.avatarUrl),
+								Promise.all(
+									members
+										.slice(0, 25)
+										.map((member) => fetchAvatar(member.avatarUrl, 120)),
+								),
+							]);
 						const png = await renderPng(
 							orgCard({
 								login: org.login,
@@ -80,6 +120,8 @@ export const Route = createFileRoute("/og/$kind/$login")({
 								avatarDataUrl,
 								place,
 								commits: org.totalCommits,
+								memberAvatarDataUrls,
+								memberCount: members.length,
 							}),
 						);
 						return new Response(new Uint8Array(png), { headers: PNG_HEADERS });
@@ -115,6 +157,7 @@ export const Route = createFileRoute("/og/$kind/$login")({
 									amountValue > 0
 										? { value: amountValue, label: METRIC_NOUN[metric] }
 										: null,
+								trendValues: metricValues(history, metric),
 							}),
 						);
 						return new Response(new Uint8Array(png), { headers: PNG_HEADERS });

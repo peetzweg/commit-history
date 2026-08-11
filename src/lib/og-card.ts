@@ -43,6 +43,35 @@ const curveSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="560" height="32
 </svg>`;
 const curveDataUrl = `data:image/svg+xml;base64,${Buffer.from(curveSvg).toString("base64")}`;
 
+/**
+ * A deliberately minimal cumulative trend for the entity cards: one recognizable line, with no
+ * axes, labels, or dots competing with the identity and rank. Values are per-window counts.
+ */
+export function trendDataUrl(values: readonly number[]): string {
+	if (values.length === 0) values = [0, 0];
+	let running = 0;
+	const cumulative = values.map((value) => (running += Math.max(0, value)));
+	const max = Math.max(...cumulative, 1);
+	const width = 560;
+	const height = 320;
+	const inset = 8;
+	const x = (i: number) =>
+		inset +
+		(cumulative.length === 1
+			? (width - inset * 2) / 2
+			: (i / (cumulative.length - 1)) * (width - inset * 2));
+	const y = (value: number) =>
+		height - inset - (value / max) * (height - inset * 2);
+	const line = cumulative
+		.map(
+			(value, i) =>
+				`${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(value).toFixed(1)}`,
+		)
+		.join(" ");
+	const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><path d="${line}" fill="none" stroke="${ACCENT}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+	return `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
+}
+
 /** The xkcd font covers basic latin only — fold typographic characters down to ASCII. */
 export function asciiFold(text: string): string {
 	return text
@@ -63,6 +92,25 @@ function renderableName(name: string | null | undefined): string | null {
 	const folded = asciiFold(candidate);
 	// biome-ignore lint/suspicious/noControlCharactersInRegex: intentional ASCII-range guard.
 	return /^[\x00-\x7F]+$/.test(folded) ? folded : null;
+}
+
+/** Split only long, multi-word display names into balanced title lines for the fixed OG header. */
+export function displayNameLines(name: string): string[] {
+	if (name.length <= 18) return [name];
+	const words = name.split(/\s+/);
+	if (words.length < 2) return [name];
+	let best = 1;
+	let bestWidth = Number.POSITIVE_INFINITY;
+	for (let split = 1; split < words.length; split++) {
+		const first = words.slice(0, split).join(" ").length;
+		const second = words.slice(split).join(" ").length;
+		const width = Math.max(first, second);
+		if (width < bestWidth) {
+			best = split;
+			bestWidth = width;
+		}
+	}
+	return [words.slice(0, best).join(" "), words.slice(best).join(" ")];
 }
 
 // ── Minimal element factory (satori accepts React-shaped plain objects) ──────
@@ -102,7 +150,7 @@ function wordmark(fontSize: number): OgNode {
 }
 
 /** The outer 1200×630 frame every card shares. */
-function frame(...children: Child[]): OgNode {
+function frame(visual: OgNode, ...children: Child[]): OgNode {
 	return el(
 		"div",
 		{
@@ -117,13 +165,96 @@ function frame(...children: Child[]): OgNode {
 				position: "relative",
 			},
 		},
-		el("img", {
-			src: curveDataUrl,
-			width: 560,
-			height: 320,
-			style: { position: "absolute", right: 48, bottom: 40 },
-		}),
+		visual,
 		...children,
+	);
+}
+
+function trendVisual(values: readonly number[]): OgNode {
+	return el("img", {
+		src: trendDataUrl(values),
+		width: 560,
+		height: 320,
+		style: { position: "absolute", right: 48, bottom: 40 },
+	});
+}
+
+const MAX_MEMBER_AVATARS = 25;
+
+/** A compact, capped roster of the public members we already have on the org record. */
+function memberGrid(
+	avatarDataUrls: readonly (string | null)[],
+	memberCount: number,
+): OgNode {
+	const hasOverflow = memberCount > MAX_MEMBER_AVATARS;
+	const shown = avatarDataUrls.slice(
+		0,
+		hasOverflow ? MAX_MEMBER_AVATARS - 1 : MAX_MEMBER_AVATARS,
+	);
+	const cells: OgNode[] = shown.map((src, index) =>
+		src
+			? el("img", {
+					src,
+					width: 60,
+					height: 60,
+					style: { borderRadius: 30, objectFit: "cover" },
+				})
+			: el(
+					"div",
+					{
+						style: {
+							display: "flex",
+							width: 60,
+							height: 60,
+							borderRadius: 30,
+							backgroundColor: "#e4e4e7",
+							alignItems: "center",
+							justifyContent: "center",
+							fontSize: 24,
+							color: MUTED,
+						},
+					},
+					String(index + 1),
+				),
+	);
+	if (hasOverflow) {
+		cells.push(
+			el(
+				"div",
+				{
+					style: {
+						display: "flex",
+						width: 60,
+						height: 60,
+						borderRadius: 30,
+						backgroundColor: "#e4e4e7",
+						alignItems: "center",
+						justifyContent: "center",
+						fontSize: 21,
+						color: FG,
+					},
+				},
+				`+${memberCount - (MAX_MEMBER_AVATARS - 1)}`,
+			),
+		);
+	}
+	return el(
+		"div",
+		{
+			style: {
+				display: "flex",
+				flexWrap: "wrap",
+				width: 356,
+				height: 320,
+				gap: 14,
+				alignContent: "center",
+				justifyContent: "center",
+				position: "absolute",
+				right: 96,
+				bottom: 40,
+			},
+		},
+		...cells,
 	);
 }
 
@@ -166,13 +297,15 @@ function avatarBlock(
 function identityBlock(name: string | null | undefined, login: string): OgNode {
 	const display = renderableName(name);
 	const heading = display ?? `@${login}`;
-	const children: Child[] = [
+	const children: Child[] = (
+		display ? displayNameLines(display) : [heading]
+	).map((line) =>
 		el(
 			"div",
 			{ style: { display: "flex", fontSize: 72, color: FG, lineHeight: 1.1 } },
-			heading,
+			line,
 		),
-	];
+	);
 	if (display) {
 		children.push(
 			el(
@@ -237,8 +370,10 @@ function entityCard(
 	avatarDataUrl: string | null,
 	rank: number | null,
 	amount: { value: number; label: string } | null,
+	visual: OgNode,
 ): OgNode {
 	return frame(
+		visual,
 		el(
 			"div",
 			{ style: { display: "flex", alignItems: "center", gap: 44 } },
@@ -264,6 +399,8 @@ export interface DeveloperCardInput {
 	rank: number | null;
 	/** The metric's amount, e.g. { value: 35742, label: "public commits" }. */
 	amount: { value: number; label: string } | null;
+	/** Per-month counts for the selected profile metric. */
+	trendValues: readonly number[];
 }
 
 export function developerCard(input: DeveloperCardInput): OgNode {
@@ -274,6 +411,7 @@ export function developerCard(input: DeveloperCardInput): OgNode {
 		input.avatarDataUrl,
 		input.rank,
 		input.amount,
+		trendVisual(input.trendValues),
 	);
 }
 
@@ -285,6 +423,10 @@ export interface OrgCardInput {
 	place: number | null;
 	/** The org's total commits (what the board ranks by); null/0 → line omitted. */
 	commits: number | null;
+	/** Avatar data URLs for the public members currently shown on the organization page. */
+	memberAvatarDataUrls: readonly (string | null)[];
+	/** Number of public members represented by `memberAvatarDataUrls`. */
+	memberCount: number;
 }
 
 export function orgCard(input: OrgCardInput): OgNode {
@@ -295,6 +437,7 @@ export function orgCard(input: OrgCardInput): OgNode {
 		input.avatarDataUrl,
 		input.place,
 		input.commits ? { value: input.commits, label: "commits" } : null,
+		memberGrid(input.memberAvatarDataUrls, input.memberCount),
 	);
 }
 
@@ -307,6 +450,12 @@ export function boardCard(kind: "user" | "org"): OgNode {
 			? "GitHub organizations ranked by their members' lifetime commits."
 			: "GitHub developers ranked by their lifetime commits.";
 	return frame(
+		el("img", {
+			src: curveDataUrl,
+			width: 560,
+			height: 320,
+			style: { position: "absolute", right: 48, bottom: 40 },
+		}),
 		el(
 			"div",
 			{ style: { display: "flex", alignItems: "center", gap: 20 } },
@@ -367,6 +516,12 @@ export function contentCard(
 	description: string,
 ): OgNode {
 	return frame(
+		el("img", {
+			src: curveDataUrl,
+			width: 560,
+			height: 320,
+			style: { position: "absolute", right: 48, bottom: 40 },
+		}),
 		el(
 			"div",
 			{ style: { display: "flex", alignItems: "center", gap: 20 } },
