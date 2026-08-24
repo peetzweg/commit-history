@@ -54,7 +54,7 @@ export async function getCommitHistory(
 ): Promise<CommitHistory> {
 	// `record: false` serves the data without writing a lookups row. Embed renders use it:
 	// they're third-party image fetches (GitHub camo, CDN cache misses), not someone searching,
-	// and counting them pollutes "recently looked up" and the all-time leaderboard.
+	// and including them would pollute the small "recently looked up" list.
 	const { now = new Date(), record = true } = opts;
 	if (!token) {
 		// Defer to the uncached path so it throws the canonical "missing token" error.
@@ -449,9 +449,31 @@ async function persistEntity(
 	}
 }
 
+/** Enough history for the UI with room for the 16-row display to turn over naturally. */
+const RECENT_LOOKUP_RETENTION = 64;
+
 export async function recordLookup(database: DB, id: string, now: Date) {
 	try {
-		await database.insert(lookups).values({ entityId: id, searchedAt: now });
+		await database.transaction(async (tx) => {
+			// One row per entity: revisiting a profile moves it to the front rather than storing an
+			// unbounded stream of events that the homepage would have to aggregate on every request.
+			await tx
+				.insert(lookups)
+				.values({ entityId: id, searchedAt: now })
+				.onConflictDoUpdate({
+					target: lookups.entityId,
+					set: { searchedAt: now },
+				});
+			await tx.execute(sql`
+				delete from ${lookups}
+				where ${lookups.id} in (
+					select ${lookups.id}
+					from ${lookups}
+					order by ${lookups.searchedAt} desc, ${lookups.id} desc
+					offset ${RECENT_LOOKUP_RETENTION}
+				)
+			`);
+		});
 	} catch {
 		/* best-effort */
 	}

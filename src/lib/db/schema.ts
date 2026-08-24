@@ -8,6 +8,7 @@ import {
 	serial,
 	text,
 	timestamp,
+	uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 /**
@@ -130,13 +131,23 @@ export const orgMembers = pgTable(
 	],
 );
 
-/** Every search — powers "recent lookups" and the all-time leaderboard. */
-export const lookups = pgTable("lookups", {
-	id: serial("id").primaryKey(),
-	entityId: text("entity_id")
-		.notNull()
-		.references(() => entities.id),
-	searchedAt: timestamp("searched_at", { withTimezone: true })
-		.notNull()
-		.defaultNow(),
-});
+/**
+ * A small, deduplicated recency list — this is product UI state, not an analytics event log.
+ * The writer caps it at 64 rows; the indexes make the homepage read a short ordered scan.
+ */
+export const lookups = pgTable(
+	"lookups",
+	{
+		id: serial("id").primaryKey(),
+		entityId: text("entity_id")
+			.notNull()
+			.references(() => entities.id),
+		searchedAt: timestamp("searched_at", { withTimezone: true })
+			.notNull()
+			.defaultNow(),
+	},
+	(t) => [
+		uniqueIndex("lookups_entity_id_idx").on(t.entityId),
+		index("lookups_searched_at_idx").on(t.searchedAt),
+	],
+);
