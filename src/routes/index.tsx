@@ -182,6 +182,12 @@ function Home() {
 				)
 			)}
 			<p className="mt-14 text-center text-sm text-muted-foreground">
+				<Link to="/-/github" className="underline hover:text-foreground">
+					GitHub activity over time
+				</Link>
+				<span className="px-2" aria-hidden="true">
+					·
+				</span>
 				Wondering what these numbers mean?{" "}
 				<Link to="/-/metrics" className="underline hover:text-foreground">
 					The metrics, explained

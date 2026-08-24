@@ -27,6 +27,7 @@ function renderSitemap(): string {
 	const today = new Date().toISOString().slice(0, 10);
 	const entries: SitemapEntry[] = [
 		{ path: "/", changefreq: "weekly", priority: "1.0", lastmod: today },
+		{ path: "/-/github", changefreq: "daily", priority: "0.8", lastmod: today },
 		{ path: "/-/metrics", changefreq: "monthly", priority: "0.8" },
 		{ path: "/-/sponsoring", changefreq: "monthly", priority: "0.5" },
 		...articles.map((a) => ({

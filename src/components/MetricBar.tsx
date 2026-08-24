@@ -43,6 +43,10 @@ export function MetricBar() {
 	if (routeId === "/") {
 		// The organization board (?kind=org) ranks by commits only — no metric to pick yet.
 		modes = boardKind === "org" ? null : LEADER_MODES;
+	} else if (routeId === "/-/github") {
+		// The aggregate page always exposes the full contribution vocabulary. A metric may be zero
+		// in an early database, but keeping its tab stable makes the page's interface predictable.
+		modes = ALL_METRICS;
 	} else if (routeId === "/$user") {
 		if (lookup?.kind === "org") {
 			// Org pages have a single number set — nothing to pick (no per-metric boards yet).
