@@ -44,7 +44,8 @@ export function cumulativeGithubPoints(months: GithubMonth[]): CommitPoint[] {
 	});
 }
 
-async function queryGithubHistory(): Promise<GithubHistory> {
+/** Database-backed implementation shared by the page loader and its Open Graph renderer. */
+export async function queryGithubHistory(): Promise<GithubHistory> {
 	// This module is imported by a route, so database code must stay inside the server handler.
 	// A top-level import would make Vite traverse postgres.js from the browser-facing graph.
 	const [{ asc, eq, sql }, { db }, { entities, monthlyCommits }] =

@@ -41,18 +41,32 @@ export const Route = createFileRoute("/-/github")({
 	validateSearch: (search: Record<string, unknown>): GithubSearch =>
 		isMetricParam(search.metric) ? { metric: search.metric } : {},
 	loader: () => getGithubHistory(),
-	head: () => ({
-		meta: [
-			{ title: `${TITLE} · Commit History` },
-			{ name: "description", content: DESCRIPTION },
-			{ property: "og:title", content: TITLE },
-			{ property: "og:description", content: DESCRIPTION },
-			{ property: "og:url", content: URL },
-			{ name: "twitter:title", content: TITLE },
-			{ name: "twitter:description", content: DESCRIPTION },
-		],
-		links: [{ rel: "canonical", href: URL }],
-	}),
+	head: ({ match }: { match: { search: GithubSearch } }) => {
+		const metric = match.search.metric;
+		const ogImage = `${SITE}/og/github${metric ? `?metric=${metric}` : ""}`;
+		return {
+			meta: [
+				{ title: `${TITLE} · Commit History` },
+				{ name: "description", content: DESCRIPTION },
+				{ property: "og:title", content: TITLE },
+				{ property: "og:description", content: DESCRIPTION },
+				{ property: "og:url", content: URL },
+				{ property: "og:image", content: ogImage },
+				{
+					property: "og:image:alt",
+					content: "GitHub activity across tracked users",
+				},
+				{ name: "twitter:title", content: TITLE },
+				{ name: "twitter:description", content: DESCRIPTION },
+				{ name: "twitter:image", content: ogImage },
+				{
+					name: "twitter:image:alt",
+					content: "GitHub activity across tracked users",
+				},
+			],
+			links: [{ rel: "canonical", href: URL }],
+		};
+	},
 	component: GithubActivity,
 });
 

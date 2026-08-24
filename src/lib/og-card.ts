@@ -415,6 +415,76 @@ export function developerCard(input: DeveloperCardInput): OgNode {
 	);
 }
 
+export interface GithubCardInput {
+	/** Metric noun, e.g. "public commits". */
+	metricLabel: string;
+	/** Cumulative total for the shown metric. */
+	total: number;
+	/** Number of tracked users represented by the chart. */
+	trackedUsers: number;
+	/** Aggregate per-month values for the shown metric. */
+	trendValues: readonly number[];
+}
+
+/**
+ * Live aggregate card for /-/github. It deliberately shares the user card's cumulative trend,
+ * hand-drawn font, and green accent, while replacing person/rank identity with dataset scope.
+ */
+export function githubCard(input: GithubCardInput): OgNode {
+	return frame(
+		trendVisual(input.trendValues),
+		wordmark(32),
+		el(
+			"div",
+			{
+				style: {
+					display: "flex",
+					flexDirection: "column",
+					marginTop: "auto",
+					marginBottom: "auto",
+					maxWidth: 620,
+				},
+			},
+			el(
+				"div",
+				{
+					style: { display: "flex", fontSize: 72, lineHeight: 1.1, color: FG },
+				},
+				"GitHub activity",
+			),
+			el(
+				"div",
+				{
+					style: {
+						display: "flex",
+						marginTop: 22,
+						fontSize: 32,
+						lineHeight: 1.35,
+						color: MUTED,
+					},
+				},
+				`${input.trackedUsers.toLocaleString()} tracked users`,
+			),
+		),
+		el(
+			"div",
+			{ style: { display: "flex", flexDirection: "column" } },
+			el(
+				"div",
+				{ style: { display: "flex", fontSize: 52, lineHeight: 1, color: FG } },
+				input.total.toLocaleString(),
+			),
+			el(
+				"div",
+				{
+					style: { display: "flex", marginTop: 10, fontSize: 28, color: MUTED },
+				},
+				asciiFold(input.metricLabel),
+			),
+		),
+	);
+}
+
 export interface OrgCardInput {
 	login: string;
 	name: string | null;

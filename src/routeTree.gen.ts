@@ -21,6 +21,7 @@ import { Route as CompanySlugRouteImport } from './routes/company.$slug'
 import { Route as EmbedUserRouteImport } from './routes/embed.$user'
 import { Route as MetricsSlugRouteImport } from './routes/metrics.$slug'
 import { Route as MetricsExplainedRouteImport } from './routes/metrics.explained'
+import { Route as OgGithubRouteImport } from './routes/og.github'
 import { Route as OrganizationsSlugRouteImport } from './routes/organizations.$slug'
 import { Route as Char91Char93ApiStripeWebhookRouteImport } from './routes/[-].api.stripe-webhook'
 import { Route as Char91Char93MetricsIndexRouteImport } from './routes/[-].metrics.index'
@@ -88,6 +89,11 @@ const MetricsExplainedRoute = MetricsExplainedRouteImport.update({
   path: '/metrics/explained',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OgGithubRoute = OgGithubRouteImport.update({
+  id: '/og/github',
+  path: '/og/github',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const OrganizationsSlugRoute = OrganizationsSlugRouteImport.update({
   id: '/organizations/$slug',
   path: '/organizations/$slug',
@@ -135,6 +141,7 @@ export interface FileRoutesByFullPath {
   '/embed/$user': typeof EmbedUserRoute
   '/metrics/$slug': typeof MetricsSlugRoute
   '/metrics/explained': typeof MetricsExplainedRoute
+  '/og/github': typeof OgGithubRoute
   '/organizations/$slug': typeof OrganizationsSlugRoute
   '/-/api/stripe-webhook': typeof Char91Char93ApiStripeWebhookRoute
   '/-/metrics/$slug': typeof Char91Char93MetricsSlugRoute
@@ -155,6 +162,7 @@ export interface FileRoutesByTo {
   '/embed/$user': typeof EmbedUserRoute
   '/metrics/$slug': typeof MetricsSlugRoute
   '/metrics/explained': typeof MetricsExplainedRoute
+  '/og/github': typeof OgGithubRoute
   '/organizations/$slug': typeof OrganizationsSlugRoute
   '/-/api/stripe-webhook': typeof Char91Char93ApiStripeWebhookRoute
   '/-/metrics/$slug': typeof Char91Char93MetricsSlugRoute
@@ -176,6 +184,7 @@ export interface FileRoutesById {
   '/embed/$user': typeof EmbedUserRoute
   '/metrics/$slug': typeof MetricsSlugRoute
   '/metrics/explained': typeof MetricsExplainedRoute
+  '/og/github': typeof OgGithubRoute
   '/organizations/$slug': typeof OrganizationsSlugRoute
   '/-/api/stripe-webhook': typeof Char91Char93ApiStripeWebhookRoute
   '/-/metrics/$slug': typeof Char91Char93MetricsSlugRoute
@@ -198,6 +207,7 @@ export interface FileRouteTypes {
     | '/embed/$user'
     | '/metrics/$slug'
     | '/metrics/explained'
+    | '/og/github'
     | '/organizations/$slug'
     | '/-/api/stripe-webhook'
     | '/-/metrics/$slug'
@@ -218,6 +228,7 @@ export interface FileRouteTypes {
     | '/embed/$user'
     | '/metrics/$slug'
     | '/metrics/explained'
+    | '/og/github'
     | '/organizations/$slug'
     | '/-/api/stripe-webhook'
     | '/-/metrics/$slug'
@@ -238,6 +249,7 @@ export interface FileRouteTypes {
     | '/embed/$user'
     | '/metrics/$slug'
     | '/metrics/explained'
+    | '/og/github'
     | '/organizations/$slug'
     | '/-/api/stripe-webhook'
     | '/-/metrics/$slug'
@@ -259,6 +271,7 @@ export interface RootRouteChildren {
   EmbedUserRoute: typeof EmbedUserRoute
   MetricsSlugRoute: typeof MetricsSlugRoute
   MetricsExplainedRoute: typeof MetricsExplainedRoute
+  OgGithubRoute: typeof OgGithubRoute
   OrganizationsSlugRoute: typeof OrganizationsSlugRoute
   Char91Char93ApiStripeWebhookRoute: typeof Char91Char93ApiStripeWebhookRoute
   Char91Char93MetricsSlugRoute: typeof Char91Char93MetricsSlugRoute
@@ -353,6 +366,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MetricsExplainedRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/og/github': {
+      id: '/og/github'
+      path: '/og/github'
+      fullPath: '/og/github'
+      preLoaderRoute: typeof OgGithubRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/organizations/$slug': {
       id: '/organizations/$slug'
       path: '/organizations/$slug'
@@ -411,6 +431,7 @@ const rootRouteChildren: RootRouteChildren = {
   EmbedUserRoute: EmbedUserRoute,
   MetricsSlugRoute: MetricsSlugRoute,
   MetricsExplainedRoute: MetricsExplainedRoute,
+  OgGithubRoute: OgGithubRoute,
   OrganizationsSlugRoute: OrganizationsSlugRoute,
   Char91Char93ApiStripeWebhookRoute: Char91Char93ApiStripeWebhookRoute,
   Char91Char93MetricsSlugRoute: Char91Char93MetricsSlugRoute,

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { displayNameLines, orgCard, trendDataUrl } from "#/lib/og-card";
+import {
+	displayNameLines,
+	githubCard,
+	orgCard,
+	trendDataUrl,
+} from "#/lib/og-card";
 
 function svg(values: readonly number[]) {
 	const dataUrl = trendDataUrl(values);
@@ -37,6 +42,30 @@ describe("orgCard", () => {
 		const rendered = JSON.stringify(card);
 		expect(rendered).toContain("+19");
 		expect(rendered).not.toContain('"25"');
+	});
+});
+
+describe("githubCard", () => {
+	it("labels the aggregate scope, metric total, and uses its supplied live trend", () => {
+		const card = githubCard({
+			metricLabel: "public commits",
+			total: 123_456,
+			trackedUsers: 789,
+			trendValues: [2, 3, 5],
+		});
+		const rendered = JSON.stringify(card);
+		const visual = card.props.children as unknown as {
+			props: { src: string };
+		}[];
+		const graphSvg = Buffer.from(
+			visual[0].props.src.split(",")[1],
+			"base64",
+		).toString("utf8");
+		expect(rendered).toContain("GitHub activity");
+		expect(rendered).toContain("789 tracked users");
+		expect(rendered).toContain("123,456");
+		expect(rendered).toContain("public commits");
+		expect(graphSvg).toContain("M8.0,251.2");
 	});
 });
 
