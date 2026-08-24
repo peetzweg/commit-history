@@ -20,6 +20,16 @@ export interface GithubHistory {
 }
 
 /**
+ * The site-wide history scans every stored monthly contribution row. Keep it available while
+ * developing the replacement aggregate locally, but do not let it hold up production navigation.
+ */
+export function isGithubHistoryEnabled(
+	env: Pick<NodeJS.ProcessEnv, "NODE_ENV"> = process.env,
+): boolean {
+	return env.NODE_ENV !== "production";
+}
+
+/**
  * Adds cumulative values to aggregate monthly rows. Kept separate from the database query so
  * the public interface is easy to exercise without a database and every chart receives the same
  * `CommitPoint` shape as an individual profile.
@@ -101,5 +111,10 @@ export async function queryGithubHistory(): Promise<GithubHistory> {
 
 /** Aggregate time series for the public GitHub activity page. */
 export const getGithubHistory = createServerFn({ method: "GET" }).handler(
-	(): Promise<GithubHistory> => queryGithubHistory(),
+	async (): Promise<GithubHistory & { enabled: boolean }> => {
+		if (!isGithubHistoryEnabled()) {
+			return { points: [], trackedUsers: 0, enabled: false };
+		}
+		return { ...(await queryGithubHistory()), enabled: true };
+	},
 );

@@ -1,5 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { cumulativeGithubPoints } from "#/lib/github-history";
+import {
+	cumulativeGithubPoints,
+	isGithubHistoryEnabled,
+} from "#/lib/github-history";
+
+describe("isGithubHistoryEnabled", () => {
+	it("disables the expensive aggregate in production only", () => {
+		expect(isGithubHistoryEnabled({ NODE_ENV: "production" })).toBe(false);
+		expect(isGithubHistoryEnabled({ NODE_ENV: "development" })).toBe(true);
+		expect(isGithubHistoryEnabled({})).toBe(true);
+	});
+});
 
 describe("cumulativeGithubPoints", () => {
 	it("accumulates each monthly metric without mixing public and private commits", () => {
