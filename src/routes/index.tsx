@@ -209,25 +209,19 @@ function GithubTotal({
 	history: Awaited<ReturnType<typeof getGithubHistory>>;
 }) {
 	const months = history.points.map((point) => metricDelta(point, "total"));
-	const latest = months.at(-1) ?? 0;
 	const total = months.reduce((sum, value) => sum + value, 0);
-	const previousTotal = total - latest;
-	if (history.points.length === 0 || previousTotal <= 0) return null;
-	const change = (latest / previousTotal) * 100;
-	const month = history.points.at(-1)?.date;
-	const monthLabel = month
-		? new Date(month).toLocaleDateString("en-US", {
-				month: "long",
-				year: "numeric",
-			})
-		: "the last completed month";
+	if (history.points.length === 0) return null;
 	return (
 		<p className="mt-2 text-center text-sm text-muted-foreground">
 			Tracked GitHub activity totals{" "}
-			<Link to="/-/github" className="accent-text font-medium hover:underline">
+			<Link
+				to="/-/github"
+				search={{ metric: "total" }}
+				className="accent-text font-medium hover:underline"
+			>
 				{total.toLocaleString()} contributions
 			</Link>
-			, a {change.toFixed(1)}% change in {monthLabel}.
+			.
 		</p>
 	);
 }
