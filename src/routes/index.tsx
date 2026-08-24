@@ -208,6 +208,7 @@ function GithubTotal({
 }: {
 	history: Awaited<ReturnType<typeof getGithubHistory>>;
 }) {
+	if (!history.enabled) return null;
 	const months = history.points.map((point) => metricDelta(point, "total"));
 	const total = months.reduce((sum, value) => sum + value, 0);
 	if (history.points.length === 0) return null;

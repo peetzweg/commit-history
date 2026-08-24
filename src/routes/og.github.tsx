@@ -1,6 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { type ChartMode, metricDelta } from "#/components/CommitChart";
-import { queryGithubHistory } from "#/lib/github-history";
+import {
+	isGithubHistoryEnabled,
+	queryGithubHistory,
+} from "#/lib/github-history";
 import { METRIC_NOUN } from "#/lib/metrics";
 import { githubCard, renderPng } from "#/lib/og-card";
 
@@ -34,6 +37,12 @@ export const Route = createFileRoute("/og/github")({
 	server: {
 		handlers: {
 			GET: async ({ request }) => {
+				if (!isGithubHistoryEnabled()) {
+					return new Response(null, {
+						status: 302,
+						headers: { location: new URL("/og.png", request.url).toString() },
+					});
+				}
 				const metric = metricFrom(request);
 				try {
 					const { points, trackedUsers } = await queryGithubHistory();

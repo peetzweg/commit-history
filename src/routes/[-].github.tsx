@@ -118,7 +118,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 function GithubActivity() {
-	const { points, trackedUsers } = Route.useLoaderData();
+	const { enabled, points, trackedUsers } = Route.useLoaderData();
 	const { metric: mode = "public" } = Route.useSearch();
 	const total = cumulativeSeries(points, mode).at(-1) ?? 0;
 	const busiest = points.reduce(
@@ -140,7 +140,12 @@ function GithubActivity() {
 			<h1 className="mt-6 text-3xl font-bold leading-tight">{TITLE}</h1>
 			<p className="mt-3 max-w-2xl text-muted-foreground">{DESCRIPTION}</p>
 
-			{points.length === 0 ? (
+			{!enabled ? (
+				<p className="mt-10 rounded-xl border border-border p-6 text-muted-foreground">
+					This view is temporarily unavailable while we improve its data
+					pipeline.
+				</p>
+			) : points.length === 0 ? (
 				<p className="mt-10 rounded-xl border border-border p-6 text-muted-foreground">
 					No tracked monthly activity is available yet.
 				</p>
