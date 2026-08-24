@@ -166,6 +166,7 @@ function GithubActivity() {
 						{chartCaption(mode)} across {trackedUsers.toLocaleString()} users
 						tracked by Commit History. <ExplainerLink metric={mode} />
 					</p>
+					<div data-metric-bar-anchor className="mt-4 h-12" />
 				</>
 			)}
 

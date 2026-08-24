@@ -1,9 +1,17 @@
 import { motion } from "motion/react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+	useCallback,
+	useEffect,
+	useLayoutEffect,
+	useRef,
+	useState,
+} from "react";
 import { cn } from "#/lib/utils";
 
 /**
- * iOS-style metric picker that floats as a permanent tab bar, pinned to the bottom of the viewport.
+ * iOS-style metric picker that stays a single, persistent tab bar across the app. On leaderboard
+ * pages it is pinned to the viewport bottom; on chart pages it animates into the slot below the
+ * graph, without being unmounted and remounted between those positions.
  * It reads as one long white chip (thin border, fully rounded) with a dark thumb that slides to the
  * active option, sized to match the "Plot" button so it's chunky and touch-friendly.
  *
@@ -20,17 +28,21 @@ export function SegmentedControl<T extends string>({
 	options,
 	value,
 	onChange,
+	placement,
 }: {
 	options: readonly { value: T; label: string }[];
 	value: T;
 	onChange: (value: T) => void;
+	placement: "bottom" | "chart";
 }) {
+	const barRef = useRef<HTMLDivElement>(null);
 	const scrollRef = useRef<HTMLDivElement>(null);
 	const btnRefs = useRef<Map<T, HTMLButtonElement | null>>(new Map());
 	const [thumb, setThumb] = useState<{ left: number; width: number } | null>(
 		null,
 	);
 	const [fades, setFades] = useState({ left: false, right: false });
+	const [top, setTop] = useState<number | null>(null);
 
 	// Changes whenever the option set changes — used to re-measure the thumb without depending on the
 	// (freshly-allocated-every-render) options array.
@@ -102,6 +114,36 @@ export function SegmentedControl<T extends string>({
 
 	const spring = { type: "spring", stiffness: 500, damping: 40 } as const;
 
+	// The route supplies this empty slot immediately after each chart. Keeping the actual picker at
+	// the root means it survives navigation, while an absolute document coordinate lets the element
+	// travel with the page as though it were laid out in that slot.
+	const measurePlacement = useCallback(() => {
+		if (placement === "bottom") {
+			setTop(null);
+			return;
+		}
+		const anchor = document.querySelector<HTMLElement>(
+			"[data-metric-bar-anchor]",
+		);
+		if (anchor) {
+			setTop(anchor.getBoundingClientRect().top + window.scrollY);
+		} else {
+			// A failed lookup can still expose the picker while having no graph to land beneath.
+			setTop(null);
+		}
+	}, [placement]);
+
+	useLayoutEffect(() => {
+		measurePlacement();
+		window.addEventListener("resize", measurePlacement);
+		const observer = new ResizeObserver(measurePlacement);
+		observer.observe(document.documentElement);
+		return () => {
+			window.removeEventListener("resize", measurePlacement);
+			observer.disconnect();
+		};
+	}, [measurePlacement]);
+
 	// Fade the scroll content itself (via a mask) at whichever edge still has hidden chips, rather
 	// than laying a white gradient over it — that dissolves the chips (thumb included) cleanly into
 	// the pill with no seam or stray dark edge.
@@ -116,10 +158,19 @@ export function SegmentedControl<T extends string>({
 					: undefined;
 
 	return (
-		// Positioning layer: pinned to the bottom, centered, side padding so it never touches the
-		// screen edges on a phone. No entrance animation — it just appears (the pill's `layout`
-		// handles the grow/shrink morph across navigations).
-		<div className="fixed inset-x-0 bottom-4 z-50 flex justify-center px-4">
+		// Positioning layer: chart pages use the measured document coordinate; leaderboards remain
+		// viewport-pinned. `layout` FLIPs this same element between the two positions on navigation.
+		<motion.div
+			ref={barRef}
+			layout
+			initial={false}
+			transition={spring}
+			className={cn(
+				"inset-x-0 z-50 flex justify-center px-4",
+				top === null ? "fixed bottom-4" : "absolute",
+			)}
+			style={top === null ? undefined : { top }}
+		>
 			{/* layout animates the pill's width as chips come and go; overflow-hidden clips the
 			    scrolling content (and the thumb) to the rounded shape. layoutDependency pins the
 			    animation to the option set ONLY — without it, motion re-projects on every render
@@ -182,6 +233,6 @@ export function SegmentedControl<T extends string>({
 					})}
 				</div>
 			</motion.div>
-		</div>
+		</motion.div>
 	);
 }

@@ -87,6 +87,11 @@ export function MetricBar() {
 
 	if (!present) return null;
 	return (
-		<SegmentedControl options={options} value={value} onChange={onChange} />
+		<SegmentedControl
+			options={options}
+			value={value}
+			onChange={onChange}
+			placement={routeId === "/" ? "bottom" : "chart"}
+		/>
 	);
 }
