@@ -141,7 +141,7 @@ function EmptyRow({ ref }: { ref?: React.Ref<HTMLLIElement> }) {
 				<span className="min-w-0 flex-1">
 					<span className="block truncate">This sponsor slot is empty</span>
 					<span className="block truncate text-xs text-muted-foreground">
-						Put your product in front of thousands of developers
+						Put your product or job posting in front of thousands of developers
 					</span>
 				</span>
 				<span className="shrink-0 text-right text-xs text-muted-foreground">
