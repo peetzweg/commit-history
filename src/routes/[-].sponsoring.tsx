@@ -6,7 +6,7 @@ import { type SlotState, sponsorSlotsQueryOptions } from "#/lib/sponsor";
 const SITE = "https://commit-history.com";
 const TITLE = "Sponsoring commit-history.com";
 const DESCRIPTION =
-	"Put your product in front of a developer-first audience: 15k unique visitors and 57k page views in under a month, in a sponsor slot on both leaderboards.";
+	"Put your product, job opening, or developer opportunity in front of a developer-first audience of 70k unique visitors per month, in a sponsor slot on both leaderboards.";
 // Lives under the reserved /-/ namespace like all editorial content: "-" can never be a
 // GitHub login, so this page can't shadow the $user route (the old single-segment
 // /sponsoring URL 301s here — see sponsoring.tsx).
@@ -20,16 +20,16 @@ const MAILTO = `mailto:${CONTACT}?subject=${encodeURIComponent("Sponsoring commi
 const MAILTO_LOGO = `mailto:${CONTACT}?subject=${encodeURIComponent(
 	"My sponsor logo for commit-history.com",
 )}&body=${encodeURIComponent(
-	"Hi! I just rented a sponsor slot. My logo is attached (SVG or PNG).\n\nProduct name:\nTagline:\nLink URL:",
+	"Hi! I just rented a sponsor slot. My logo is attached (SVG or PNG).\n\nName of product, company, or role:\nOne-line description:\nLink URL:",
 )}`;
 
-// Site analytics, collected since June 27, 2026. Update LAST_UPDATED when refreshing numbers.
-const LAST_UPDATED = "July 14, 2026";
+// Cloudflare Web Analytics for July 25–August 24, 2026. Refresh with the supporting screenshot.
+const LAST_UPDATED = "August 24, 2026";
 const STATS = [
-	{ value: "15k", label: "unique visitors" },
-	{ value: "57k", label: "page views" },
-	{ value: "1:32", label: "avg. visit duration" },
-	{ value: "38%", label: "bounce rate" },
+	{ value: "70.66k", label: "unique visitors" },
+	{ value: "685.35k", label: "total requests" },
+	{ value: "30 days", label: "reporting period" },
+	{ value: "Cloudflare", label: "analytics source" },
 ] as const;
 
 interface SponsoringSearch {
@@ -81,9 +81,10 @@ function SponsoringPage() {
 				</span>
 			</h1>
 			<p className="mt-3 text-muted-foreground">
-				One sponsor slot on each leaderboard, rendered like a leaderboard entry
-				in 5th place of the developer and the organization board — the first
-				thing people scroll past on every visit.
+				Put your product, job opening, company, event, or other developer-relevant
+				opportunity in front of the commit-history audience. One sponsor slot on
+				each leaderboard is rendered like a leaderboard entry in 5th place — the
+				first thing people scroll past on every visit.
 			</p>
 
 			{/* Live per-slot status: rent on the spot when a slot is open, mailto fallback otherwise. */}
@@ -91,8 +92,9 @@ function SponsoringPage() {
 
 			<h2 className="mt-12 text-xl font-semibold">The numbers</h2>
 			<p className="mt-2 text-muted-foreground">
-				We’ve been collecting analytics since June 27, 2026 — so in not even a
-				month (last updated {LAST_UPDATED}):
+				Cloudflare Web Analytics recorded 70.66k unique visitors and 685.35k
+				total requests over the last 30 days (July 25–August 24, 2026; last
+				updated {LAST_UPDATED}).
 			</p>
 			<dl className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
 				{STATS.map((s) => (
@@ -102,21 +104,34 @@ function SponsoringPage() {
 					</div>
 				))}
 			</dl>
+			<figure className="mt-6 overflow-hidden rounded-lg border bg-muted/20">
+				<img
+					src="/cloudflare-analytics-30-days.png"
+					alt="Cloudflare analytics for July 25 to August 24 showing 70.66 thousand unique visitors and 685.35 thousand total requests."
+					width={1552}
+					height={736}
+					className="h-auto w-full"
+				/>
+				<figcaption className="border-t px-4 py-3 text-sm text-muted-foreground">
+					Cloudflare Web Analytics, last 30 days.
+				</figcaption>
+			</figure>
 
 			<h2 className="mt-12 text-xl font-semibold">The audience</h2>
 			<p className="mt-2 text-muted-foreground">
-				Mainly developers — people plotting their own commit history, comparing
-				themselves on the leaderboards, and sharing profiles with each other. A
-				visit duration of a minute and a half and a bounce rate as low as 38%
-				mean visitors actually stick around and explore. Beyond developers, the
-				leaderboards also draw companies and recruiters looking for talent — an
-				audience that’s hard to reach anywhere else.
+				Developers plotting their own commit history, comparing themselves on the
+				leaderboards, and sharing profiles with each other. The leaderboards also
+				draw engineering teams, founders, and recruiters looking for talent — a
+				strong fit for products, job openings, developer events, and services that
+				help this community do its best work.
 			</p>
 
 			<h2 className="mt-12 text-xl font-semibold">The slot</h2>
 			<p className="mt-2 text-muted-foreground">
-				Your logo, product name, and a one-line tagline, clearly disclosed as
-				sponsored, linking out to your site. It sits in 5th place of the{" "}
+				Your logo, title, and one-line description, clearly disclosed as sponsored,
+				linking to the destination you choose. Feature a product, company, job
+				opening, event, or another relevant opportunity. It sits in 5th place of
+				the{" "}
 				<Link to="/" className="underline hover:text-foreground">
 					developer leaderboard
 				</Link>{" "}
@@ -250,9 +265,9 @@ function ThanksView() {
 			<div className="mt-8 w-full rounded-xl border border-primary/30 bg-primary/5 p-6 text-left">
 				<p className="font-semibold">One last step: send us your logo</p>
 				<p className="mt-1 text-sm text-muted-foreground">
-					Email your logo (SVG or PNG) — plus your product name, tagline, and
-					link if you didn’t add them at checkout — and we’ll put your creative
-					live on the leaderboard.
+					Email your logo (SVG or PNG) — plus your title, one-line description,
+					and link if you didn’t add them at checkout — and we’ll put your
+					creative live on the leaderboard.
 				</p>
 				<a href={MAILTO_LOGO} className="btn-primary mt-4 inline-flex">
 					Email your logo →
