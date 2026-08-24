@@ -215,6 +215,7 @@ function PendingUser() {
 					<CommitChart points={GENERIC_POINTS} mode="public" />
 				</div>
 			</div>
+			<div data-metric-bar-anchor className="mt-4 h-12" />
 		</main>
 	);
 }
@@ -345,6 +346,7 @@ function BuildingView({
 					<CommitChart points={GENERIC_POINTS} mode="public" />
 				</div>
 			</div>
+			<div data-metric-bar-anchor className="mt-4 h-12" />
 			{failed.length > 0 && (
 				<p className="mt-4 text-xs text-destructive">
 					Couldn’t load:{" "}
@@ -656,6 +658,7 @@ function SingleView({
 				{chartCaption(effectiveMode)} attributed by GitHub since {since}.{" "}
 				<ExplainerLink metric={effectiveMode} />
 			</p>
+			<div data-metric-bar-anchor className="mt-4 h-12" />
 			<div className="mt-10 flex justify-center">
 				<AddUser currentLogins={otherLogins} label="Compare with…" />
 			</div>
@@ -820,6 +823,7 @@ function ComparisonView({
 					trajectories regardless of when each person joined GitHub.
 				</p>
 			)}
+			<div data-metric-bar-anchor className="mt-4 h-12" />
 
 			<div className="mt-6 flex flex-wrap items-center gap-3">
 				{results.map((r, i) => (
