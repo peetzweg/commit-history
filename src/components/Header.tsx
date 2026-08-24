@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { getRepoStars } from "#/lib/commit-history";
 
-// Dark top bar, a homage to star-history.com's header (#363636 / light text).
+// Dark top bar (#363636 / light text).
 export function Header() {
 	// Live GitHub star count, shown next to the source link. Cached for the session; absent until it
 	// loads (and if the fetch fails, just omitted).
@@ -18,16 +18,7 @@ export function Header() {
 					<img src="/crown.svg" alt="" className="h-6 w-auto shrink-0" />
 				</Link>
 			</div>
-			<div className="flex h-full flex-row items-center gap-1 sm:gap-4">
-				<a
-					href="https://www.star-history.com/"
-					target="_blank"
-					rel="noopener"
-					className="header-link hidden text-sm sm:flex"
-					title="Inspired by star-history.com"
-				>
-					a homage to star-history
-				</a>
+			<div className="flex h-full flex-row items-center">
 				<a
 					href="https://github.com/peetzweg/commit-history"
 					target="_blank"

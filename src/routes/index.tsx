@@ -3,6 +3,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { BadgeCheck } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
+import { metricDelta } from "#/components/CommitChart";
 import { ExplainerLink } from "#/components/ExplainerLink";
 import { SponsorRow } from "#/components/SponsorRow";
 import {
@@ -14,6 +15,7 @@ import {
 	type LeaderMode,
 	type RecentEntry,
 } from "#/lib/commit-history";
+import { getGithubHistory } from "#/lib/github-history";
 import { getOrgLeaderboard, type OrgLeaderEntry } from "#/lib/org";
 import { cn } from "#/lib/utils";
 
@@ -97,16 +99,20 @@ export const Route = createFileRoute("/")({
 	loaderDeps: ({ search }) => ({ kind: search.kind }),
 	loader: async ({ deps }) => {
 		if (deps.kind === "org") {
-			const [recent, orgs] = await Promise.all([
+			const [recent, orgs, github] = await Promise.all([
 				getRecentLookups(),
 				getOrgLeaderboard({
 					data: { offset: 0, limit: ORG_PAGE_SIZE },
 				}),
+				getGithubHistory(),
 			]);
-			return { recent, leaderboard: [] as LeaderEntry[], orgs };
+			return { recent, leaderboard: [] as LeaderEntry[], orgs, github };
 		}
-		const start = await getStartPageData();
-		return { ...start, orgs: [] as OrgLeaderEntry[] };
+		const [start, github] = await Promise.all([
+			getStartPageData(),
+			getGithubHistory(),
+		]);
+		return { ...start, orgs: [] as OrgLeaderEntry[], github };
 	},
 	component: Home,
 });
@@ -149,9 +155,9 @@ function Home() {
 				Commit History
 			</h1>
 			<p className="mt-4 text-center text-lg text-muted-foreground">
-				A <span className="accent-text font-medium">star-history</span>, but for
-				a GitHub user’s cumulative commits over their whole lifetime.
+				A GitHub user’s cumulative commits over their whole lifetime.
 			</p>
+			<GithubTotal history={initial.github} />
 
 			<form onSubmit={submit} className="mt-10 flex items-stretch gap-2">
 				<div className="flex min-w-0 flex-1 items-center rounded-md border shadow-inner focus-within:shadow-[0_0_0_0.125em_var(--ring)]">
@@ -194,6 +200,35 @@ function Home() {
 				</Link>
 			</p>
 		</main>
+	);
+}
+
+function GithubTotal({
+	history,
+}: {
+	history: Awaited<ReturnType<typeof getGithubHistory>>;
+}) {
+	const months = history.points.map((point) => metricDelta(point, "total"));
+	const latest = months.at(-1) ?? 0;
+	const total = months.reduce((sum, value) => sum + value, 0);
+	const previousTotal = total - latest;
+	if (history.points.length === 0 || previousTotal <= 0) return null;
+	const change = (latest / previousTotal) * 100;
+	const month = history.points.at(-1)?.date;
+	const monthLabel = month
+		? new Date(month).toLocaleDateString("en-US", {
+				month: "long",
+				year: "numeric",
+			})
+		: "the last completed month";
+	return (
+		<p className="mt-2 text-center text-sm text-muted-foreground">
+			Tracked GitHub activity totals{" "}
+			<Link to="/-/github" className="accent-text font-medium hover:underline">
+				{total.toLocaleString()} contributions
+			</Link>
+			, a {change.toFixed(1)}% change in {monthLabel}.
+		</p>
 	);
 }
 

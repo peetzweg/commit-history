@@ -16,7 +16,7 @@ const SITE = "https://commit-history.com";
 const URL = `${SITE}/-/github`;
 const TITLE = "GitHub activity over time";
 const DESCRIPTION =
-	"Cumulative GitHub activity, month by month, across every user tracked by Commit History.";
+	"GitHub contribution statistics over time: cumulative commits, pull requests, issues, reviews, repositories, and private contributions across tracked GitHub users.";
 
 const METRIC_PARAMS: readonly ChartMode[] = [
 	"prs",
@@ -46,8 +46,16 @@ export const Route = createFileRoute("/-/github")({
 		const ogImage = `${SITE}/og/github${metric ? `?metric=${metric}` : ""}`;
 		return {
 			meta: [
-				{ title: `${TITLE} · Commit History` },
+				{
+					title:
+						"GitHub activity over time — contribution totals | Commit History",
+				},
 				{ name: "description", content: DESCRIPTION },
+				{
+					name: "keywords",
+					content:
+						"GitHub statistics, GitHub contribution graph, GitHub commits over time, GitHub activity, GitHub totals",
+				},
 				{ property: "og:title", content: TITLE },
 				{ property: "og:description", content: DESCRIPTION },
 				{ property: "og:url", content: URL },
@@ -65,6 +73,34 @@ export const Route = createFileRoute("/-/github")({
 				},
 			],
 			links: [{ rel: "canonical", href: URL }],
+			scripts: [
+				{
+					type: "application/ld+json",
+					children: JSON.stringify({
+						"@context": "https://schema.org",
+						"@type": ["Dataset", "CollectionPage"],
+						name: TITLE,
+						description: DESCRIPTION,
+						url: URL,
+						keywords: [
+							"GitHub statistics",
+							"GitHub contribution graph",
+							"GitHub commits",
+							"GitHub activity",
+						],
+						variableMeasured: [
+							"public commits",
+							"pull requests",
+							"issues",
+							"pull-request reviews",
+							"repositories created",
+							"private contributions",
+						],
+						isBasedOn:
+							"Monthly contribution data stored for tracked public GitHub users.",
+					}),
+				},
+			],
 		};
 	},
 	component: GithubActivity,
