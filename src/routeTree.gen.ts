@@ -15,11 +15,13 @@ import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as SponsoringRouteImport } from './routes/sponsoring'
 import { Route as Char91Char93SlugRouteImport } from './routes/[-].$slug'
+import { Route as Char91Char93GithubRouteImport } from './routes/[-].github'
 import { Route as Char91Char93SponsoringRouteImport } from './routes/[-].sponsoring'
 import { Route as CompanySlugRouteImport } from './routes/company.$slug'
 import { Route as EmbedUserRouteImport } from './routes/embed.$user'
 import { Route as MetricsSlugRouteImport } from './routes/metrics.$slug'
 import { Route as MetricsExplainedRouteImport } from './routes/metrics.explained'
+import { Route as OgGithubRouteImport } from './routes/og.github'
 import { Route as OrganizationsSlugRouteImport } from './routes/organizations.$slug'
 import { Route as Char91Char93ApiStripeWebhookRouteImport } from './routes/[-].api.stripe-webhook'
 import { Route as Char91Char93MetricsIndexRouteImport } from './routes/[-].metrics.index'
@@ -57,6 +59,11 @@ const Char91Char93SlugRoute = Char91Char93SlugRouteImport.update({
   path: '/-/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const Char91Char93GithubRoute = Char91Char93GithubRouteImport.update({
+  id: '/-/github',
+  path: '/-/github',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const Char91Char93SponsoringRoute = Char91Char93SponsoringRouteImport.update({
   id: '/-/sponsoring',
   path: '/-/sponsoring',
@@ -80,6 +87,11 @@ const MetricsSlugRoute = MetricsSlugRouteImport.update({
 const MetricsExplainedRoute = MetricsExplainedRouteImport.update({
   id: '/metrics/explained',
   path: '/metrics/explained',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OgGithubRoute = OgGithubRouteImport.update({
+  id: '/og/github',
+  path: '/og/github',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OrganizationsSlugRoute = OrganizationsSlugRouteImport.update({
@@ -123,11 +135,13 @@ export interface FileRoutesByFullPath {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/sponsoring': typeof SponsoringRoute
   '/-/$slug': typeof Char91Char93SlugRoute
+  '/-/github': typeof Char91Char93GithubRoute
   '/-/sponsoring': typeof Char91Char93SponsoringRoute
   '/company/$slug': typeof CompanySlugRoute
   '/embed/$user': typeof EmbedUserRoute
   '/metrics/$slug': typeof MetricsSlugRoute
   '/metrics/explained': typeof MetricsExplainedRoute
+  '/og/github': typeof OgGithubRoute
   '/organizations/$slug': typeof OrganizationsSlugRoute
   '/-/api/stripe-webhook': typeof Char91Char93ApiStripeWebhookRoute
   '/-/metrics/$slug': typeof Char91Char93MetricsSlugRoute
@@ -142,11 +156,13 @@ export interface FileRoutesByTo {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/sponsoring': typeof SponsoringRoute
   '/-/$slug': typeof Char91Char93SlugRoute
+  '/-/github': typeof Char91Char93GithubRoute
   '/-/sponsoring': typeof Char91Char93SponsoringRoute
   '/company/$slug': typeof CompanySlugRoute
   '/embed/$user': typeof EmbedUserRoute
   '/metrics/$slug': typeof MetricsSlugRoute
   '/metrics/explained': typeof MetricsExplainedRoute
+  '/og/github': typeof OgGithubRoute
   '/organizations/$slug': typeof OrganizationsSlugRoute
   '/-/api/stripe-webhook': typeof Char91Char93ApiStripeWebhookRoute
   '/-/metrics/$slug': typeof Char91Char93MetricsSlugRoute
@@ -162,11 +178,13 @@ export interface FileRoutesById {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/sponsoring': typeof SponsoringRoute
   '/-/$slug': typeof Char91Char93SlugRoute
+  '/-/github': typeof Char91Char93GithubRoute
   '/-/sponsoring': typeof Char91Char93SponsoringRoute
   '/company/$slug': typeof CompanySlugRoute
   '/embed/$user': typeof EmbedUserRoute
   '/metrics/$slug': typeof MetricsSlugRoute
   '/metrics/explained': typeof MetricsExplainedRoute
+  '/og/github': typeof OgGithubRoute
   '/organizations/$slug': typeof OrganizationsSlugRoute
   '/-/api/stripe-webhook': typeof Char91Char93ApiStripeWebhookRoute
   '/-/metrics/$slug': typeof Char91Char93MetricsSlugRoute
@@ -183,11 +201,13 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/sponsoring'
     | '/-/$slug'
+    | '/-/github'
     | '/-/sponsoring'
     | '/company/$slug'
     | '/embed/$user'
     | '/metrics/$slug'
     | '/metrics/explained'
+    | '/og/github'
     | '/organizations/$slug'
     | '/-/api/stripe-webhook'
     | '/-/metrics/$slug'
@@ -202,11 +222,13 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/sponsoring'
     | '/-/$slug'
+    | '/-/github'
     | '/-/sponsoring'
     | '/company/$slug'
     | '/embed/$user'
     | '/metrics/$slug'
     | '/metrics/explained'
+    | '/og/github'
     | '/organizations/$slug'
     | '/-/api/stripe-webhook'
     | '/-/metrics/$slug'
@@ -221,11 +243,13 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/sponsoring'
     | '/-/$slug'
+    | '/-/github'
     | '/-/sponsoring'
     | '/company/$slug'
     | '/embed/$user'
     | '/metrics/$slug'
     | '/metrics/explained'
+    | '/og/github'
     | '/organizations/$slug'
     | '/-/api/stripe-webhook'
     | '/-/metrics/$slug'
@@ -241,11 +265,13 @@ export interface RootRouteChildren {
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   SponsoringRoute: typeof SponsoringRoute
   Char91Char93SlugRoute: typeof Char91Char93SlugRoute
+  Char91Char93GithubRoute: typeof Char91Char93GithubRoute
   Char91Char93SponsoringRoute: typeof Char91Char93SponsoringRoute
   CompanySlugRoute: typeof CompanySlugRoute
   EmbedUserRoute: typeof EmbedUserRoute
   MetricsSlugRoute: typeof MetricsSlugRoute
   MetricsExplainedRoute: typeof MetricsExplainedRoute
+  OgGithubRoute: typeof OgGithubRoute
   OrganizationsSlugRoute: typeof OrganizationsSlugRoute
   Char91Char93ApiStripeWebhookRoute: typeof Char91Char93ApiStripeWebhookRoute
   Char91Char93MetricsSlugRoute: typeof Char91Char93MetricsSlugRoute
@@ -298,6 +324,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof Char91Char93SlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/-/github': {
+      id: '/-/github'
+      path: '/-/github'
+      fullPath: '/-/github'
+      preLoaderRoute: typeof Char91Char93GithubRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/-/sponsoring': {
       id: '/-/sponsoring'
       path: '/-/sponsoring'
@@ -331,6 +364,13 @@ declare module '@tanstack/react-router' {
       path: '/metrics/explained'
       fullPath: '/metrics/explained'
       preLoaderRoute: typeof MetricsExplainedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/og/github': {
+      id: '/og/github'
+      path: '/og/github'
+      fullPath: '/og/github'
+      preLoaderRoute: typeof OgGithubRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/organizations/$slug': {
@@ -385,11 +425,13 @@ const rootRouteChildren: RootRouteChildren = {
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   SponsoringRoute: SponsoringRoute,
   Char91Char93SlugRoute: Char91Char93SlugRoute,
+  Char91Char93GithubRoute: Char91Char93GithubRoute,
   Char91Char93SponsoringRoute: Char91Char93SponsoringRoute,
   CompanySlugRoute: CompanySlugRoute,
   EmbedUserRoute: EmbedUserRoute,
   MetricsSlugRoute: MetricsSlugRoute,
   MetricsExplainedRoute: MetricsExplainedRoute,
+  OgGithubRoute: OgGithubRoute,
   OrganizationsSlugRoute: OrganizationsSlugRoute,
   Char91Char93ApiStripeWebhookRoute: Char91Char93ApiStripeWebhookRoute,
   Char91Char93MetricsSlugRoute: Char91Char93MetricsSlugRoute,
