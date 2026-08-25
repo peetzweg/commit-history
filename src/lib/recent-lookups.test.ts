@@ -64,9 +64,12 @@ describe("recent lookup retention", () => {
 		);
 
 		expect(conflictConfig).toBeDefined();
-		expect(
-			sqlText(conflictConfig?.set.searchedAt as Parameters<typeof sqlText>[0]),
-		).toContain("greatest(");
+		const update = dialect.sqlToQuery(
+			conflictConfig?.set.searchedAt as Parameters<typeof sqlText>[0],
+		);
+		expect(update.sql).toContain("greatest(");
+		expect(update.sql).toContain("excluded.searched_at");
+		expect(update.params).toEqual([]);
 	});
 
 	it("blocks legacy writers before migration cleanup begins", () => {

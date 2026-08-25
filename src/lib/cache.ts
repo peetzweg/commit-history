@@ -470,7 +470,9 @@ export async function recordLookup(database: DB, id: string, now: Date) {
 					// `now` is captured at request start. A slower older request can finish after a newer
 					// one, so only move recency forward.
 					set: {
-						searchedAt: sql`greatest(${lookups.searchedAt}, ${now})`,
+						// Use the insert value so Drizzle applies the timestamp column's encoder in VALUES;
+						// interpolating `now` again inside raw SQL leaves postgres.js an untyped Date.
+						searchedAt: sql`greatest(${lookups.searchedAt}, excluded.searched_at)`,
 					},
 				});
 			await tx.execute(sql`
