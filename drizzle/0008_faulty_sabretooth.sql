@@ -1,5 +1,8 @@
 -- Lookups are UI recency state, not an event log. Retain one newest row per entity and then
 -- trim the list before making that invariant enforceable with a unique index.
+-- The old application keeps inserting duplicate rows until the new version is deployed. Take
+-- the write-blocking lock before cleanup so no duplicate can slip in before index creation.
+LOCK TABLE "lookups" IN SHARE MODE;--> statement-breakpoint
 DELETE FROM "lookups"
 WHERE "id" IN (
 	SELECT "id"

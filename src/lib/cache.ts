@@ -455,6 +455,11 @@ const RECENT_LOOKUP_RETENTION = 64;
 export async function recordLookup(database: DB, id: string, now: Date) {
 	try {
 		await database.transaction(async (tx) => {
+			// The row cap is a global invariant. Without serialization, concurrent inserts can each
+			// prune the same previously-visible row and leave the table above the retention limit.
+			await tx.execute(
+				sql`select pg_advisory_xact_lock(hashtext('commit-history'), hashtext('recent-lookups'))`,
+			);
 			// One row per entity: revisiting a profile moves it to the front rather than storing an
 			// unbounded stream of events that the homepage would have to aggregate on every request.
 			await tx
@@ -462,7 +467,11 @@ export async function recordLookup(database: DB, id: string, now: Date) {
 				.values({ entityId: id, searchedAt: now })
 				.onConflictDoUpdate({
 					target: lookups.entityId,
-					set: { searchedAt: now },
+					// `now` is captured at request start. A slower older request can finish after a newer
+					// one, so only move recency forward.
+					set: {
+						searchedAt: sql`greatest(${lookups.searchedAt}, ${now})`,
+					},
 				});
 			await tx.execute(sql`
 				delete from ${lookups}
