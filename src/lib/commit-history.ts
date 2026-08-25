@@ -190,7 +190,6 @@ async function queryRecent(limit: number): Promise<RecentEntry[]> {
 			avatarUrl: entities.avatarUrl,
 			kind: entities.kind,
 			isVerified: entities.isVerified,
-			last: sql<string>`max(${lookups.searchedAt})`,
 		})
 		.from(lookups)
 		.innerJoin(entities, eq(entities.id, lookups.entityId))
@@ -202,8 +201,7 @@ async function queryRecent(limit: number): Promise<RecentEntry[]> {
 				inArray(entities.kind, ["user", "org"]),
 			),
 		)
-		.groupBy(entities.id)
-		.orderBy(desc(sql`max(${lookups.searchedAt})`))
+		.orderBy(desc(lookups.searchedAt), desc(lookups.id))
 		.limit(limit);
 	return rows.map((r) => ({
 		login: r.login,

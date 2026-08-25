@@ -14,11 +14,18 @@ the self-hosting playbook live in the private `peetzweg/devops` repo.
   `src/lib/db/index.ts` (postgres.js, "Buffer is not defined" incident) and
   `optimizeDeps.exclude` in `vite.config.ts` (@resvg/resvg-js, dev optimizer crash).
   Verify any change near this graph **in a real browser** — curl only proves SSR.
-- **Databases:** `DATABASE_URL` in `.env` should point at `commit_history_dev`
-  (reached over Tailscale: `coolify:5432`). Production (`commit_history`) is the same host,
-  used from a laptop only deliberately (moderation via `pnpm suspend`, dumps via
-  `pnpm backup`). `pnpm db:refresh-dev` resets dev to a prod copy. No DB configured →
-  the app falls back to an in-memory store; that's supported.
+- **Databases:** the local files intentionally select different databases on the same Postgres
+  host (`coolify:5432` over Tailscale): `.env` → production `commit_history`; `.env.new` →
+  development `commit_history_dev`. Never print either URL because it contains credentials;
+  verify a target safely by parsing `new URL(process.env.DATABASE_URL).pathname` and checking the
+  database name before any write. `drizzle.config.ts` loads `.env`, so an unqualified
+  `pnpm db:migrate` targets **production** in this checkout. Use explicit commands instead:
+  `node --env-file=.env.new ./node_modules/drizzle-kit/bin.cjs migrate` for development, and only
+  with deliberate production authorization use
+  `node --env-file=.env ./node_modules/drizzle-kit/bin.cjs migrate`. Node does not overwrite an
+  existing `DATABASE_URL` when the config subsequently loads `.env`, so the `.env.new` selection
+  remains effective. `pnpm db:refresh-dev` resets dev to a prod copy. No DB configured → the app
+  falls back to an in-memory store; that's supported.
 - **Ambient `GITHUB_TOKEN` in the shell shadows `.env`** and lacks `read:org` — prefix
   dev/bun script runs with `env -u GITHUB_TOKEN` when org lookups misbehave.
 
