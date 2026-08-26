@@ -246,8 +246,9 @@ export function CommitChart({
 			</text>
 
 			{/* Y gridlines + labels */}
-			{yTicks.map((v) => (
-				<g key={v}>
+			{yTicks.map((v, i) => (
+				// biome-ignore lint/suspicious/noArrayIndexKey: Rounded values may repeat, so we use indexes here
+				<g key={i}>
 					<line
 						x1={PAD.left}
 						x2={W - PAD.right}
