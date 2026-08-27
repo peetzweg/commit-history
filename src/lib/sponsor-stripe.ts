@@ -56,9 +56,14 @@ export async function loadPaymentLinkSlot(
 		status: "all",
 		limit: 100,
 	});
-	const occupied = subs.data.some((subscription) =>
-		OCCUPIED_STATUSES.has(subscription.status),
-	);
+	// The webhook deactivates the Link as soon as a slot sells. Treat that as authoritative too:
+	// when the Link is later edited to use a new Price, its existing subscription remains on the old
+	// Price and can no longer be found by the current-Price filter alone.
+	const occupied =
+		!link.active ||
+		subs.data.some((subscription) =>
+			OCCUPIED_STATUSES.has(subscription.status),
+		);
 	return occupied
 		? { id, status: "booked", price }
 		: { id, status: "available", buyUrl: link.url, price };

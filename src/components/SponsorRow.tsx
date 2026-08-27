@@ -46,7 +46,7 @@ export function SponsorRow({
 	return creative && status !== "available" ? (
 		<BookedRow creative={creative} ref={ref} />
 	) : (
-		<EmptyRow price={state?.price} ref={ref} />
+		<EmptyRow booked={status === "booked"} price={state?.price} ref={ref} />
 	);
 }
 
@@ -116,9 +116,11 @@ function BookedRow({
 }
 
 function EmptyRow({
+	booked,
 	price,
 	ref,
 }: {
+	booked: boolean;
 	price?: SponsorPrice;
 	ref?: React.Ref<HTMLLIElement>;
 }) {
@@ -141,16 +143,22 @@ function EmptyRow({
 				<span className="hidden w-6 items-center justify-center text-[10px] uppercase tracking-wide text-muted-foreground sm:flex">
 					Ad
 				</span>
-				{/* Dashed placeholder where the sponsor's logo would sit — reads as "empty". */}
+				{/* Dashed placeholder where the current or future sponsor's logo will sit. */}
 				<span className="h-8 w-8 shrink-0 rounded-full border border-border border-dashed" />
 				<span className="min-w-0 flex-1">
-					<span className="block truncate">This sponsor slot is empty</span>
+					<span className="block truncate">
+						{booked
+							? "This sponsor slot is booked"
+							: "This sponsor slot is empty"}
+					</span>
 					<span className="block truncate text-xs text-muted-foreground">
-						Put your product or job posting in front of thousands of developers
+						{booked
+							? "Sponsor announcement coming soon"
+							: "Put your product or job posting in front of thousands of developers"}
 					</span>
 				</span>
 				<span className="shrink-0 text-right text-xs text-muted-foreground">
-					{price ? formatSponsorPrice(price) : "Sponsoring"}
+					{booked ? "Booked" : price ? formatSponsorPrice(price) : "Sponsoring"}
 				</span>
 			</Link>
 		</motion.li>

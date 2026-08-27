@@ -10,13 +10,16 @@ const currentPrice = {
 } as Stripe.Price;
 
 function stripeWith({
+	active = true,
 	price = currentPrice,
 	subscriptions = [],
 }: {
+	active?: boolean;
 	price?: Stripe.Price | null;
 	subscriptions?: Array<Pick<Stripe.Subscription, "status">>;
 } = {}) {
 	const retrieve = vi.fn(async () => ({
+		active,
 		url: "https://buy.stripe.com/current-link",
 	}));
 	const listLineItems = vi.fn(async () => ({
@@ -67,5 +70,13 @@ describe("loadPaymentLinkSlot", () => {
 		await expect(
 			loadPaymentLinkSlot("org", "plink_org", stripe),
 		).resolves.toMatchObject({ id: "org", status: "booked" });
+	});
+
+	it("keeps an inactive Link booked after its Price changes", async () => {
+		const { stripe } = stripeWith({ active: false, subscriptions: [] });
+
+		await expect(
+			loadPaymentLinkSlot("dev", "plink_dev", stripe),
+		).resolves.toMatchObject({ id: "dev", status: "booked" });
 	});
 });
