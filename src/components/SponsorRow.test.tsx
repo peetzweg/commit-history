@@ -17,6 +17,10 @@ vi.mock("@tanstack/react-query", () => ({
 					intervalCount: 1,
 				},
 			},
+			{
+				id: "org",
+				status: "booked",
+			},
 		],
 	}),
 }));
@@ -39,7 +43,15 @@ vi.mock("motion/react", () => ({
 }));
 
 vi.mock("#/content/sponsors", () => ({
-	SPONSORS: { dev: null, org: null },
+	SPONSORS: {
+		dev: {
+			name: "Example sponsor",
+			tagline: "Example tagline",
+			href: "https://example.com",
+			logo: "https://example.com/logo.svg",
+		},
+		org: null,
+	},
 }));
 
 vi.mock("#/lib/sponsor", () => ({ sponsorSlotsQueryOptions: {} }));
@@ -50,12 +62,25 @@ describe("SponsorRow", () => {
 	it("does not advertise a booked slot as empty while its creative is pending", () => {
 		render(
 			<ul>
-				<SponsorRow slot="dev" />
+				<SponsorRow slot="org" />
 			</ul>,
 		);
 
 		expect(screen.getByText("This sponsor slot is booked")).toBeTruthy();
 		expect(screen.getByText("Sponsor announcement coming soon")).toBeTruthy();
 		expect(screen.queryByText("This sponsor slot is empty")).toBeNull();
+	});
+
+	it("shows sponsor creative without an ad prefix or avatar treatment", () => {
+		render(
+			<ul>
+				<SponsorRow slot="dev" />
+			</ul>,
+		);
+
+		expect(screen.queryByText(/^ad$/i)).toBeNull();
+		const logoClasses = screen.getByRole("img").getAttribute("class");
+		expect(logoClasses).toContain("object-contain");
+		expect(logoClasses).not.toContain("rounded-full");
 	});
 });

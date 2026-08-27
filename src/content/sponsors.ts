@@ -33,8 +33,6 @@ export interface SponsorCreative {
 	href: string;
 	/** Logo image URL (the sponsor mails it; hosted on their domain or in /public). */
 	logo: string;
-	/** Users' avatars are round, orgs' are square — match the board the slot sits on. */
-	logoShape?: "round" | "square";
 	/**
 	 * Optional A/B test on the tagline. When present the row flips to a random arm on the client;
 	 * `tagline`/`href` above stay the SSR/first-paint control so hydration matches.
@@ -48,7 +46,6 @@ export const SPONSORS: Record<SponsorSlotId, SponsorCreative | null> = {
 		tagline: "First-party maps for business websites",
 		href: "https://steadymaps.com/?utm_source=commit-history.com&utm_medium=leaderboard&utm_campaign=commit-history_sponsorship&utm_content=developer-slot-5",
 		logo: "https://steadymaps.com/assets/steadymaps-cfd27e1a18b1.svg",
-		logoShape: "round",
 	},
 	// No paid org sponsor yet → the board shows the self-advertising empty row. When the org slot
 	// sells via Stripe, drop the sponsor's creative here and deploy.
