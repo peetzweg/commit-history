@@ -12,21 +12,31 @@ const currentPrice = {
 function stripeWith({
 	active = true,
 	price = currentPrice,
+	lineItemsError,
 	subscriptions = [],
+	subscriptionsError,
 }: {
 	active?: boolean;
 	price?: Stripe.Price | null;
+	lineItemsError?: Error;
 	subscriptions?: Array<Pick<Stripe.Subscription, "status">>;
+	subscriptionsError?: Error;
 } = {}) {
 	const retrieve = vi.fn(async () => ({
 		active,
 		url: "https://buy.stripe.com/current-link",
 	}));
-	const listLineItems = vi.fn(async () => ({
-		data: [{ price }],
-		has_more: false,
-	}));
-	const listSubscriptions = vi.fn(async () => ({ data: subscriptions }));
+	const listLineItems = vi.fn(async () => {
+		if (lineItemsError) throw lineItemsError;
+		return {
+			data: [{ price }],
+			has_more: false,
+		};
+	});
+	const listSubscriptions = vi.fn(async () => {
+		if (subscriptionsError) throw subscriptionsError;
+		return { data: subscriptions };
+	});
 	return {
 		stripe: {
 			paymentLinks: { retrieve, listLineItems },
@@ -74,6 +84,28 @@ describe("loadPaymentLinkSlot", () => {
 
 	it("keeps an inactive Link booked after its Price changes", async () => {
 		const { stripe } = stripeWith({ active: false, subscriptions: [] });
+
+		await expect(
+			loadPaymentLinkSlot("dev", "plink_dev", stripe),
+		).resolves.toMatchObject({ id: "dev", status: "booked" });
+	});
+
+	it("keeps an inactive Link booked when the subscription lookup fails", async () => {
+		const { stripe } = stripeWith({
+			active: false,
+			subscriptionsError: new Error("Stripe subscriptions unavailable"),
+		});
+
+		await expect(
+			loadPaymentLinkSlot("dev", "plink_dev", stripe),
+		).resolves.toMatchObject({ id: "dev", status: "booked" });
+	});
+
+	it("keeps an inactive Link booked when the line-item lookup fails", async () => {
+		const { stripe } = stripeWith({
+			active: false,
+			lineItemsError: new Error("Stripe line items unavailable"),
+		});
 
 		await expect(
 			loadPaymentLinkSlot("dev", "plink_dev", stripe),

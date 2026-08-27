@@ -46,7 +46,11 @@ export function SponsorRow({
 	return creative && status !== "available" ? (
 		<BookedRow creative={creative} ref={ref} />
 	) : (
-		<EmptyRow booked={status === "booked"} price={state?.price} ref={ref} />
+		<SponsorPlaceholderRow
+			booked={status === "booked"}
+			price={state?.price}
+			ref={ref}
+		/>
 	);
 }
 
@@ -115,7 +119,7 @@ function BookedRow({
 	);
 }
 
-function EmptyRow({
+function SponsorPlaceholderRow({
 	booked,
 	price,
 	ref,

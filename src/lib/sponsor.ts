@@ -13,11 +13,11 @@ export type { SlotState, SlotStatus } from "#/lib/sponsor-stripe";
  * whether a slot is currently for sale.
  *
  * No database: a slot's truth lives entirely in Stripe. Env maps each slot to one Payment Link;
- * the Link supplies its hosted URL and current recurring Price. "Booked" is derived from an active
- * subscription existing on that Price, NOT from the Payment Link's `active` flag — that closes the
- * checkout→webhook race, where a link is briefly still enabled after a purchase completes. Missing
- * config or any Stripe failure yields `"unknown"`, which the page renders as the mailto fallback —
- * this feature never throws a page.
+ * the Link supplies its hosted URL and current recurring Price. A live subscription on that Price
+ * closes the checkout→webhook race, where a Link is briefly still enabled after purchase; an
+ * inactive Link is also authoritative and stays booked after its Price changes. Missing config or
+ * any Stripe failure before availability is known yields `"unknown"`, which the page renders as the
+ * mailto fallback — this feature never throws a page.
  *
  * The Stripe SDK is Node-only and this module sits in a client-reachable import graph (the
  * /-/sponsoring route imports the RPC stub + types), so `stripe` is loaded via dynamic import
