@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import type Stripe from "stripe";
 import type { SponsorSlotId } from "#/content/sponsors";
+import type { SponsorPrice } from "#/lib/sponsor-price";
 
 /**
  * Live per-slot sponsorship status, read from Stripe. Powers the "Rent this slot" / "Booked"
@@ -26,6 +27,8 @@ export type SlotStatus = "available" | "booked" | "unknown";
 export interface SlotState {
 	id: SponsorSlotId;
 	status: SlotStatus;
+	/** Stripe's recurring price, shown anywhere this slot is advertised. */
+	price?: SponsorPrice;
 	/** Present only when status === "available": the Stripe Payment Link to send the buyer to. */
 	buyUrl?: string;
 }
@@ -93,16 +96,31 @@ async function computeSlot(
 	if (!stripe || !env.priceId || !env.linkUrl) return { id, status: "unknown" };
 
 	// status: "all" then filter locally — the list filter takes a single status, but a slot is
-	// occupied by any of several. The slot has at most a handful of subs, so the page is tiny.
-	const subs = await stripe.subscriptions.list({
-		price: env.priceId,
-		status: "all",
-		limit: 100,
-	});
+	// occupied by any of several. Fetch the Price alongside it so every advert stays in sync with
+	// checkout. Price lookup failure must not hide a slot whose availability is still known.
+	const [subs, stripePrice] = await Promise.all([
+		stripe.subscriptions.list({
+			price: env.priceId,
+			status: "all",
+			limit: 100,
+		}),
+		stripe.prices.retrieve(env.priceId).catch(() => null),
+	]);
+	const price = sponsorPrice(stripePrice);
 	const occupied = subs.data.some((s) => OCCUPIED_STATUSES.has(s.status));
 	return occupied
-		? { id, status: "booked" }
-		: { id, status: "available", buyUrl: env.linkUrl };
+		? { id, status: "booked", price }
+		: { id, status: "available", buyUrl: env.linkUrl, price };
+}
+
+function sponsorPrice(price: Stripe.Price | null): SponsorPrice | undefined {
+	if (!price?.recurring || price.unit_amount === null) return undefined;
+	return {
+		unitAmount: price.unit_amount,
+		currency: price.currency,
+		interval: price.recurring.interval,
+		intervalCount: price.recurring.interval_count,
+	};
 }
 
 // Module-level cache: one Stripe round-trip per minute, shared across the server process (the
