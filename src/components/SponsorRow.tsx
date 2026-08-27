@@ -89,6 +89,8 @@ function BookedRow({
 				rel="sponsored nofollow noopener"
 				className="flex w-full items-center gap-3 py-2.5 text-left hover:bg-muted"
 			>
+				{/* Empty rank gutter keeps the logo aligned with leaderboard avatars. */}
+				<span aria-hidden="true" className="w-6 shrink-0" />
 				<img
 					src={creative.logo}
 					alt={creative.name}
@@ -133,6 +135,8 @@ function SponsorPlaceholderRow({
 				to="/-/sponsoring"
 				className="flex w-full items-center gap-3 py-2.5 text-left hover:bg-muted"
 			>
+				{/* Empty rank gutter keeps the placeholder aligned with leaderboard avatars. */}
+				<span aria-hidden="true" className="w-6 shrink-0" />
 				{/* Dashed placeholder where the current or future sponsor's logo will sit. */}
 				<span className="h-8 w-8 shrink-0 rounded-lg border border-border border-dashed" />
 				<span className="min-w-0 flex-1">

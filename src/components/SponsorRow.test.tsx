@@ -79,6 +79,9 @@ describe("SponsorRow", () => {
 		);
 
 		expect(screen.queryByText(/^ad$/i)).toBeNull();
+		const rankGutter = screen.getByRole("link").firstElementChild;
+		expect(rankGutter?.getAttribute("aria-hidden")).toBe("true");
+		expect(rankGutter?.getAttribute("class")).toContain("w-6");
 		const logoClasses = screen.getByRole("img").getAttribute("class");
 		expect(logoClasses).toContain("object-contain");
 		expect(logoClasses).not.toContain("rounded-full");
