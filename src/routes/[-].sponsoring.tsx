@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import type { SponsorSlotId } from "#/content/sponsors";
 import { type SlotState, sponsorSlotsQueryOptions } from "#/lib/sponsor";
+import { formatSponsorPrice } from "#/lib/sponsor-price";
 
 const SITE = "https://commit-history.com";
 const TITLE = "Sponsoring commit-history.com";
@@ -215,6 +216,11 @@ function SlotCard({ id, state }: { id: SponsorSlotId; state?: SlotState }) {
 				)}
 			</div>
 			<p className="mt-1 flex-1 text-sm text-muted-foreground">{meta.blurb}</p>
+			{state?.price && (
+				<p className="mt-4 text-lg font-semibold tabular-nums">
+					{formatSponsorPrice(state.price)}
+				</p>
+			)}
 			<div className="mt-4">
 				{status === "available" && state?.buyUrl ? (
 					// External Stripe-hosted checkout — full page nav, not client routing.

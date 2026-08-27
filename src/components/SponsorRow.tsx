@@ -8,6 +8,7 @@ import {
 	type SponsorSlotId,
 } from "#/content/sponsors";
 import { sponsorSlotsQueryOptions } from "#/lib/sponsor";
+import { formatSponsorPrice, type SponsorPrice } from "#/lib/sponsor-price";
 import { cn } from "#/lib/utils";
 
 /**
@@ -35,19 +36,17 @@ export function SponsorRow({
 	ref?: React.Ref<HTMLLIElement>;
 }) {
 	const creative = SPONSORS[slot];
-	// Skipped when there is no creative: an empty slot renders the same either way, so the common
-	// case costs no RPC — and the request only ever fires for a slot with an ad to justify.
-	const { data } = useQuery({
-		...sponsorSlotsQueryOptions,
-		enabled: creative !== null,
-	});
-	const status = data?.find((s) => s.id === slot)?.status ?? "unknown";
+	// The shared lookup supplies both availability and the checkout price advertised in an empty
+	// row. React Query deduplicates this across the developer and organization leaderboards.
+	const { data } = useQuery(sponsorSlotsQueryOptions);
+	const state = data?.find((s) => s.id === slot);
+	const status = state?.status ?? "unknown";
 	// Only a definitive "available" pulls the ad. On the server, during the first paint, and through
 	// any Stripe outage the status reads "unknown" — a paying sponsor keeps their row regardless.
 	return creative && status !== "available" ? (
 		<BookedRow creative={creative} ref={ref} />
 	) : (
-		<EmptyRow ref={ref} />
+		<EmptyRow price={state?.price} ref={ref} />
 	);
 }
 
@@ -116,7 +115,13 @@ function BookedRow({
 	);
 }
 
-function EmptyRow({ ref }: { ref?: React.Ref<HTMLLIElement> }) {
+function EmptyRow({
+	price,
+	ref,
+}: {
+	price?: SponsorPrice;
+	ref?: React.Ref<HTMLLIElement>;
+}) {
 	return (
 		<motion.li
 			ref={ref}
@@ -145,7 +150,7 @@ function EmptyRow({ ref }: { ref?: React.Ref<HTMLLIElement> }) {
 					</span>
 				</span>
 				<span className="shrink-0 text-right text-xs text-muted-foreground">
-					Sponsoring
+					{price ? formatSponsorPrice(price) : "Sponsoring"}
 				</span>
 			</Link>
 		</motion.li>
