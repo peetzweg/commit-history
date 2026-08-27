@@ -9,7 +9,6 @@ import {
 } from "#/content/sponsors";
 import { sponsorSlotsQueryOptions } from "#/lib/sponsor";
 import { formatSponsorPrice, type SponsorPrice } from "#/lib/sponsor-price";
-import { cn } from "#/lib/utils";
 
 /**
  * The sponsor slot row shown after rank 5 on a leaderboard.
@@ -90,18 +89,12 @@ function BookedRow({
 				rel="sponsored nofollow noopener"
 				className="flex w-full items-center gap-3 py-2.5 text-left hover:bg-muted"
 			>
-				{/* "Ad" gutter is dropped on mobile to give the title room (it reads cramped otherwise);
-				    "Sponsored" on the right keeps the disclosure. */}
-				<span className="hidden w-6 items-center justify-center text-[10px] uppercase tracking-wide text-muted-foreground sm:flex">
-					Ad
-				</span>
+				{/* Empty rank gutter keeps the logo aligned with leaderboard avatars. */}
+				<span aria-hidden="true" className="w-6 shrink-0" />
 				<img
 					src={creative.logo}
 					alt={creative.name}
-					className={cn(
-						"h-8 w-8 shrink-0 border border-border object-cover",
-						creative.logoShape === "square" ? "rounded-lg" : "rounded-full",
-					)}
+					className="h-8 w-8 shrink-0 object-contain"
 				/>
 				{/* Title + tagline on two lines in a lighter weight than the usernames, so the block
 				    matches the logo height and doesn't shout as loud as a real leaderboard entry. */}
@@ -142,13 +135,10 @@ function SponsorPlaceholderRow({
 				to="/-/sponsoring"
 				className="flex w-full items-center gap-3 py-2.5 text-left hover:bg-muted"
 			>
-				{/* "Ad" gutter is dropped on mobile to give the title room (it reads cramped otherwise);
-				    the right-hand label keeps the disclosure. */}
-				<span className="hidden w-6 items-center justify-center text-[10px] uppercase tracking-wide text-muted-foreground sm:flex">
-					Ad
-				</span>
+				{/* Empty rank gutter keeps the placeholder aligned with leaderboard avatars. */}
+				<span aria-hidden="true" className="w-6 shrink-0" />
 				{/* Dashed placeholder where the current or future sponsor's logo will sit. */}
-				<span className="h-8 w-8 shrink-0 rounded-full border border-border border-dashed" />
+				<span className="h-8 w-8 shrink-0 rounded-lg border border-border border-dashed" />
 				<span className="min-w-0 flex-1">
 					<span className="block truncate">
 						{booked
