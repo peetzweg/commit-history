@@ -38,6 +38,10 @@ vi.mock("motion/react", () => ({
 	},
 }));
 
+vi.mock("#/content/sponsors", () => ({
+	SPONSORS: { dev: null, org: null },
+}));
+
 vi.mock("#/lib/sponsor", () => ({ sponsorSlotsQueryOptions: {} }));
 
 import { SponsorRow } from "#/components/SponsorRow";
