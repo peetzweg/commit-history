@@ -1,6 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
 import type Stripe from "stripe";
 import type { SponsorSlotId } from "#/content/sponsors";
+import { loadPaymentLinkSlot, type SlotState } from "#/lib/sponsor-stripe";
+
+export type { SlotState, SlotStatus } from "#/lib/sponsor-stripe";
 
 /**
  * Live per-slot sponsorship status, read from Stripe. Powers the "Rent this slot" / "Booked"
@@ -9,11 +12,12 @@ import type { SponsorSlotId } from "#/content/sponsors";
  * slot shows stays a static, manual concern (`src/content/sponsors.ts`) — this module only decides
  * whether a slot is currently for sale.
  *
- * No database: a slot's truth lives entirely in Stripe (subscription state per price) plus env
- * (which price/link maps to which slot). "Booked" is derived from an active subscription existing,
- * NOT from the Payment Link's `active` flag — that closes the checkout→webhook race, where a link
- * is briefly still enabled after a purchase completes. Missing config or any Stripe failure yields
- * `"unknown"`, which the page renders as the mailto fallback — this feature never throws a page.
+ * No database: a slot's truth lives entirely in Stripe. Env maps each slot to one Payment Link;
+ * the Link supplies its hosted URL and current recurring Price. A live subscription on that Price
+ * closes the checkout→webhook race, where a Link is briefly still enabled after purchase; an
+ * inactive Link is also authoritative and stays booked after its Price changes. Missing config or
+ * any Stripe failure before availability is known yields `"unknown"`, which the page renders as the
+ * mailto fallback — this feature never throws a page.
  *
  * The Stripe SDK is Node-only and this module sits in a client-reachable import graph (the
  * /-/sponsoring route imports the RPC stub + types), so `stripe` is loaded via dynamic import
@@ -21,22 +25,9 @@ import type { SponsorSlotId } from "#/content/sponsors";
  * incident). A static top-level import would drag the SDK into the browser bundle.
  */
 
-export type SlotStatus = "available" | "booked" | "unknown";
-
-export interface SlotState {
-	id: SponsorSlotId;
-	status: SlotStatus;
-	/** Present only when status === "available": the Stripe Payment Link to send the buyer to. */
-	buyUrl?: string;
-}
-
 interface SlotEnv {
-	/** Recurring price the slot's subscription is billed on — the "is it booked?" lookup key. */
-	priceId?: string;
-	/** Payment Link id — the webhook deactivates this on first purchase (single-occupancy). */
+	/** Source of the slot's checkout URL, recurring Price, occupancy key, and webhook identity. */
 	linkId?: string;
-	/** Payment Link URL — the page sends the buyer here. Not derivable from the id. */
-	linkUrl?: string;
 }
 
 /** Per-slot Stripe wiring, read from env at call time (never at module load — values arrive late
@@ -44,27 +35,15 @@ interface SlotEnv {
 export function sponsorSlotEnv(): Record<SponsorSlotId, SlotEnv> {
 	return {
 		dev: {
-			priceId: process.env.SPONSOR_DEV_PRICE_ID,
 			linkId: process.env.SPONSOR_DEV_PAYMENT_LINK_ID,
-			linkUrl: process.env.SPONSOR_DEV_PAYMENT_LINK_URL,
 		},
 		org: {
-			priceId: process.env.SPONSOR_ORG_PRICE_ID,
 			linkId: process.env.SPONSOR_ORG_PAYMENT_LINK_ID,
-			linkUrl: process.env.SPONSOR_ORG_PAYMENT_LINK_URL,
 		},
 	};
 }
 
 const SLOT_IDS: readonly SponsorSlotId[] = ["dev", "org"];
-
-// A slot counts as taken while a subscription on its price is live-ish. past_due is included
-// deliberately: a lapsing sponsor is still the occupant until Stripe cancels the sub outright.
-const OCCUPIED_STATUSES = new Set<Stripe.Subscription.Status>([
-	"active",
-	"trialing",
-	"past_due",
-]);
 
 /**
  * Build a Stripe client, or null when unusable (browser, or no secret key configured). Callers
@@ -90,24 +69,13 @@ async function computeSlot(
 	if (id === "dev" && process.env.SPONSOR_DEV_SLOT_FORCE_BOOKED === "1") {
 		return { id, status: "booked" };
 	}
-	if (!stripe || !env.priceId || !env.linkUrl) return { id, status: "unknown" };
-
-	// status: "all" then filter locally — the list filter takes a single status, but a slot is
-	// occupied by any of several. The slot has at most a handful of subs, so the page is tiny.
-	const subs = await stripe.subscriptions.list({
-		price: env.priceId,
-		status: "all",
-		limit: 100,
-	});
-	const occupied = subs.data.some((s) => OCCUPIED_STATUSES.has(s.status));
-	return occupied
-		? { id, status: "booked" }
-		: { id, status: "available", buyUrl: env.linkUrl };
+	if (!stripe || !env.linkId) return { id, status: "unknown" };
+	return loadPaymentLinkSlot(id, env.linkId, stripe);
 }
 
-// Module-level cache: one Stripe round-trip per minute, shared across the server process (the
-// webhook busts it on a sale so the page flips within the round-trip, not the full 60s). Purely a
-// perf shim — the truth is always Stripe, so a cold cache after a restart just refills on next read.
+// Module-level cache: one set of Stripe lookups per minute, shared across the server process (the
+// webhook busts it on a sale so the page flips immediately, not after the full 60s). Purely a perf
+// shim — the truth is always Stripe, so a cold cache after a restart just refills on next read.
 const CACHE_MS = 60_000;
 let cache: { at: number; slots: SlotState[] } | null = null;
 

@@ -8,6 +8,7 @@ import {
 	type SponsorSlotId,
 } from "#/content/sponsors";
 import { sponsorSlotsQueryOptions } from "#/lib/sponsor";
+import { formatSponsorPrice, type SponsorPrice } from "#/lib/sponsor-price";
 import { cn } from "#/lib/utils";
 
 /**
@@ -35,19 +36,21 @@ export function SponsorRow({
 	ref?: React.Ref<HTMLLIElement>;
 }) {
 	const creative = SPONSORS[slot];
-	// Skipped when there is no creative: an empty slot renders the same either way, so the common
-	// case costs no RPC — and the request only ever fires for a slot with an ad to justify.
-	const { data } = useQuery({
-		...sponsorSlotsQueryOptions,
-		enabled: creative !== null,
-	});
-	const status = data?.find((s) => s.id === slot)?.status ?? "unknown";
+	// The shared lookup supplies both availability and the checkout price advertised in an empty
+	// row. React Query deduplicates this across the developer and organization leaderboards.
+	const { data } = useQuery(sponsorSlotsQueryOptions);
+	const state = data?.find((s) => s.id === slot);
+	const status = state?.status ?? "unknown";
 	// Only a definitive "available" pulls the ad. On the server, during the first paint, and through
 	// any Stripe outage the status reads "unknown" — a paying sponsor keeps their row regardless.
 	return creative && status !== "available" ? (
 		<BookedRow creative={creative} ref={ref} />
 	) : (
-		<EmptyRow ref={ref} />
+		<SponsorPlaceholderRow
+			booked={status === "booked"}
+			price={state?.price}
+			ref={ref}
+		/>
 	);
 }
 
@@ -116,7 +119,15 @@ function BookedRow({
 	);
 }
 
-function EmptyRow({ ref }: { ref?: React.Ref<HTMLLIElement> }) {
+function SponsorPlaceholderRow({
+	booked,
+	price,
+	ref,
+}: {
+	booked: boolean;
+	price?: SponsorPrice;
+	ref?: React.Ref<HTMLLIElement>;
+}) {
 	return (
 		<motion.li
 			ref={ref}
@@ -136,16 +147,22 @@ function EmptyRow({ ref }: { ref?: React.Ref<HTMLLIElement> }) {
 				<span className="hidden w-6 items-center justify-center text-[10px] uppercase tracking-wide text-muted-foreground sm:flex">
 					Ad
 				</span>
-				{/* Dashed placeholder where the sponsor's logo would sit — reads as "empty". */}
+				{/* Dashed placeholder where the current or future sponsor's logo will sit. */}
 				<span className="h-8 w-8 shrink-0 rounded-full border border-border border-dashed" />
 				<span className="min-w-0 flex-1">
-					<span className="block truncate">This sponsor slot is empty</span>
+					<span className="block truncate">
+						{booked
+							? "This sponsor slot is booked"
+							: "This sponsor slot is empty"}
+					</span>
 					<span className="block truncate text-xs text-muted-foreground">
-						Put your product or job posting in front of thousands of developers
+						{booked
+							? "Sponsor announcement coming soon"
+							: "Put your product or job posting in front of thousands of developers"}
 					</span>
 				</span>
 				<span className="shrink-0 text-right text-xs text-muted-foreground">
-					Sponsoring
+					{booked ? "Booked" : price ? formatSponsorPrice(price) : "Sponsoring"}
 				</span>
 			</Link>
 		</motion.li>

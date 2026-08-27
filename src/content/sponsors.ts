@@ -4,8 +4,8 @@
  * The creative lives in code — not a DB, not a CMS. A slot changes maybe once a quarter, a logo
  * has to be hosted somewhere regardless, and keeping it here means every change is a reviewable,
  * revertable commit. *Selling* a slot is a Stripe concern (`src/lib/sponsor.ts`); *showing* the
- * creative is this file. A fresh sale flips the /-/sponsoring page to "Booked" automatically, and
- * the entry below is added by hand once the sponsor mails their logo.
+ * creative is this file. A fresh sale flips the /-/sponsoring page and leaderboard placeholder to
+ * "Booked" automatically, and the entry below is added by hand once the sponsor mails their logo.
  *
  * An entry here is permission to show an ad, not proof the slot is still paid for: `SponsorRow`
  * hides the creative whenever Stripe reports the slot available, so a lapsed subscription can't
