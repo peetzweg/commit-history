@@ -9,10 +9,9 @@ RUN pnpm build
 FROM node:24-alpine
 ENV NODE_ENV=production
 WORKDIR /app
-# `.output` carries both entrypoints: nitro's server bundle (CMD below) and the self-contained
-# monthly-refresh worker bundle that Coolify's scheduled task runs with
-# `node .output/worker/monthly-user-refresh.mjs`. Both are bundled, so the runtime image needs no
-# node_modules, no sources and no tsx — keeping it a fraction of the build stage's ~460 MB tree.
+# `.output` carries nitro's server bundle (CMD below) and self-contained worker entrypoints. The
+# same image can therefore run the web app, scheduled refreshes, or the continuous profile worker
+# without runtime node_modules, sources, or tsx.
 COPY --from=build /app/.output ./.output
 EXPOSE 3000
 USER node
