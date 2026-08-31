@@ -100,7 +100,7 @@ async function mapWithConcurrency<T, R>(
 }
 
 export interface Profile {
-	/** Immutable GraphQL identity; unlike login, this survives renames and login reuse. */
+	/** Immutable GraphQL node id. */
 	nodeId: string;
 	login: string;
 	name: string | null;
@@ -443,6 +443,31 @@ export async function fetchProfile(
 	);
 	if (!data.user) throw new GitHubError(`User "${login}" not found.`, 404);
 	const u = data.user;
+	return profileFromGraphQL(u);
+}
+
+/** Resolve a user by immutable GraphQL node id, so delayed ingestion survives login renames. */
+export async function fetchProfileByNodeId(
+	nodeId: string,
+	token: string,
+): Promise<Profile> {
+	if (!nodeId.trim()) throw new GitHubError("GitHub node id is required.", 400);
+	const data = await graphql<{ node: RawProfile | null }>(
+		token,
+		`query { node(id: ${JSON.stringify(nodeId)}) {
+			... on User {
+				id login name avatarUrl createdAt bio company location websiteUrl twitterUsername
+				followers { totalCount }
+				following { totalCount }
+				repositories(ownerAffiliations: OWNER, privacy: PUBLIC) { totalCount }
+			}
+		} }`,
+	);
+	if (!data.node) throw new GitHubError("GitHub user no longer exists.", 404);
+	return profileFromGraphQL(data.node);
+}
+
+function profileFromGraphQL(u: RawProfile): Profile {
 	return {
 		nodeId: u.id,
 		login: u.login,
