@@ -23,7 +23,14 @@ async function createDb(url: string) {
 	]);
 	// prepare: false — Neon's pooled endpoint is PgBouncer in transaction mode, where named
 	// prepared statements can't be relied on; harmless against a direct Postgres.
-	return drizzle(postgres(url, { prepare: false }), { schema });
+	const rawPoolMax = process.env.DATABASE_POOL_MAX;
+	const configuredMax = rawPoolMax ? Number(rawPoolMax) : 10;
+	if (!Number.isInteger(configuredMax) || configuredMax < 1) {
+		throw new Error("DATABASE_POOL_MAX must be a positive integer.");
+	}
+	return drizzle(postgres(url, { prepare: false, max: configuredMax }), {
+		schema,
+	});
 }
 
 const url =

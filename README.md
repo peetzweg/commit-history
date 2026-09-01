@@ -147,12 +147,23 @@ is the retry queue. A later lookup that resolves clears the flag automatically.
 
 ## ☁️ Deploy (self-hosted)
 
-The build emits a standalone Node server via [nitro](https://nitro.build) — `pnpm build && pnpm start` serves the whole app on port 3000. The multi-stage `Dockerfile` packages exactly that, so any Docker host works; production runs on [Coolify](https://coolify.io) (build pack: Dockerfile, port 3000) behind Cloudflare, which edge-caches `/embed/*` — the embeds already send `s-maxage` for any CDN.
+The build emits a standalone Node server via [nitro](https://nitro.build) and self-contained worker
+entrypoints. Keep the existing Coolify Dockerfile application as the public web process. Add the
+profile worker as a second, domainless Dockerfile application from the same image revision, with
+`node .output/worker/profile-ingestion-worker.mjs` as its start command. Give it the same
+`DATABASE_URL` and `GITHUB_TOKEN`, plus a small `DATABASE_POOL_MAX` such as `2`.
+
+Before starting the worker, run
+`node .output/worker/profile-ingestion-queue-migrate.mjs` once against the production database.
+The web profile path remains synchronous and organization ingestion remains on its existing
+scheduled flow; this worker does not change either path. Cloudflare continues to edge-cache
+`/embed/*` using the existing `s-maxage` response headers.
 
 | Setting | Value |
 | --- | --- |
 | **Build** | `docker build .` (or `pnpm build` for bare Node) |
 | **Run** | container `CMD` / `pnpm start` → listens on `:3000` (`PORT` overridable) |
+| **Profile worker** | `node .output/worker/profile-ingestion-worker.mjs` (domainless, concurrency 1) |
 | **Scheduled task** | `node .output/worker/monthly-user-refresh.mjs` (see above) |
 | **Environment variables** | `GITHUB_TOKEN` (required), `DATABASE_URL` (for the persistent cache + leaderboard) |
 
