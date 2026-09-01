@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
 	boolean,
 	date,
@@ -15,60 +16,70 @@ import {
  * A tracked entity — currently a GitHub user; `kind` leaves room for orgs/repos later.
  * `id` is namespaced so the same login can't collide across kinds: e.g. "user:torvalds".
  */
-export const entities = pgTable("entities", {
-	id: text("id").primaryKey(),
-	kind: text("kind").notNull(), // 'user' | 'org' | 'repo'
-	login: text("login").notNull(),
-	name: text("name"),
-	avatarUrl: text("avatar_url"),
-	htmlUrl: text("html_url"),
-	createdAt: timestamp("created_at", { withTimezone: true }), // defines the window start
-	totalCommits: integer("total_commits").notNull().default(0), // public commits
-	totalRestricted: integer("total_restricted").notNull().default(0), // private contributions
-	// Additional public contribution-type lifetime totals. Nullable so null = "not yet backfilled
-	// with the new types" (drives the backfill script's default mode), distinct from a real 0 —
-	// same rationale as the profile-metadata columns below.
-	totalIssues: integer("total_issues"), // public issues opened
-	totalPullRequests: integer("total_pull_requests"), // public PRs opened
-	totalReviews: integer("total_reviews"), // public PR reviews
-	totalRepos: integer("total_repos"), // public repositories created
-	// Profile metadata — mutable, refreshed on the trailing-refresh path (see cache.ts). All
-	// nullable so an unknown value (older row, fetch failure) stays distinguishable from a real 0.
-	followers: integer("followers"),
-	following: integer("following"),
-	publicRepos: integer("public_repos"),
-	bio: text("bio"),
-	company: text("company"),
-	location: text("location"),
-	websiteUrl: text("website_url"),
-	twitterUsername: text("twitter_username"),
-	// Org-only metadata (null on user rows — same "unknown vs not applicable" convention).
-	isVerified: boolean("is_verified"), // org domain-verified badge
-	githubNodeId: text("github_node_id"), // GraphQL node id — keys contributionsCollection(organizationID:) without a profile round-trip
-	memberCount: integer("member_count"), // membersWithRole.totalCount (includes private members) — display only
-	lastFetched: timestamp("last_fetched", { withTimezone: true }), // staleness / trailing refresh; also "profile last updated"
-	builtAt: timestamp("built_at", { withTimezone: true }), // initial build completed; null = months still being fetched incrementally
-	// Org-only: when this org's membership was last re-read from `membersWithRole`. The org refresh
-	// worker re-enumerates monthly off this, which is how a member who joined (or made their
-	// membership public) after the initial build ever gets discovered — see #150.
-	//
-	// Deliberately NOT `lastFetched`: that column is bumped by any profile-only refresh
-	// (scripts/refresh.ts, the org-cache staleness path), which would mark the membership current
-	// when it was never re-read. Same trap #151 hit reusing it as a month-freshness gate.
-	membersEnumeratedAt: timestamp("members_enumerated_at", {
-		withTimezone: true,
-	}),
-	// Moderation: null = active. When set, the entity is hidden from the leaderboard and
-	// "recently looked up" (still directly viewable, with an under-review notice) until cleared.
-	suspendedAt: timestamp("suspended_at", { withTimezone: true }),
-	suspendedReason: text("suspended_reason"), // internal note — never shown publicly
-	// GitHub no longer resolves this login (GraphQL NOT_FOUND / REST 404) — deleted, renamed, or
-	// blocked. Deliberately NOT moderation: the contributions we already stored were real, so the
-	// entity stays ranked and viewable (with a notice). It only drops out of the monthly refresh
-	// cohort, so a dead login can't burn a request and fail the scheduled task every pass.
-	// Cleared automatically the next time the login resolves.
-	unreachableAt: timestamp("unreachable_at", { withTimezone: true }),
-});
+export const entities = pgTable(
+	"entities",
+	{
+		id: text("id").primaryKey(),
+		kind: text("kind").notNull(), // 'user' | 'org' | 'repo'
+		login: text("login").notNull(),
+		name: text("name"),
+		avatarUrl: text("avatar_url"),
+		htmlUrl: text("html_url"),
+		createdAt: timestamp("created_at", { withTimezone: true }), // defines the window start
+		totalCommits: integer("total_commits").notNull().default(0), // public commits
+		totalRestricted: integer("total_restricted").notNull().default(0), // private contributions
+		// Additional public contribution-type lifetime totals. Nullable so null = "not yet backfilled
+		// with the new types" (drives the backfill script's default mode), distinct from a real 0 —
+		// same rationale as the profile-metadata columns below.
+		totalIssues: integer("total_issues"), // public issues opened
+		totalPullRequests: integer("total_pull_requests"), // public PRs opened
+		totalReviews: integer("total_reviews"), // public PR reviews
+		totalRepos: integer("total_repos"), // public repositories created
+		// Profile metadata — mutable, refreshed on the trailing-refresh path (see cache.ts). All
+		// nullable so an unknown value (older row, fetch failure) stays distinguishable from a real 0.
+		followers: integer("followers"),
+		following: integer("following"),
+		publicRepos: integer("public_repos"),
+		bio: text("bio"),
+		company: text("company"),
+		location: text("location"),
+		websiteUrl: text("website_url"),
+		twitterUsername: text("twitter_username"),
+		// Org-only metadata (null on user rows — same "unknown vs not applicable" convention).
+		isVerified: boolean("is_verified"), // org domain-verified badge
+		githubNodeId: text("github_node_id"), // immutable GraphQL identity for users and organizations
+		memberCount: integer("member_count"), // membersWithRole.totalCount (includes private members) — display only
+		lastFetched: timestamp("last_fetched", { withTimezone: true }), // staleness / trailing refresh; also "profile last updated"
+		builtAt: timestamp("built_at", { withTimezone: true }), // initial build completed; null = months still being fetched incrementally
+		// Org-only: when this org's membership was last re-read from `membersWithRole`. The org refresh
+		// worker re-enumerates monthly off this, which is how a member who joined (or made their
+		// membership public) after the initial build ever gets discovered — see #150.
+		//
+		// Deliberately NOT `lastFetched`: that column is bumped by any profile-only refresh
+		// (scripts/refresh.ts, the org-cache staleness path), which would mark the membership current
+		// when it was never re-read. Same trap #151 hit reusing it as a month-freshness gate.
+		membersEnumeratedAt: timestamp("members_enumerated_at", {
+			withTimezone: true,
+		}),
+		// Moderation: null = active. When set, the entity is hidden from the leaderboard and
+		// "recently looked up" (still directly viewable, with an under-review notice) until cleared.
+		suspendedAt: timestamp("suspended_at", { withTimezone: true }),
+		suspendedReason: text("suspended_reason"), // internal note — never shown publicly
+		// GitHub no longer resolves this login (GraphQL NOT_FOUND / REST 404) — deleted, renamed, or
+		// blocked. Deliberately NOT moderation: the contributions we already stored were real, so the
+		// entity stays ranked and viewable (with a notice). It only drops out of the monthly refresh
+		// cohort, so a dead login can't burn a request and fail the scheduled task every pass.
+		// Cleared automatically the next time the login resolves.
+		unreachableAt: timestamp("unreachable_at", { withTimezone: true }),
+	},
+	(t) => [
+		// User-only by design: organization identity migration is a separate concern, and org rows
+		// keyed by an old login must not make this user-safety migration undeployable.
+		uniqueIndex("entities_user_github_node_id_idx")
+			.on(t.githubNodeId)
+			.where(sql`${t.kind} = 'user' AND ${t.githubNodeId} IS NOT NULL`),
+	],
+);
 
 /**
  * Per-month commit counts. GitHub's numbers for a past month are settled, but a *stored* row for

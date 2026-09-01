@@ -100,6 +100,8 @@ async function mapWithConcurrency<T, R>(
 }
 
 export interface Profile {
+	/** Immutable GraphQL identity; unlike login, this survives renames and login reuse. */
+	nodeId: string;
 	login: string;
 	name: string | null;
 	avatarUrl: string;
@@ -405,6 +407,7 @@ function assertLogin(rawLogin: string): string {
 
 /** Raw shape from GraphQL, before flattening the `{ totalCount }` connections. */
 interface RawProfile {
+	id: string;
 	login: string;
 	name: string | null;
 	avatarUrl: string;
@@ -432,7 +435,7 @@ export async function fetchProfile(
 	const data = await graphql<{ user: RawProfile | null }>(
 		token,
 		`query { user(login: "${login}") {
-			login name avatarUrl createdAt bio company location websiteUrl twitterUsername
+			id login name avatarUrl createdAt bio company location websiteUrl twitterUsername
 			followers { totalCount }
 			following { totalCount }
 			repositories(ownerAffiliations: OWNER, privacy: PUBLIC) { totalCount }
@@ -441,6 +444,7 @@ export async function fetchProfile(
 	if (!data.user) throw new GitHubError(`User "${login}" not found.`, 404);
 	const u = data.user;
 	return {
+		nodeId: u.id,
 		login: u.login,
 		name: u.name,
 		avatarUrl: u.avatarUrl,
