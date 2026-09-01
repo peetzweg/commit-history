@@ -145,6 +145,21 @@ viewable, with a notice — the stored contributions were real, there is just no
 Without it one dead account fails every pass of every month forever, since an incomplete month row
 is the retry queue. A later lookup that resolves clears the flag automatically.
 
+### Manual profile ingestion
+
+After provisioning the queue and starting the worker, an operator can create or update one profile
+as a canary:
+
+```bash
+pnpm profile:enqueue peetzweg
+# From the production image:
+node .output/worker/enqueue-profile-ingestion.mjs peetzweg
+```
+
+The command resolves the current login to its immutable GitHub identity and enqueues one ingestion
+request. It does not write profile data itself; the worker owns identity-safe persistence. Live web
+lookups remain synchronous, and automatic/live queue producers are a future follow-up.
+
 ## ☁️ Deploy (self-hosted)
 
 The build emits a standalone Node server via [nitro](https://nitro.build) and self-contained worker
