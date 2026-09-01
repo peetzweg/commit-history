@@ -24,7 +24,7 @@ export interface GithubHistory {
  * developing the replacement aggregate locally, but do not let it hold up production navigation.
  */
 export function isGithubHistoryEnabled(
-	env: Pick<NodeJS.ProcessEnv, "NODE_ENV"> = process.env,
+	env: Partial<Pick<NodeJS.ProcessEnv, "NODE_ENV">> = process.env,
 ): boolean {
 	return env.NODE_ENV !== "production";
 }
