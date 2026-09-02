@@ -201,7 +201,7 @@ export function createProfileIngestion(deps: ProfileIngestionDependencies) {
 		const windows = monthlyWindows(new Date(profile.createdAt), now);
 		const completeRows = new Map(
 			rows
-				.filter((row) => isCompletedMonth(row))
+				.filter((row) => isStoredProfileMonthComplete(row, stored.builtAt))
 				.map((row) => [row.month, row]),
 		);
 		const missing = windows.filter((window) => !completeRows.has(window.label));
@@ -275,7 +275,9 @@ async function availableHistory(
 	const windows = monthlyWindows(new Date(stored.profile.createdAt), now);
 	const rows = await store.storedMonths(stored.entityId);
 	const completeRows = new Map(
-		rows.filter(isCompletedMonth).map((row) => [row.month, row]),
+		rows
+			.filter((row) => isStoredProfileMonthComplete(row, stored.builtAt))
+			.map((row) => [row.month, row]),
 	);
 	return historyFromAvailable(stored.profile, windows, completeRows);
 }
@@ -288,7 +290,9 @@ async function completedHistory(
 	const windows = monthlyWindows(new Date(stored.profile.createdAt), now);
 	const rows = await store.storedMonths(stored.entityId);
 	const completeRows = new Map(
-		rows.filter((row) => isCompletedMonth(row)).map((row) => [row.month, row]),
+		rows
+			.filter((row) => isStoredProfileMonthComplete(row, stored.builtAt))
+			.map((row) => [row.month, row]),
 	);
 	if (windows.some((window) => !completeRows.has(window.label)))
 		return undefined;
@@ -343,14 +347,27 @@ function completeResult(
 	};
 }
 
-function isCompletedMonth(row: StoredProfileMonth): boolean {
-	if (!row.fetchedAt) return false;
+/**
+ * Whether a stored month has enough provenance to be treated as immutable.
+ *
+ * New rows prove this directly with `fetchedAt`. Rows predating that column deliberately retain
+ * NULL, but a profile's original `builtAt` is also valid proof when the build completed after the
+ * month closed: initial completion was stamped only after every emitted month had been stored.
+ * Never let `builtAt` override an explicit early `fetchedAt`; those rows are the historical
+ * partial-month bug this completeness rule exists to repair.
+ */
+export function isStoredProfileMonthComplete(
+	row: Pick<StoredProfileMonth, "month" | "fetchedAt">,
+	builtAt: Date | null,
+): boolean {
+	const provenAt = row.fetchedAt ?? builtAt;
+	if (!provenAt) return false;
 	const start = new Date(`${row.month}T00:00:00.000Z`);
 	if (Number.isNaN(start.getTime())) return false;
 	const nextMonth = new Date(
 		Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 1),
 	);
-	return row.fetchedAt >= nextMonth;
+	return provenAt >= nextMonth;
 }
 
 async function rateLimitDeferral(

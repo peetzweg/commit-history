@@ -3,9 +3,10 @@ import type { DB } from "#/lib/db";
 import { entities, monthlyCommits } from "#/lib/db/schema";
 import type { CommitHistory, MonthlyCount, Profile } from "#/lib/github";
 import { saveProfileIdentity } from "#/lib/profile-identity";
-import type {
-	ProfileIngestionStore,
-	StoredProfile,
+import {
+	isStoredProfileMonthComplete,
+	type ProfileIngestionStore,
+	type StoredProfile,
 } from "#/lib/profile-ingestion-engine";
 
 type EntityRow = typeof entities.$inferSelect;
@@ -70,6 +71,14 @@ export function createProfileIngestionStore(
 
 		async markComplete(entityId, history, expectedMonths, at) {
 			await database.transaction(async (tx) => {
+				const [profile] = await tx
+					.select({ builtAt: entities.builtAt })
+					.from(entities)
+					.where(eq(entities.id, entityId))
+					.limit(1);
+				if (!profile) {
+					throw new Error(`Profile entity ${entityId} disappeared.`);
+				}
 				const rows = await tx
 					.select({
 						month: monthlyCommits.month,
@@ -79,11 +88,7 @@ export function createProfileIngestionStore(
 					.where(eq(monthlyCommits.entityId, entityId));
 				const durable = new Set(
 					rows
-						.filter(
-							(row) =>
-								row.fetchedAt != null &&
-								row.fetchedAt >= nextMonthStart(row.month),
-						)
+						.filter((row) => isStoredProfileMonthComplete(row, profile.builtAt))
 						.map((row) => row.month),
 				);
 				const missing = expectedMonths.filter((month) => !durable.has(month));
@@ -188,9 +193,4 @@ function countsFromRow(row: typeof monthlyCommits.$inferSelect): MonthlyCount {
 		reviews: row.reviews,
 		repos: row.repos,
 	};
-}
-
-function nextMonthStart(month: string): Date {
-	const start = new Date(`${month}T00:00:00.000Z`);
-	return new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 1));
 }
