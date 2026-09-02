@@ -1,4 +1,4 @@
-import { type ReactNode, useId } from "react";
+import { type ReactNode, useEffect, useId } from "react";
 
 export interface BuildProgressItem {
 	login: string;
@@ -20,6 +20,17 @@ export function BlockingBuildState({
 }) {
 	const titleId = useId();
 	const descriptionId = useId();
+
+	useEffect(() => {
+		const htmlOverflow = document.documentElement.style.overflow;
+		const bodyOverflow = document.body.style.overflow;
+		document.documentElement.style.overflow = "hidden";
+		document.body.style.overflow = "hidden";
+		return () => {
+			document.documentElement.style.overflow = htmlOverflow;
+			document.body.style.overflow = bodyOverflow;
+		};
+	}, []);
 
 	return (
 		<>

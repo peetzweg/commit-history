@@ -51,11 +51,11 @@ function BackLink() {
 function HeaderSkeleton({ login }: { login: string }) {
 	return (
 		<header className="flex items-center gap-4">
-			<div className="h-20 w-20 shrink-0 rounded-xl border border-border bg-muted" />
+			<div className="h-20 w-20 shrink-0 animate-pulse rounded-xl border border-border bg-muted" />
 			<div className="min-w-0">
-				<div className="h-7 w-40 rounded bg-muted" />
+				<div className="h-7" />
 				<p className="mt-1 text-sm text-muted-foreground">@{login}</p>
-				<div className="mt-1 h-3 w-52 max-w-full rounded bg-muted" />
+				<div className="mt-1 h-3" />
 			</div>
 		</header>
 	);
@@ -68,7 +68,6 @@ function OrgPageSkeleton({ login }: { login: string }) {
 			<div className="mt-6">
 				<HeaderSkeleton login={login} />
 			</div>
-			<div className="mt-4 h-4 w-96 max-w-full rounded bg-muted" />
 			<div className="mx-auto mt-8 grid max-w-xl grid-cols-3 gap-x-4 gap-y-5 sm:mx-0 sm:flex sm:max-w-none sm:flex-wrap sm:gap-10">
 				{[
 					"Commits",
@@ -79,22 +78,13 @@ function OrgPageSkeleton({ login }: { login: string }) {
 					"Members",
 				].map((label) => (
 					<div key={label}>
-						<div className="h-7 w-20 rounded bg-muted" />
-						<div className="mt-0.5 text-xs uppercase tracking-wide text-muted-foreground">
+						<div className="h-7" />
+						<div className="text-xs uppercase tracking-wide text-muted-foreground">
 							{label}
 						</div>
 					</div>
 				))}
 			</div>
-			<div className="mt-8 h-3 w-full max-w-2xl rounded bg-muted" />
-			<section className="mt-12">
-				<div className="h-8 w-72 max-w-full rounded bg-muted" />
-				<div className="mt-4 grid gap-3">
-					{["first", "second", "third", "fourth"].map((row) => (
-						<div key={row} className="h-14 rounded-lg border bg-muted/30" />
-					))}
-				</div>
-			</section>
 		</main>
 	);
 }

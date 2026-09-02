@@ -6,7 +6,7 @@ import { BlockingBuildState } from "#/components/BlockingBuildState";
 
 describe("BlockingBuildState", () => {
 	it("disables the page and presents progress in a centered modal dialog", () => {
-		const { container } = render(
+		const { container, unmount } = render(
 			<BlockingBuildState
 				items={[
 					{
@@ -39,5 +39,11 @@ describe("BlockingBuildState", () => {
 		);
 		expect(screen.queryByRole("button")).toBeNull();
 		expect(container.textContent).toContain("3 of 12 months fetched");
+		expect(document.documentElement.style.overflow).toBe("hidden");
+		expect(document.body.style.overflow).toBe("hidden");
+
+		unmount();
+		expect(document.documentElement.style.overflow).toBe("");
+		expect(document.body.style.overflow).toBe("");
 	});
 });

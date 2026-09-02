@@ -181,11 +181,11 @@ const GENERIC_POINTS: CommitPoint[] = (() => {
 function ProfileHeaderSkeleton({ login }: { login: string }) {
 	return (
 		<header className="flex items-center gap-4">
-			<div className="h-20 w-20 shrink-0 rounded-full border border-border bg-muted" />
+			<div className="h-20 w-20 shrink-0 animate-pulse rounded-full border border-border bg-muted" />
 			<div className="min-w-0">
-				<div className="h-7 w-36 rounded bg-muted" />
+				<div className="h-7" />
 				<p className="mt-1 text-sm text-muted-foreground">@{login}</p>
-				<div className="mt-1 h-3 w-44 max-w-full rounded bg-muted" />
+				<div className="mt-1 h-3" />
 			</div>
 		</header>
 	);
@@ -196,8 +196,8 @@ function StatSkeletons() {
 		<div className="mx-auto mt-6 grid max-w-xl grid-cols-3 gap-x-4 gap-y-5 text-center sm:mx-0 sm:flex sm:max-w-none sm:flex-wrap sm:gap-10 sm:text-left">
 			{["Commits rank", "Commits", "Busiest month"].map((label) => (
 				<div key={label}>
-					<div className="h-7 w-20 rounded bg-muted sm:w-24" />
-					<div className="mt-0.5 text-xs uppercase tracking-wide text-muted-foreground">
+					<div className="h-7" />
+					<div className="text-xs uppercase tracking-wide text-muted-foreground">
 						{label}
 					</div>
 				</div>
@@ -209,7 +209,7 @@ function StatSkeletons() {
 function ChartSkeleton({ className }: { className: string }) {
 	return (
 		<div className={className}>
-			<div className="pointer-events-none opacity-35 blur-[6px]">
+			<div className="pointer-events-none animate-pulse opacity-35 blur-[6px]">
 				<CommitChart points={GENERIC_POINTS} mode="public" />
 			</div>
 		</div>
@@ -235,28 +235,7 @@ function UserPageSkeleton({ logins }: { logins: string[] }) {
 				<p className="mt-6 text-sm text-muted-foreground">
 					Comparing {logins.length} developers
 				</p>
-				<ChartSkeleton className="-mx-4 mt-6 pt-5 pb-1.5 sm:mx-0 sm:p-4" />
-				<div className="mt-4 h-3 w-72 max-w-full rounded bg-muted" />
-				<div data-metric-bar-anchor className="mt-4 h-12" />
-				<div className="mt-6 flex flex-wrap gap-3">
-					{logins.map((login) => (
-						<div
-							key={login}
-							className="h-8 w-36 rounded-full border bg-muted/40"
-						/>
-					))}
-				</div>
-				<section className="mt-12">
-					<div className="h-3 w-16 rounded bg-muted" />
-					<div className="mt-6 flex flex-col divide-y divide-border">
-						{logins.map((login) => (
-							<div key={login} className="py-6 first:pt-0 last:pb-0">
-								<ProfileHeaderSkeleton login={login} />
-								<StatSkeletons />
-							</div>
-						))}
-					</div>
-				</section>
+				<ChartSkeleton className="-mx-4 mt-6 pt-5 pb-1.5 sm:mx-0" />
 			</main>
 		);
 	}
@@ -269,12 +248,7 @@ function UserPageSkeleton({ logins }: { logins: string[] }) {
 				<ProfileHeaderSkeleton login={login} />
 				<StatSkeletons />
 			</div>
-			<ChartSkeleton className="-mx-4 mt-8 pt-5 pb-1.5 sm:mx-0 sm:p-4" />
-			<div className="mt-4 h-3 w-72 max-w-full rounded bg-muted" />
-			<div data-metric-bar-anchor className="mt-4 h-12" />
-			<div className="mt-10 flex justify-center">
-				<div className="h-9 w-60 rounded-md border bg-muted/40" />
-			</div>
+			<ChartSkeleton className="-mx-4 mt-8 pt-5 pb-1.5 sm:mx-0" />
 		</main>
 	);
 }
@@ -645,7 +619,7 @@ function SingleView({
 				initial={{ opacity: 0, filter: "blur(8px)" }}
 				animate={{ opacity: 1, filter: "blur(0px)" }}
 				transition={{ duration: 0.5 }}
-				className="-mx-4 mt-8 pt-5 pb-1.5 sm:mx-0 sm:p-4"
+				className="-mx-4 mt-8 pt-5 pb-1.5 sm:mx-0"
 			>
 				<CommitChart points={points} mode={effectiveMode} label={user.login} />
 			</motion.div>
@@ -802,7 +776,7 @@ function ComparisonView({
 				initial={{ opacity: 0, filter: "blur(8px)" }}
 				animate={{ opacity: 1, filter: "blur(0px)" }}
 				transition={{ duration: 0.5 }}
-				className="-mx-4 mt-6 pt-5 pb-1.5 sm:mx-0 sm:p-4"
+				className="-mx-4 mt-6 pt-5 pb-1.5 sm:mx-0"
 			>
 				<MultiCommitChart
 					series={series}
