@@ -8,6 +8,7 @@ import type {
 } from "#/lib/github";
 import {
 	createProfileIngestion,
+	isStoredProfileMonthComplete,
 	type ProfileIngestionGitHub,
 	type ProfileIngestionStore,
 	type StoredProfile,
@@ -95,11 +96,19 @@ class MemoryStore implements ProfileIngestionStore {
 	async markComplete(
 		entityId: string,
 		history: CommitHistory,
-		_expectedMonths: string[],
+		expectedMonths: string[],
 		at: Date,
 	) {
 		const row = this.profiles.get(entityId);
 		if (!row) throw new Error("profile missing");
+		const storedMonths = this.months.get(entityId) ?? new Map();
+		const missing = expectedMonths.filter((month) => {
+			const storedMonth = storedMonths.get(month);
+			return (
+				!storedMonth || !isStoredProfileMonthComplete(storedMonth, row.builtAt)
+			);
+		});
+		if (missing.length > 0) throw new Error("months are not durable");
 		row.builtAt ??= at;
 		row.lastFetched = at;
 		row.profile = history.user;
@@ -163,12 +172,13 @@ function seedMonth(
 	entityId: string,
 	month: string,
 	commits: number,
+	fetchedAt: Date | null = new Date("2026-05-01T00:00:00.000Z"),
 ) {
 	const rows = store.months.get(entityId) ?? new Map();
 	rows.set(month, {
 		month,
 		counts: counts(commits),
-		fetchedAt: new Date("2026-05-01T00:00:00.000Z"),
+		fetchedAt,
 	});
 	store.months.set(entityId, rows);
 }
@@ -260,6 +270,89 @@ describe("profile ingestion", () => {
 		expect(result.status).toBe("complete");
 		expect(github.fetchedChunks).toEqual([["2026-03-01", "2026-04-01"]]);
 		expect(store.completions[0]?.total).toBe(18);
+	});
+
+	it("accepts legacy months when the completed build proves they were settled", async () => {
+		const { run, store, github } = setup();
+		const stored = await store.saveProfile(PROFILE);
+		stored.builtAt = new Date("2026-05-01T00:00:00.000Z");
+		stored.lastFetched = new Date("2026-05-01T00:00:00.000Z");
+		for (const [index, month] of [
+			"2026-01-01",
+			"2026-02-01",
+			"2026-03-01",
+			"2026-04-01",
+		].entries()) {
+			seedMonth(store, stored.entityId, month, index + 1, null);
+		}
+
+		const result = await run(
+			{ login: PROFILE.login },
+			{ token: "token", now: NOW },
+		);
+
+		expect(result).toMatchObject({
+			status: "complete",
+			monthsStored: 4,
+			history: { total: 10 },
+		});
+		expect(github.profileCalls).toBe(1);
+		expect(github.fetchedChunks).toEqual([]);
+		expect(store.completions).toHaveLength(1);
+	});
+
+	it("refetches a legacy month when the build finished before that month closed", async () => {
+		const { run, store, github } = setup();
+		const stored = await store.saveProfile(PROFILE);
+		stored.builtAt = new Date("2026-01-20T00:00:00.000Z");
+		stored.lastFetched = new Date("2026-01-20T00:00:00.000Z");
+		seedMonth(store, stored.entityId, "2026-01-01", 99, null);
+		seedMonth(store, stored.entityId, "2026-02-01", 2);
+
+		await run(
+			{ login: PROFILE.login },
+			{ token: "token", now: new Date("2026-03-15T12:00:00.000Z") },
+		);
+
+		expect(github.fetchedChunks).toEqual([["2026-01-01"]]);
+		expect(store.completions[0]?.total).toBe(3);
+	});
+
+	it("does not let build provenance override an explicit early fetch", async () => {
+		const { run, store, github } = setup();
+		const stored = await store.saveProfile(PROFILE);
+		stored.builtAt = new Date("2026-05-01T00:00:00.000Z");
+		stored.lastFetched = new Date("2026-05-01T00:00:00.000Z");
+		seedMonth(
+			store,
+			stored.entityId,
+			"2026-01-01",
+			99,
+			new Date("2026-01-20T00:00:00.000Z"),
+		);
+		seedMonth(store, stored.entityId, "2026-02-01", 2, null);
+		seedMonth(store, stored.entityId, "2026-03-01", 3, null);
+		seedMonth(store, stored.entityId, "2026-04-01", 4, null);
+
+		await run({ login: PROFILE.login }, { token: "token", now: NOW });
+
+		expect(github.fetchedChunks).toEqual([["2026-01-01"]]);
+		expect(store.completions[0]?.total).toBe(10);
+	});
+
+	it("does not trust legacy provenance while the profile is incomplete", async () => {
+		const { run, store, github } = setup();
+		const stored = await store.saveProfile(PROFILE);
+		seedMonth(store, stored.entityId, "2026-01-01", 99, null);
+		seedMonth(store, stored.entityId, "2026-02-01", 2);
+
+		await run(TARGET, {
+			token: "token",
+			now: new Date("2026-03-15T12:00:00.000Z"),
+		});
+
+		expect(github.fetchedChunks).toEqual([["2026-01-01"]]);
+		expect(store.completions[0]?.total).toBe(3);
 	});
 
 	it("refetches an unproven month before marking the profile complete", async () => {
