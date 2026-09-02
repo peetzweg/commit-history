@@ -81,9 +81,10 @@ export function createRateLimiter(opts: RateLimiterOptions) {
  * - CF-Connecting-IP is the real visitor on every proxied request. Without it the
  *   last X-Forwarded-For hop would be a Cloudflare edge IP and ALL users would pile
  *   into a handful of buckets — instant false 429s.
- * - The fallback is the LAST X-Forwarded-For entry: Traefik APPENDS the connecting
- *   peer to any client-supplied list, so earlier entries are attacker-controlled.
- *   This covers unproxied paths (preview subdomains, direct origin hits).
+ * - The fallback is the FIRST X-Forwarded-For entry: preview traffic can traverse
+ *   multiple private proxies without Cloudflare's dedicated header, and the later
+ *   entries identify shared infrastructure rather than the original visitor.
+ *   This covers preview subdomains and direct origin traffic.
  *
  * Caveat until the planned Cloudflare-IP origin lockdown (devops#2) lands: whoever
  * hits the origin directly can spoof CF-Connecting-IP and hop between buckets. That
@@ -99,5 +100,5 @@ export function clientIpFrom(headers: Headers): string {
 	const forwarded = headers.get("x-forwarded-for");
 	if (!forwarded) return "local";
 	const hops = forwarded.split(",");
-	return hops[hops.length - 1]?.trim() || "local";
+	return hops[0]?.trim() || "local";
 }

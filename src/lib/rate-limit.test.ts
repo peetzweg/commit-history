@@ -108,11 +108,13 @@ describe("clientIpFrom", () => {
 		expect(clientIpFrom(proxied)).toBe("203.0.113.7");
 	});
 
-	it("falls back to the last XFF hop — the one Traefik appended", () => {
+	it("falls back to the original visitor in an XFF proxy chain", () => {
 		const direct = (xff: string) => new Headers({ "x-forwarded-for": xff });
 		expect(clientIpFrom(direct("203.0.113.7"))).toBe("203.0.113.7");
-		// Earlier entries are client-supplied and must not shift the bucket key.
-		expect(clientIpFrom(direct("1.1.1.1, 2.2.2.2, 203.0.113.7"))).toBe(
+		// Preview traffic can pass through several proxies without Cloudflare's dedicated
+		// header. The rightmost hops are shared infrastructure, so they must not collapse
+		// every visitor into the same bucket.
+		expect(clientIpFrom(direct("203.0.113.7, 10.0.0.2, 10.0.0.3"))).toBe(
 			"203.0.113.7",
 		);
 	});
