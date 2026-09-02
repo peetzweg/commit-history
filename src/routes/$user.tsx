@@ -235,7 +235,7 @@ function UserPageSkeleton({ logins }: { logins: string[] }) {
 				<p className="mt-6 text-sm text-muted-foreground">
 					Comparing {logins.length} developers
 				</p>
-				<ChartSkeleton className="-mx-4 mt-6 pt-5 pb-1.5 sm:mx-0 sm:rounded-xl sm:border sm:border-border sm:p-4" />
+				<ChartSkeleton className="-mx-4 mt-6 pt-5 pb-1.5 sm:mx-0 sm:p-4" />
 				<div className="mt-4 h-3 w-72 max-w-full rounded bg-muted" />
 				<div data-metric-bar-anchor className="mt-4 h-12" />
 				<div className="mt-6 flex flex-wrap gap-3">
@@ -269,7 +269,7 @@ function UserPageSkeleton({ logins }: { logins: string[] }) {
 				<ProfileHeaderSkeleton login={login} />
 				<StatSkeletons />
 			</div>
-			<ChartSkeleton className="-mx-4 mt-8 pt-5 pb-1.5 sm:mx-0 sm:rounded-xl sm:border sm:border-border sm:p-4" />
+			<ChartSkeleton className="-mx-4 mt-8 pt-5 pb-1.5 sm:mx-0 sm:p-4" />
 			<div className="mt-4 h-3 w-72 max-w-full rounded bg-muted" />
 			<div data-metric-bar-anchor className="mt-4 h-12" />
 			<div className="mt-10 flex justify-center">
@@ -645,7 +645,7 @@ function SingleView({
 				initial={{ opacity: 0, filter: "blur(8px)" }}
 				animate={{ opacity: 1, filter: "blur(0px)" }}
 				transition={{ duration: 0.5 }}
-				className="-mx-4 mt-8 pt-5 pb-1.5 sm:mx-0 sm:rounded-xl sm:border sm:border-border sm:p-4"
+				className="-mx-4 mt-8 pt-5 pb-1.5 sm:mx-0 sm:p-4"
 			>
 				<CommitChart points={points} mode={effectiveMode} label={user.login} />
 			</motion.div>
@@ -802,7 +802,7 @@ function ComparisonView({
 				initial={{ opacity: 0, filter: "blur(8px)" }}
 				animate={{ opacity: 1, filter: "blur(0px)" }}
 				transition={{ duration: 0.5 }}
-				className="-mx-4 mt-6 pt-5 pb-1.5 sm:mx-0 sm:rounded-xl sm:border sm:border-border sm:p-4"
+				className="-mx-4 mt-6 pt-5 pb-1.5 sm:mx-0 sm:p-4"
 			>
 				<MultiCommitChart
 					series={series}
