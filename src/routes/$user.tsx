@@ -8,6 +8,10 @@ import {
 import { motion } from "motion/react";
 import { useState } from "react";
 import {
+	BlockingBuildState,
+	type BuildProgressItem,
+} from "#/components/BlockingBuildState";
+import {
 	type ChartMode,
 	CommitChart,
 	chartCaption,
@@ -23,7 +27,7 @@ import {
 } from "#/components/MultiCommitChart";
 import { OrgResultView } from "#/components/OrgView";
 import { parseLogins, type UserResult } from "#/lib/commit-history";
-import type { BuildProgress, CommitPoint } from "#/lib/github";
+import type { CommitPoint } from "#/lib/github";
 import { availableMetrics, METRIC_LABEL, METRIC_TOTAL } from "#/lib/metrics";
 import { getLookup } from "#/lib/org";
 import { useBuildPolling } from "#/lib/use-build-polling";
@@ -174,50 +178,110 @@ const GENERIC_POINTS: CommitPoint[] = (() => {
 	return pts;
 })();
 
-function PendingUser() {
-	const { user } = Route.useParams();
-	const login = user.split(",")[0];
-	// Mirror the default-metric (commits) stat layout so nothing jumps when data lands.
-	const labels = ["Commits rank", "Commits", "Busiest month"];
+function ProfileHeaderSkeleton({ login }: { login: string }) {
 	return (
-		<main className="mx-auto max-w-4xl px-6 py-12">
-			<Link
-				to="/"
-				className="text-sm text-muted-foreground hover:text-foreground"
-			>
-				← commit-history
-			</Link>
+		<header className="flex items-center gap-4">
+			<div className="h-20 w-20 shrink-0 rounded-full border border-border bg-muted" />
+			<div className="min-w-0">
+				<div className="h-7 w-36 rounded bg-muted" />
+				<p className="mt-1 text-sm text-muted-foreground">@{login}</p>
+				<div className="mt-1 h-3 w-44 max-w-full rounded bg-muted" />
+			</div>
+		</header>
+	);
+}
 
-			{/* Mirror the loaded layout so nothing jumps: name line reserved above, @login in its
-			    final small slot (we already know it from the URL). */}
-			<header className="mt-6 flex items-center gap-4">
-				<div className="h-14 w-14 rounded-full border border-border bg-muted" />
-				<div>
-					<h1 className="text-2xl font-bold">&nbsp;</h1>
-					<span className="text-sm text-muted-foreground">@{login}</span>
-				</div>
-			</header>
-
-			<div className="mx-auto mt-8 grid max-w-xl grid-cols-3 gap-x-4 gap-y-5 text-center sm:mx-0 sm:flex sm:max-w-none sm:flex-wrap sm:gap-10 sm:text-left">
-				{labels.map((label) => (
-					<div key={label}>
-						{/* reserve the value height; it animates in once data arrives */}
-						<div className="h-7" />
-						<div className="text-xs uppercase tracking-wide text-muted-foreground">
-							{label}
-						</div>
+function StatSkeletons() {
+	return (
+		<div className="mx-auto mt-6 grid max-w-xl grid-cols-3 gap-x-4 gap-y-5 text-center sm:mx-0 sm:flex sm:max-w-none sm:flex-wrap sm:gap-10 sm:text-left">
+			{["Commits rank", "Commits", "Busiest month"].map((label) => (
+				<div key={label}>
+					<div className="h-7 w-20 rounded bg-muted sm:w-24" />
+					<div className="mt-0.5 text-xs uppercase tracking-wide text-muted-foreground">
+						{label}
 					</div>
-				))}
-			</div>
-
-			<div className="-mx-4 mt-3 pt-5 pb-1.5 sm:mx-0 sm:rounded-xl sm:border sm:border-border sm:p-4">
-				<div className="pointer-events-none opacity-40 blur-[6px]">
-					<CommitChart points={GENERIC_POINTS} mode="public" />
 				</div>
+			))}
+		</div>
+	);
+}
+
+function ChartSkeleton({ className }: { className: string }) {
+	return (
+		<div className={className}>
+			<div className="pointer-events-none opacity-35 blur-[6px]">
+				<CommitChart points={GENERIC_POINTS} mode="public" />
 			</div>
+		</div>
+	);
+}
+
+function BackLink() {
+	return (
+		<Link
+			to="/"
+			className="text-sm text-muted-foreground hover:text-foreground"
+		>
+			← commit-history
+		</Link>
+	);
+}
+
+function UserPageSkeleton({ logins }: { logins: string[] }) {
+	if (logins.length > 1) {
+		return (
+			<main aria-busy="true" className="mx-auto max-w-4xl px-6 py-12">
+				<BackLink />
+				<p className="mt-6 text-sm text-muted-foreground">
+					Comparing {logins.length} developers
+				</p>
+				<ChartSkeleton className="-mx-4 mt-6 pt-5 pb-1.5 sm:mx-0 sm:rounded-xl sm:border sm:border-border sm:p-4" />
+				<div className="mt-4 h-3 w-72 max-w-full rounded bg-muted" />
+				<div data-metric-bar-anchor className="mt-4 h-12" />
+				<div className="mt-6 flex flex-wrap gap-3">
+					{logins.map((login) => (
+						<div
+							key={login}
+							className="h-8 w-36 rounded-full border bg-muted/40"
+						/>
+					))}
+				</div>
+				<section className="mt-12">
+					<div className="h-3 w-16 rounded bg-muted" />
+					<div className="mt-6 flex flex-col divide-y divide-border">
+						{logins.map((login) => (
+							<div key={login} className="py-6 first:pt-0 last:pb-0">
+								<ProfileHeaderSkeleton login={login} />
+								<StatSkeletons />
+							</div>
+						))}
+					</div>
+				</section>
+			</main>
+		);
+	}
+
+	const login = logins[0] ?? "user";
+	return (
+		<main aria-busy="true" className="mx-auto max-w-4xl px-6 py-12">
+			<BackLink />
+			<div className="mt-6">
+				<ProfileHeaderSkeleton login={login} />
+				<StatSkeletons />
+			</div>
+			<ChartSkeleton className="-mx-4 mt-8 pt-5 pb-1.5 sm:mx-0 sm:rounded-xl sm:border sm:border-border sm:p-4" />
+			<div className="mt-4 h-3 w-72 max-w-full rounded bg-muted" />
 			<div data-metric-bar-anchor className="mt-4 h-12" />
+			<div className="mt-10 flex justify-center">
+				<div className="h-9 w-60 rounded-md border bg-muted/40" />
+			</div>
 		</main>
 	);
+}
+
+function PendingUser() {
+	const { user } = Route.useParams();
+	return <UserPageSkeleton logins={parseLogins(user)} />;
 }
 
 function monthYear(date: string) {
@@ -259,51 +323,6 @@ function useGoToLogins() {
 	};
 }
 
-function BuildProgressCard({
-	login,
-	progress,
-}: {
-	login: string;
-	progress: BuildProgress;
-}) {
-	const pct =
-		progress.monthsTotal > 0
-			? Math.min(
-					100,
-					Math.round((progress.monthsFetched / progress.monthsTotal) * 100),
-				)
-			: 0;
-	return (
-		<div className="rounded-xl border border-border p-4 text-left">
-			<p className="text-sm font-medium">Building {login}’s history…</p>
-			<div
-				className="mt-3 h-2 w-full overflow-hidden rounded-full bg-muted"
-				role="progressbar"
-				aria-valuenow={pct}
-				aria-valuemin={0}
-				aria-valuemax={100}
-				aria-label={`Fetching ${login}'s history`}
-			>
-				<div
-					className="h-full rounded-full bg-primary transition-[width] duration-700 ease-out"
-					style={{ width: `${pct}%` }}
-				/>
-			</div>
-			<p
-				className="mt-2 text-xs text-muted-foreground tabular-nums"
-				aria-live="polite"
-			>
-				{progress.monthsFetched.toLocaleString()} of{" "}
-				{progress.monthsTotal.toLocaleString()} months fetched
-			</p>
-			<p className="mt-1 text-xs text-muted-foreground">
-				Large accounts take a moment on first lookup — hang tight.
-			</p>
-		</div>
-	);
-}
-
-/** Full-page building state — mirrors PendingUser's shell so nothing jumps when data lands. */
 function BuildingView({
 	building,
 	failed,
@@ -311,49 +330,34 @@ function BuildingView({
 	building: UserResult[];
 	failed: UserResult[];
 }) {
-	const primary = building[0];
+	const items = userProgressItems(building);
 	return (
-		<main className="mx-auto max-w-4xl px-6 py-12">
-			<Link
-				to="/"
-				className="text-sm text-muted-foreground hover:text-foreground"
-			>
-				← commit-history
-			</Link>
-			<header className="mt-6 flex items-center gap-4">
-				<div className="h-14 w-14 rounded-full border border-border bg-muted" />
-				<div>
-					<h1 className="text-2xl font-bold">&nbsp;</h1>
-					<span className="text-sm text-muted-foreground">
-						@{primary.login}
-					</span>
-				</div>
-			</header>
-			<div className="mx-auto mt-8 grid w-full gap-3 sm:max-w-md">
-				{building.map(
-					(r) =>
-						r.building && (
-							<BuildProgressCard
-								key={r.login}
-								login={r.login}
-								progress={r.building}
-							/>
-						),
-				)}
-			</div>
-			<div className="-mx-4 mt-6 pt-5 pb-1.5 sm:mx-0 sm:rounded-xl sm:border sm:border-border sm:p-4">
-				<div className="pointer-events-none opacity-40 blur-[6px]">
-					<CommitChart points={GENERIC_POINTS} mode="public" />
-				</div>
-			</div>
-			<div data-metric-bar-anchor className="mt-4 h-12" />
-			{failed.length > 0 && (
-				<p className="mt-4 text-xs text-destructive">
-					Couldn’t load:{" "}
-					{failed.map((r) => `${r.login} (${r.error})`).join(", ")}
-				</p>
-			)}
-		</main>
+		<BlockingBuildState
+			items={items}
+			title="Fetching user data…"
+			description={
+				failed.length > 0
+					? `Still fetching the remaining profiles. Couldn’t load: ${failed.map((r) => r.login).join(", ")}.`
+					: "This can take a moment on a first lookup. The page will be ready when the history is complete."
+			}
+		>
+			<UserPageSkeleton logins={building.map((r) => r.login)} />
+		</BlockingBuildState>
+	);
+}
+
+function userProgressItems(results: UserResult[]): BuildProgressItem[] {
+	return results.flatMap((result) =>
+		result.building
+			? [
+					{
+						login: result.login,
+						fetched: result.building.monthsFetched,
+						total: result.building.monthsTotal,
+						unit: "months" as const,
+					},
+				]
+			: [],
 	);
 }
 
@@ -427,33 +431,13 @@ function View() {
 		);
 	}
 
-	return (
+	const page = (
 		<main className="mx-auto max-w-4xl px-6 py-12">
-			<Link
-				to="/"
-				className="text-sm text-muted-foreground hover:text-foreground"
-			>
-				← commit-history
-			</Link>
+			<BackLink />
 			{ok.length === 1 ? (
 				<SingleView result={ok[0]} otherLogins={logins} />
 			) : (
 				<ComparisonView results={ok} allLogins={logins} />
-			)}
-			{/* Compare view with someone still building → inline progress card(s). */}
-			{building.length > 0 && (
-				<div className="mx-auto mt-6 grid w-full gap-3 sm:max-w-md">
-					{building.map(
-						(r) =>
-							r.building && (
-								<BuildProgressCard
-									key={r.login}
-									login={r.login}
-									progress={r.building}
-								/>
-							),
-					)}
-				</div>
 			)}
 			{failed.length > 0 && (
 				<p className="mt-4 text-xs text-destructive">
@@ -472,6 +456,20 @@ function View() {
 			)}
 		</main>
 	);
+
+	if (building.length > 0) {
+		return (
+			<BlockingBuildState
+				items={userProgressItems(building)}
+				title="Adding user to comparison…"
+				description="The current comparison is paused until the new history is ready."
+			>
+				{page}
+			</BlockingBuildState>
+		);
+	}
+
+	return page;
 }
 
 /**
