@@ -1,8 +1,8 @@
 import { Link } from "@tanstack/react-router";
 import { BadgeCheck } from "lucide-react";
 import { motion } from "motion/react";
+import { BlockingBuildState } from "#/components/BlockingBuildState";
 import { SponsorRow } from "#/components/SponsorRow";
-import type { BuildProgress } from "#/lib/github";
 import type { OrgMemberEntry, OrgResult } from "#/lib/org";
 import type { OrgSummary } from "#/lib/org-cache";
 
@@ -50,59 +50,42 @@ function BackLink() {
 /** Mirrors the loaded header's shape so nothing jumps when data lands (org avatars are square). */
 function HeaderSkeleton({ login }: { login: string }) {
 	return (
-		<header className="mt-6 flex items-center gap-4">
-			<div className="h-14 w-14 rounded-xl border border-border bg-muted" />
-			<div>
-				<h1 className="text-2xl font-bold">&nbsp;</h1>
-				<span className="text-sm text-muted-foreground">@{login}</span>
+		<header className="flex items-center gap-4">
+			<div className="h-20 w-20 shrink-0 animate-pulse rounded-xl border border-border bg-muted" />
+			<div className="min-w-0">
+				<div className="h-7" />
+				<p className="mt-1 text-sm text-muted-foreground">@{login}</p>
+				<div className="mt-1 h-3" />
 			</div>
 		</header>
 	);
 }
 
-function OrgBuildProgressCard({
-	login,
-	progress,
-}: {
-	login: string;
-	progress: BuildProgress;
-}) {
-	// The BuildProgress fields read "months" but are plain counters — for orgs they count members.
-	const pct =
-		progress.monthsTotal > 0
-			? Math.min(
-					100,
-					Math.round((progress.monthsFetched / progress.monthsTotal) * 100),
-				)
-			: 0;
+function OrgPageSkeleton({ login }: { login: string }) {
 	return (
-		<div className="rounded-xl border border-border p-4 text-left">
-			<p className="text-sm font-medium">Building {login}’s numbers…</p>
-			<div
-				className="mt-3 h-2 w-full overflow-hidden rounded-full bg-muted"
-				role="progressbar"
-				aria-valuenow={pct}
-				aria-valuemin={0}
-				aria-valuemax={100}
-				aria-label={`Fetching ${login}'s members`}
-			>
-				<div
-					className="h-full rounded-full bg-primary transition-[width] duration-700 ease-out"
-					style={{ width: `${pct}%` }}
-				/>
+		<main aria-busy="true" className="mx-auto max-w-4xl px-6 py-12">
+			<BackLink />
+			<div className="mt-6">
+				<HeaderSkeleton login={login} />
 			</div>
-			<p
-				className="mt-2 text-xs text-muted-foreground tabular-nums"
-				aria-live="polite"
-			>
-				{progress.monthsFetched.toLocaleString()} of{" "}
-				{progress.monthsTotal.toLocaleString()} members fetched
-			</p>
-			<p className="mt-1 text-xs text-muted-foreground">
-				We’re adding up each public member’s contributions to the organization —
-				hang tight.
-			</p>
-		</div>
+			<div className="mx-auto mt-8 grid max-w-xl grid-cols-3 gap-x-4 gap-y-5 sm:mx-0 sm:flex sm:max-w-none sm:flex-wrap sm:gap-10">
+				{[
+					"Commits",
+					"Pull requests",
+					"Issues",
+					"Reviews",
+					"Repos",
+					"Members",
+				].map((label) => (
+					<div key={label}>
+						<div className="h-7" />
+						<div className="text-xs uppercase tracking-wide text-muted-foreground">
+							{label}
+						</div>
+					</div>
+				))}
+			</div>
+		</main>
 	);
 }
 
@@ -141,16 +124,20 @@ export function OrgResultView({
 
 	if (result.building && !gaveUp) {
 		return (
-			<main className="mx-auto max-w-4xl px-6 py-12">
-				<BackLink />
-				<HeaderSkeleton login={result.login} />
-				<div className="mx-auto mt-8 grid w-full gap-3 sm:max-w-md">
-					<OrgBuildProgressCard
-						login={result.login}
-						progress={result.building}
-					/>
-				</div>
-			</main>
+			<BlockingBuildState
+				items={[
+					{
+						login: result.login,
+						fetched: result.building.monthsFetched,
+						total: result.building.monthsTotal,
+						unit: "members",
+					},
+				]}
+				title="Fetching organization data…"
+				description="We’re adding up each public member’s contributions. The page will be ready when that finishes."
+			>
+				<OrgPageSkeleton login={result.login} />
+			</BlockingBuildState>
 		);
 	}
 
