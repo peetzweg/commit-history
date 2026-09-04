@@ -157,10 +157,12 @@ export const profileNetworks = pgTable("profile_networks", {
 });
 
 /**
- * Public identities returned by GitHub's `GET /users/{login}/following` endpoint. Members are
- * keyed by immutable GitHub node id rather than login so renames and recycled logins cannot move
- * a relationship to the wrong person. The related entity may not exist yet; the background
- * profile-ingestion queue fills it independently and readers join through `githubNodeId`.
+ * Public user identities returned by GitHub's `GET /users/{login}/following` endpoint. The GitHub
+ * adapter rejects every non-`User` account kind before this table, so organizations and bots can
+ * never enter profile ingestion. Members are keyed by immutable GitHub node id rather than login
+ * so renames and recycled logins cannot move a relationship to the wrong person. The related
+ * entity may not exist yet; the background profile-ingestion queue fills it independently and
+ * readers join through `githubNodeId`.
  */
 export const profileNetworkMembers = pgTable(
 	"profile_network_members",

@@ -15,6 +15,7 @@ interface GitHubFollowingRow {
 	node_id?: unknown;
 	avatar_url?: unknown;
 	html_url?: unknown;
+	type?: unknown;
 }
 
 /** Fetch one complete public `following` snapshot. Partial pagination is never returned. */
@@ -63,6 +64,15 @@ export async function fetchFollowing(
 		}
 		for (const value of body) {
 			const row = value as GitHubFollowingRow;
+			if (typeof row.type !== "string") {
+				throw new GitHubError(
+					"GitHub returned an invalid followed profile.",
+					502,
+				);
+			}
+			// GitHub describes this endpoint as people a user follows. Keep that invariant explicit
+			// so an organization, bot, mannequin, or future account kind can never enter ingestion.
+			if (row.type !== "User") continue;
 			if (
 				typeof row.login !== "string" ||
 				!isValidLogin(row.login) ||

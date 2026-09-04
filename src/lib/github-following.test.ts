@@ -19,6 +19,7 @@ function row(index: number) {
 		node_id: `U_${index}`,
 		avatar_url: `https://avatars.example/${index}`,
 		html_url: `https://github.com/person-${index}`,
+		type: "User",
 	};
 }
 
@@ -64,5 +65,25 @@ describe("fetchFollowing", () => {
 		vi.stubGlobal("fetch", async () => response([row(1), row(1)]));
 
 		await expect(fetchFollowing("owner", "token")).resolves.toHaveLength(1);
+	});
+
+	it("excludes every non-user account kind before persistence or ingestion", async () => {
+		vi.stubGlobal("fetch", async () =>
+			response([
+				row(1),
+				{ ...row(2), type: "Organization" },
+				{ ...row(3), type: "Bot" },
+				{ ...row(4), type: "Mannequin" },
+			]),
+		);
+
+		await expect(fetchFollowing("owner", "token")).resolves.toEqual([
+			{
+				githubNodeId: "U_1",
+				login: "person-1",
+				avatarUrl: "https://avatars.example/1",
+				htmlUrl: "https://github.com/person-1",
+			},
+		]);
 	});
 });
