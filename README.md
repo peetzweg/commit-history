@@ -158,7 +158,9 @@ node .output/worker/enqueue-profile-ingestion.mjs peetzweg
 
 The command resolves the current login to its immutable GitHub identity and enqueues one ingestion
 request. It does not write profile data itself; the worker owns identity-safe persistence. Live web
-lookups remain synchronous, and automatic/live queue producers are a future follow-up.
+lookups remain synchronous. Single-profile pages also enqueue a coalesced network-discovery job:
+the worker snapshots the public accounts that profile follows and submits missing histories to the
+same identity-safe ingestion queue. The page serves the completed subset and polls while it grows.
 
 ## ☁️ Deploy (self-hosted)
 
@@ -168,10 +170,11 @@ profile worker as a second, domainless Dockerfile application from the same imag
 `node .output/worker/profile-ingestion-worker.mjs` as its start command. Give it the same
 `DATABASE_URL` and `GITHUB_TOKEN`, plus a small `DATABASE_POOL_MAX` such as `2`.
 
-Before starting the worker, run
-`node .output/worker/profile-ingestion-queue-migrate.mjs` once against the production database.
-The web profile path remains synchronous and organization ingestion remains on its existing
-scheduled flow; this worker does not change either path. Cloudflare continues to edge-cache
+Before starting the worker, apply the Drizzle migrations and run
+`node .output/worker/profile-ingestion-queue-migrate.mjs` once against the production database. The
+queue command provisions both profile ingestion and profile-network discovery queues.
+The web profile-history lookup remains synchronous and organization ingestion remains on its
+existing scheduled flow; network expansion is the only automatic queue producer. Cloudflare continues to edge-cache
 `/embed/*` using the existing `s-maxage` response headers.
 
 | Setting | Value |

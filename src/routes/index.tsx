@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { metricDelta } from "#/components/CommitChart";
 import { ExplainerLink } from "#/components/ExplainerLink";
+import { LeaderboardRow } from "#/components/LeaderboardRow";
 import { SponsorRow } from "#/components/SponsorRow";
 import {
 	getLeaderboard,
@@ -16,6 +17,10 @@ import {
 	type RecentEntry,
 } from "#/lib/commit-history";
 import { getGithubHistory } from "#/lib/github-history";
+import {
+	LEADERBOARD_HEADING,
+	LEADERBOARD_SUBTITLE,
+} from "#/lib/leaderboard-display";
 import { getOrgLeaderboard, type OrgLeaderEntry } from "#/lib/org";
 import { cn } from "#/lib/utils";
 
@@ -419,55 +424,11 @@ function SelfPromoRow({ ref }: { ref?: React.Ref<HTMLLIElement> }) {
 	);
 }
 
-// Singular label for the heading chip ("All-time Commit leaderboard") — reads better as a
-// noun-modifier than the plural tab-bar labels.
-const HEADING_LABEL: Record<LeaderMode, string> = {
-	public: "Commit",
-	prs: "PR",
-	issues: "Issue",
-	reviews: "Review",
-	repos: "Repo",
-	private: "Private",
-	total: "Total",
-	followers: "Follower",
-};
-
-const LB_VALUE: Record<LeaderMode, (u: LeaderEntry) => number> = {
-	public: (u) => u.totalCommits,
-	prs: (u) => u.totalPullRequests ?? 0,
-	issues: (u) => u.totalIssues ?? 0,
-	reviews: (u) => u.totalReviews ?? 0,
-	repos: (u) => u.totalRepos ?? 0,
-	private: (u) => u.totalRestricted,
-	// Every contribution type summed (null type totals coalesced to 0 until backfilled).
-	total: (u) =>
-		u.totalCommits +
-		(u.totalIssues ?? 0) +
-		(u.totalPullRequests ?? 0) +
-		(u.totalReviews ?? 0) +
-		(u.totalRepos ?? 0) +
-		u.totalRestricted,
-	followers: (u) => u.followers ?? 0,
-};
-
-/** Singular-ish unit shown under each row's number, per mode. */
-const LB_UNIT: Record<LeaderMode, string> = {
-	public: "commits",
-	prs: "pull requests",
-	issues: "issues",
-	reviews: "reviews",
-	repos: "repos",
-	private: "private",
-	total: "contributions",
-	followers: "followers",
-};
-
 function Leaderboard({ initialPage }: { initialPage: LeaderEntry[] }) {
 	// The leaderboard metric lives in `?metric=` (written by the shared MetricBar); we just read it
 	// here to rank the list. Commits is the default and stays param-free.
 	const { metric } = Route.useSearch();
 	const mode = metric ?? "public";
-	const value = LB_VALUE[mode];
 	// Carry the selected metric into the profile links so a click keeps the current view. Commits is
 	// the profile default (clean URL, no param), and followers has no chart, so both omit it.
 	const linkMetric =
@@ -530,18 +491,6 @@ function Leaderboard({ initialPage }: { initialPage: LeaderEntry[] }) {
 		return () => io.disconnect();
 	}, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-	const subtitle = {
-		public: "Public commits.",
-		prs: "Public pull requests opened.",
-		issues: "Public issues opened.",
-		reviews: "Public pull-request reviews.",
-		repos: "Public repositories created — forks don’t count.",
-		private: "Private contributions (only users who expose them).",
-		total:
-			"Every contribution type — commits, PRs, issues, reviews, repos, plus private.",
-		followers: "GitHub followers.",
-	}[mode];
-
 	return (
 		<section className="mt-14">
 			{/* Sticky heading: pins to the top of the window while the list scrolls, so deep in the
@@ -555,12 +504,12 @@ function Leaderboard({ initialPage }: { initialPage: LeaderEntry[] }) {
 				<h2 className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-2xl font-bold tracking-tight">
 					All-time
 					<span className="font-hand font-normal text-3xl text-primary leading-none">
-						{HEADING_LABEL[mode]}
+						{LEADERBOARD_HEADING[mode]}
 					</span>
 					leaderboard
 				</h2>
 				<p className="mt-1.5 text-xs text-muted-foreground">
-					{subtitle} <ExplainerLink metric={mode} />
+					{LEADERBOARD_SUBTITLE[mode]} <ExplainerLink metric={mode} />
 					{/* Boards with an editorial companion post link to it right where the ranking
 					    they describe is on screen. */}
 					{RANKING_POST_SLUG[mode] && (
@@ -584,56 +533,13 @@ function Leaderboard({ initialPage }: { initialPage: LeaderEntry[] }) {
 					    ref (React warns). The interleaved ad/promo rows are keyed motion.li too. */}
 					{rows.flatMap((u, i) => {
 						const items = [
-							<motion.li
+							<LeaderboardRow
 								key={u.login}
-								layout
-								initial={{ opacity: 0 }}
-								animate={{ opacity: 1 }}
-								exit={{ opacity: 0 }}
-								transition={{ type: "spring", stiffness: 600, damping: 40 }}
-								className="border-border border-b"
-							>
-								<Link
-									to="/$user"
-									params={{ user: u.login }}
-									search={{ metric: linkMetric }}
-									preload={false}
-									className="group flex w-full items-center gap-3 py-2.5 text-left hover:bg-muted"
-								>
-									<span className="flex w-6 items-center justify-center text-sm tabular-nums text-muted-foreground">
-										{i === 0 ? (
-											<img
-												src="/crown.svg"
-												alt="1st place"
-												className="h-4 w-auto"
-											/>
-										) : (
-											i + 1
-										)}
-									</span>
-									<img
-										src={u.avatarUrl ?? ""}
-										alt=""
-										className="h-8 w-8 rounded-full border border-border"
-									/>
-									<span className="flex-1 truncate font-medium">
-										{u.login}
-										{u.name && (
-											<span className="ml-2 hidden font-normal text-muted-foreground opacity-0 transition-opacity duration-200 sm:inline desktop:group-hover:opacity-100 desktop:group-focus-within:opacity-100">
-												{u.name}
-											</span>
-										)}
-									</span>
-									<span className="text-right">
-										<span className="block font-semibold tabular-nums">
-											{value(u).toLocaleString()}
-										</span>
-										<span className="block text-xs text-muted-foreground tabular-nums">
-											{LB_UNIT[mode]}
-										</span>
-									</span>
-								</Link>
-							</motion.li>,
+								entry={u}
+								rank={i + 1}
+								metric={mode}
+								linkMetric={linkMetric}
+							/>,
 						];
 						// Sponsor sits in the slot after rank 5 (only once there's more below).
 						if (i === 4 && rows.length > 5)
