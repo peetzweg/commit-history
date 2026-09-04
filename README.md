@@ -171,6 +171,9 @@ entrypoints. Keep the existing Coolify Dockerfile application as the public web 
 profile worker as a second, domainless Dockerfile application from the same image revision, with
 `node .output/worker/profile-ingestion-worker.mjs` as its start command. Give it the same
 `DATABASE_URL` and `GITHUB_TOKEN`, plus a small `DATABASE_POOL_MAX` such as `2`.
+The worker consumes one profile at a time and runs that profile's monthly GitHub GraphQL batches
+sequentially. The separate network fallback may overlap with one lightweight paginated REST
+request, so worker-side GitHub concurrency is at most two and normally one after discovery.
 
 Before starting the worker, apply the Drizzle migrations and run
 `node .output/worker/profile-ingestion-queue-migrate.mjs` once against the production database. The

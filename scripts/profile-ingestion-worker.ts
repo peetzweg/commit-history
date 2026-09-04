@@ -74,6 +74,9 @@ if (!stopping) {
 				{ login: job.login, githubNodeId: job.githubNodeId },
 				{
 					token,
+					// One queued profile at a time, and one GitHub GraphQL request at a time within
+					// that profile. Interactive lookups keep their latency-oriented bounded default.
+					monthlyRequestConcurrency: 1,
 					remainingFloor: numberFromEnv(
 						"PROFILE_INGESTION_REMAINING_FLOOR",
 						500,
