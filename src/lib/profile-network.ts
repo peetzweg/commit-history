@@ -8,6 +8,7 @@ import {
 	profileNetworks,
 } from "#/lib/db/schema";
 import { leaderboardValue } from "#/lib/leaderboard-display";
+import { discoverProfileNetworkLive } from "#/lib/profile-network-live";
 import { requestProfileNetwork } from "#/lib/profile-network-producer";
 
 const SNAPSHOT_TTL_MS = 24 * 60 * 60 * 1_000;
@@ -28,6 +29,12 @@ export interface NetworkLeaderEntry {
 	isOwner: boolean;
 }
 
+export interface PendingNetworkEntry {
+	githubNodeId: string;
+	login: string;
+	avatarUrl: string | null;
+}
+
 export interface ProfileNetworkReadModel {
 	status: "unavailable" | "discovering" | "refreshing" | "ready";
 	ownerLogin: string;
@@ -35,6 +42,7 @@ export interface ProfileNetworkReadModel {
 	readyCount: number;
 	unavailableCount: number;
 	rows: NetworkLeaderEntry[];
+	pendingRows: PendingNetworkEntry[];
 	hasError: boolean;
 }
 
@@ -61,7 +69,7 @@ const entryColumns = {
 	suspendedAt: entities.suspendedAt,
 };
 
-/** Database-only projection for the profile page; stale discovery is requested asynchronously. */
+/** Read model for the profile page; a missing/stale identity snapshot is refreshed inline. */
 export const getProfileNetwork = createServerFn({ method: "POST" })
 	.validator((value: ProfileNetworkRequest) => {
 		const metrics: ChartMode[] = [
@@ -128,22 +136,42 @@ export const getProfileNetwork = createServerFn({ method: "POST" })
 				.returning();
 			if (claimed) {
 				network = claimed;
-				await requestProfileNetwork({
+				const job = {
 					version: 1,
 					ownerGithubNodeId: owner.githubNodeId,
 					login: owner.login,
-				}).catch(async (error) => {
-					await database
-						.update(profileNetworks)
-						.set({ lastError: String(error).slice(0, 2_000) })
-						.where(eq(profileNetworks.ownerId, owner.id));
-				});
+				} as const;
+				try {
+					await discoverProfileNetworkLive(job);
+				} catch (error) {
+					// Preserve the request's responsiveness and durability when GitHub or the direct
+					// producer is temporarily unavailable. The worker retries the complete operation.
+					await requestProfileNetwork(job).catch(async (queueError) => {
+						await database
+							.update(profileNetworks)
+							.set({
+								lastError:
+									`${String(error)}; fallback: ${String(queueError)}`.slice(
+										0,
+										2_000,
+									),
+							})
+							.where(eq(profileNetworks.ownerId, owner.id));
+					});
+				}
+				[network] = await database
+					.select()
+					.from(profileNetworks)
+					.where(eq(profileNetworks.ownerId, owner.id))
+					.limit(1);
 			}
 		}
 
 		const members = await database
 			.select({
 				memberGithubNodeId: profileNetworkMembers.memberGithubNodeId,
+				login: profileNetworkMembers.login,
+				avatarUrl: profileNetworkMembers.avatarUrl,
 				unavailableAt: profileNetworkMembers.unavailableAt,
 				profile: entryColumns,
 			})
@@ -186,14 +214,27 @@ export const getProfileNetwork = createServerFn({ method: "POST" })
 				leaderboardValue(left, data.metric);
 			return difference || left.githubNodeId.localeCompare(right.githubNodeId);
 		});
+		const pendingRows = members
+			.filter(
+				(member) =>
+					member.unavailableAt == null && member.profile?.builtAt == null,
+			)
+			.map((member) => ({
+				githubNodeId: member.memberGithubNodeId,
+				login: member.login,
+				avatarUrl: member.avatarUrl,
+			}))
+			.sort((left, right) => left.login.localeCompare(right.login));
 
+		const snapshotStale =
+			!network?.enumeratedAt || network.enumeratedAt < staleBefore;
 		const totalCount = network?.enumeratedAt
 			? members.length
 			: (owner.following ?? 0);
 		return {
 			status: !network?.enumeratedAt
 				? "discovering"
-				: needsRefresh
+				: snapshotStale
 					? "refreshing"
 					: "ready",
 			ownerLogin: owner.login,
@@ -201,6 +242,7 @@ export const getProfileNetwork = createServerFn({ method: "POST" })
 			readyCount,
 			unavailableCount,
 			rows,
+			pendingRows,
 			hasError: network?.lastError != null,
 		};
 	});
@@ -244,6 +286,7 @@ function unavailable(login: string): ProfileNetworkReadModel {
 		readyCount: 0,
 		unavailableCount: 0,
 		rows: [],
+		pendingRows: [],
 		hasError: false,
 	};
 }

@@ -158,9 +158,11 @@ node .output/worker/enqueue-profile-ingestion.mjs peetzweg
 
 The command resolves the current login to its immutable GitHub identity and enqueues one ingestion
 request. It does not write profile data itself; the worker owns identity-safe persistence. Live web
-lookups remain synchronous. Single-profile pages also enqueue a coalesced network-discovery job:
-the worker snapshots the public accounts that profile follows and submits missing histories to the
-same identity-safe ingestion queue. The page serves the completed subset and polls while it grows.
+lookups remain synchronous. On the first single-profile page visit (and after the 24-hour snapshot
+TTL), the web process reads and stores the lightweight public `following` list immediately. It
+shows known profiles at once and submits missing histories to the identity-safe ingestion queue.
+A coalesced network-discovery job remains the durable fallback if inline discovery fails. The page
+serves the completed subset, previews pending identities, and polls while the ranking grows.
 
 ## ☁️ Deploy (self-hosted)
 

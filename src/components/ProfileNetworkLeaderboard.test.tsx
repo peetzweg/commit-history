@@ -62,6 +62,13 @@ describe("ProfileNetworkLeaderboard", () => {
 			readyCount: 1,
 			unavailableCount: 0,
 			rows: [entry("friend"), entry("owner", true)],
+			pendingRows: [
+				{
+					githubNodeId: "U_pending",
+					login: "pending-friend",
+					avatarUrl: "https://avatars.example/pending-friend",
+				},
+			],
 			hasError: false,
 		};
 	});
@@ -75,9 +82,11 @@ describe("ProfileNetworkLeaderboard", () => {
 			/>,
 		);
 
-		expect(screen.getByText(/1 of 2 followed profiles ready/)).toBeTruthy();
+		expect(screen.getByText(/ready for 1 of 2 followed profiles/)).toBeTruthy();
 		expect(screen.getByText("this profile")).toBeTruthy();
-		expect(screen.getAllByRole("listitem")).toHaveLength(2);
+		expect(screen.getByText("pending-friend")).toBeTruthy();
+		expect(screen.getByText("Joining the leaderboard")).toBeTruthy();
+		expect(screen.getAllByRole("listitem")).toHaveLength(3);
 	});
 
 	it("stops showing progress when the complete cohort is available", () => {
@@ -87,6 +96,7 @@ describe("ProfileNetworkLeaderboard", () => {
 			entry("other"),
 			entry("owner", true),
 		];
+		mocks.networkData.pendingRows = [];
 		render(
 			<ProfileNetworkLeaderboard
 				login="owner"
@@ -100,6 +110,7 @@ describe("ProfileNetworkLeaderboard", () => {
 
 	it("settles when a followed profile is no longer available", () => {
 		mocks.networkData.unavailableCount = 1;
+		mocks.networkData.pendingRows = [];
 		render(
 			<ProfileNetworkLeaderboard
 				login="owner"

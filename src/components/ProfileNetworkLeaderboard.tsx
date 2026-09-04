@@ -38,6 +38,7 @@ export function ProfileNetworkLeaderboard({
 		data.readyCount + data.unavailableCount < data.totalCount;
 	const showStatus =
 		query.isError || incomplete || Boolean(data?.unavailableCount);
+	const pendingRows = data?.pendingRows ?? [];
 
 	return (
 		<section className="mt-16">
@@ -87,6 +88,48 @@ export function ProfileNetworkLeaderboard({
 					Preparing this network leaderboard…
 				</p>
 			)}
+
+			{pendingRows.length > 0 && (
+				<div className="mt-6 rounded-lg bg-muted/45 px-4 py-4">
+					<div className="flex items-baseline justify-between gap-3">
+						<h3 className="text-sm font-semibold">Joining the leaderboard</h3>
+						<span className="text-xs tabular-nums text-muted-foreground">
+							{pendingRows.length.toLocaleString()} waiting
+						</span>
+					</div>
+					<p className="mt-1 text-xs text-muted-foreground">
+						We already found these GitHub profiles. Their histories are being
+						built in the background.
+					</p>
+					<ul className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+						{pendingRows.slice(0, 24).map((entry) => (
+							<li
+								key={entry.githubNodeId}
+								className="flex min-w-0 items-center gap-2 rounded-md bg-background/70 px-2 py-1.5"
+							>
+								<img
+									src={entry.avatarUrl ?? ""}
+									alt=""
+									className="h-7 w-7 shrink-0 rounded-full border border-border"
+								/>
+								<span className="min-w-0 flex-1 truncate text-xs font-medium">
+									{entry.login}
+								</span>
+								<span
+									className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-primary"
+									aria-hidden="true"
+								/>
+							</li>
+						))}
+					</ul>
+					{pendingRows.length > 24 && (
+						<p className="mt-3 text-center text-xs text-muted-foreground">
+							+{(pendingRows.length - 24).toLocaleString()} more profiles
+							waiting
+						</p>
+					)}
+				</div>
+			)}
 		</section>
 	);
 }
@@ -94,17 +137,19 @@ export function ProfileNetworkLeaderboard({
 function progressCopy(
 	data: Awaited<ReturnType<typeof getProfileNetwork>> | undefined,
 ): string {
-	if (!data) return "Finding the profiles in this GitHub network…";
+	if (!data) {
+		return "Looking up who this profile follows on GitHub. Most networks appear in a few seconds…";
+	}
 	if (data.hasError && data.rows.length <= 1) {
 		return "This network could not be refreshed yet. It will retry automatically.";
 	}
 	if (data.status === "discovering") {
 		return data.totalCount > 0
-			? `Finding the ${data.totalCount.toLocaleString()} profiles this person follows…`
-			: "Finding the profiles this person follows…";
+			? `Looking up the ${data.totalCount.toLocaleString()} profiles this person follows. Most networks appear in a few seconds…`
+			: "Looking up who this profile follows on GitHub. Most networks appear in a few seconds…";
 	}
 	if (data.readyCount + data.unavailableCount < data.totalCount) {
-		return `${data.readyCount.toLocaleString()} of ${data.totalCount.toLocaleString()} followed profiles ready. The rest are being added in the background; rankings update automatically.`;
+		return `Following list found: history ready for ${data.readyCount.toLocaleString()} of ${data.totalCount.toLocaleString()} followed profiles. Keep this page open and new rankings will appear automatically.`;
 	}
 	if (data.unavailableCount > 0) {
 		return `${data.readyCount.toLocaleString()} of ${data.totalCount.toLocaleString()} followed profiles are available; ${data.unavailableCount.toLocaleString()} could not be loaded.`;
