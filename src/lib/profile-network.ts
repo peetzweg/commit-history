@@ -8,8 +8,6 @@ import {
 	profileNetworks,
 } from "#/lib/db/schema";
 import { leaderboardValue } from "#/lib/leaderboard-display";
-import { discoverProfileNetworkLive } from "#/lib/profile-network-live";
-import { requestProfileNetwork } from "#/lib/profile-network-producer";
 
 const SNAPSHOT_TTL_MS = 24 * 60 * 60 * 1_000;
 const REQUEST_RETRY_MS = 5 * 60 * 1_000;
@@ -142,10 +140,16 @@ export const getProfileNetwork = createServerFn({ method: "POST" })
 					login: owner.login,
 				} as const;
 				try {
+					const { discoverProfileNetworkLive } = await import(
+						"#/lib/profile-network-live"
+					);
 					await discoverProfileNetworkLive(job);
 				} catch (error) {
 					// Preserve the request's responsiveness and durability when GitHub or the direct
 					// producer is temporarily unavailable. The worker retries the complete operation.
+					const { requestProfileNetwork } = await import(
+						"#/lib/profile-network-producer"
+					);
 					await requestProfileNetwork(job).catch(async (queueError) => {
 						await database
 							.update(profileNetworks)
