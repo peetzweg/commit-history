@@ -11,6 +11,7 @@ const member = (index: number) => ({
 	login: `person-${index}`,
 	avatarUrl: null,
 	htmlUrl: null,
+	kind: "user" as const,
 });
 
 describe("profile network discovery", () => {
@@ -62,5 +63,36 @@ describe("profile network discovery", () => {
 			"U_owner",
 			"Error: page two failed",
 		);
+	});
+
+	it("never enqueues organizations returned by snapshot storage", async () => {
+		const organization = {
+			...member(2),
+			githubNodeId: "O_2",
+			kind: "org" as const,
+		};
+		const store = {
+			replaceSnapshot: vi.fn(async () => [member(1), organization]),
+			markComplete: vi.fn(async () => {}),
+			markFailed: vi.fn(async () => {}),
+		};
+		const requestIngestion = vi.fn(async () => ({}));
+		const discover = createProfileNetworkDiscovery({
+			store,
+			fetchFollowing: async () => [member(1), organization],
+			requestIngestion,
+		});
+
+		await expect(discover(job, { token: "token" })).resolves.toEqual({
+			membersFound: 1,
+			profilesEnqueued: 1,
+		});
+
+		expect(requestIngestion).toHaveBeenCalledTimes(1);
+		expect(requestIngestion).toHaveBeenCalledWith({
+			version: 1,
+			githubNodeId: "U_1",
+			login: "person-1",
+		});
 	});
 });

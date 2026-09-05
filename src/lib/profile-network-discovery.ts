@@ -1,5 +1,6 @@
 import type { FollowedProfile } from "#/lib/github-following";
 import type { ProfileIngestionJob } from "#/lib/profile-ingestion-queue";
+import { userNetworkMembers } from "#/lib/profile-network-members";
 import type { ProfileNetworkJob } from "#/lib/profile-network-queue";
 
 export interface ProfileNetworkDiscoveryStore {
@@ -50,12 +51,13 @@ export function createProfileNetworkDiscovery(
 				members,
 				opts.now ?? new Date(),
 			);
+			const missingUsers = userNetworkMembers(missing);
 
 			// Bound the fan-out while still letting pg-boss coalesce identities shared by networks.
-			for (let index = 0; index < missing.length; index += 10) {
+			for (let index = 0; index < missingUsers.length; index += 10) {
 				opts.signal?.throwIfAborted();
 				await Promise.all(
-					missing.slice(index, index + 10).map((member) =>
+					missingUsers.slice(index, index + 10).map((member) =>
 						deps.requestIngestion({
 							version: 1,
 							githubNodeId: member.githubNodeId,
@@ -66,8 +68,8 @@ export function createProfileNetworkDiscovery(
 			}
 			await deps.store.markComplete(job.ownerGithubNodeId);
 			return {
-				membersFound: members.length,
-				profilesEnqueued: missing.length,
+				membersFound: userNetworkMembers(members).length,
+				profilesEnqueued: missingUsers.length,
 			};
 		} catch (error) {
 			await deps.store

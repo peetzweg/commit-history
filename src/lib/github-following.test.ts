@@ -46,6 +46,7 @@ describe("fetchFollowing", () => {
 			login: "person-100",
 			avatarUrl: "https://avatars.example/100",
 			htmlUrl: "https://github.com/person-100",
+			kind: "user",
 		});
 		expect(calls.map((url) => url.searchParams.get("page"))).toEqual([
 			"1",
@@ -67,7 +68,7 @@ describe("fetchFollowing", () => {
 		await expect(fetchFollowing("owner", "token")).resolves.toHaveLength(1);
 	});
 
-	it("excludes every non-user account kind before persistence or ingestion", async () => {
+	it("classifies users and organizations while excluding unsupported account kinds", async () => {
 		vi.stubGlobal("fetch", async () =>
 			response([
 				row(1),
@@ -83,6 +84,14 @@ describe("fetchFollowing", () => {
 				login: "person-1",
 				avatarUrl: "https://avatars.example/1",
 				htmlUrl: "https://github.com/person-1",
+				kind: "user",
+			},
+			{
+				githubNodeId: "U_2",
+				login: "person-2",
+				avatarUrl: "https://avatars.example/2",
+				htmlUrl: "https://github.com/person-2",
+				kind: "org",
 			},
 		]);
 	});

@@ -6,6 +6,7 @@ import {
 	profileNetworks,
 } from "#/lib/db/schema";
 import type { ProfileNetworkDiscoveryStore } from "#/lib/profile-network-discovery";
+import { userNetworkMembers } from "#/lib/profile-network-members";
 
 const ID_QUERY_CHUNK = 500;
 const PROFILE_REFRESH_TTL_MS = 7 * 24 * 60 * 60 * 1_000;
@@ -46,6 +47,7 @@ export function createProfileNetworkDiscoveryStore(
 							ownerId: id,
 							memberGithubNodeId: member.githubNodeId,
 							login: member.login,
+							kind: member.kind,
 							avatarUrl: member.avatarUrl,
 							htmlUrl: member.htmlUrl,
 						})),
@@ -53,10 +55,11 @@ export function createProfileNetworkDiscoveryStore(
 				}
 			});
 
+			const userMembers = userNetworkMembers(members);
 			const fresh = new Set<string>();
 			const freshAfter = new Date(at.getTime() - PROFILE_REFRESH_TTL_MS);
-			for (let index = 0; index < members.length; index += ID_QUERY_CHUNK) {
-				const ids = members
+			for (let index = 0; index < userMembers.length; index += ID_QUERY_CHUNK) {
+				const ids = userMembers
 					.slice(index, index + ID_QUERY_CHUNK)
 					.map((member) => member.githubNodeId);
 				const rows = await database
@@ -82,7 +85,7 @@ export function createProfileNetworkDiscoveryStore(
 					}
 				}
 			}
-			return members.filter((member) => !fresh.has(member.githubNodeId));
+			return userMembers.filter((member) => !fresh.has(member.githubNodeId));
 		},
 
 		async markComplete(ownerGithubNodeId) {

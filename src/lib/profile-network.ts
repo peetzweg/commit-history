@@ -8,6 +8,7 @@ import {
 	profileNetworks,
 } from "#/lib/db/schema";
 import { leaderboardValue } from "#/lib/leaderboard-display";
+import { userNetworkMembers } from "#/lib/profile-network-members";
 
 const SNAPSHOT_TTL_MS = 24 * 60 * 60 * 1_000;
 const REQUEST_RETRY_MS = 5 * 60 * 1_000;
@@ -177,6 +178,7 @@ export const getProfileNetwork = createServerFn({ method: "POST" })
 				login: profileNetworkMembers.login,
 				avatarUrl: profileNetworkMembers.avatarUrl,
 				unavailableAt: profileNetworkMembers.unavailableAt,
+				kind: profileNetworkMembers.kind,
 				profile: entryColumns,
 			})
 			.from(profileNetworkMembers)
@@ -188,12 +190,13 @@ export const getProfileNetwork = createServerFn({ method: "POST" })
 				),
 			)
 			.where(eq(profileNetworkMembers.ownerId, owner.id));
+		const membersForLeaderboard = userNetworkMembers(members);
 
-		const readyCount = members.filter(
+		const readyCount = membersForLeaderboard.filter(
 			(member) =>
 				member.profile?.builtAt != null && !member.profile.suspendedAt,
 		).length;
-		const unavailableCount = members.filter(
+		const unavailableCount = membersForLeaderboard.filter(
 			(member) =>
 				!(member.profile?.builtAt && !member.profile.suspendedAt) &&
 				(member.unavailableAt != null ||
@@ -203,7 +206,7 @@ export const getProfileNetwork = createServerFn({ method: "POST" })
 		const rows: NetworkLeaderEntry[] = [
 			toEntry({ ...owner, githubNodeId: owner.githubNodeId }, true),
 		];
-		for (const member of members) {
+		for (const member of membersForLeaderboard) {
 			const profile = member.profile;
 			if (!profile?.githubNodeId || !profile.builtAt || profile.suspendedAt) {
 				continue;
@@ -218,7 +221,7 @@ export const getProfileNetwork = createServerFn({ method: "POST" })
 				leaderboardValue(left, data.metric);
 			return difference || left.githubNodeId.localeCompare(right.githubNodeId);
 		});
-		const pendingRows = members
+		const pendingRows = membersForLeaderboard
 			.filter(
 				(member) =>
 					member.unavailableAt == null && member.profile?.builtAt == null,
@@ -233,7 +236,7 @@ export const getProfileNetwork = createServerFn({ method: "POST" })
 		const snapshotStale =
 			!network?.enumeratedAt || network.enumeratedAt < staleBefore;
 		const totalCount = network?.enumeratedAt
-			? members.length
+			? membersForLeaderboard.length
 			: (owner.following ?? 0);
 		return {
 			status: !network?.enumeratedAt

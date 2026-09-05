@@ -8,6 +8,7 @@ export interface FollowedProfile {
 	login: string;
 	avatarUrl: string | null;
 	htmlUrl: string | null;
+	kind: "user" | "org";
 }
 
 interface GitHubFollowingRow {
@@ -70,9 +71,15 @@ export async function fetchFollowing(
 					502,
 				);
 			}
-			// GitHub describes this endpoint as people a user follows. Keep that invariant explicit
-			// so an organization, bot, mannequin, or future account kind can never enter ingestion.
-			if (row.type !== "User") continue;
+			const kind =
+				row.type === "User"
+					? "user"
+					: row.type === "Organization"
+						? "org"
+						: null;
+			// Persist the kinds the product understands so readers and ingestion can make their own
+			// explicit decisions. Bots, mannequins, and future account kinds remain out of scope.
+			if (!kind) continue;
 			if (
 				typeof row.login !== "string" ||
 				!isValidLogin(row.login) ||
@@ -92,6 +99,7 @@ export async function fetchFollowing(
 				login: row.login,
 				avatarUrl: typeof row.avatar_url === "string" ? row.avatar_url : null,
 				htmlUrl: typeof row.html_url === "string" ? row.html_url : null,
+				kind,
 			});
 		}
 

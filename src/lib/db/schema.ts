@@ -157,12 +157,11 @@ export const profileNetworks = pgTable("profile_networks", {
 });
 
 /**
- * Public user identities returned by GitHub's `GET /users/{login}/following` endpoint. The GitHub
- * adapter rejects every non-`User` account kind before this table, so organizations and bots can
- * never enter profile ingestion. Members are keyed by immutable GitHub node id rather than login
- * so renames and recycled logins cannot move a relationship to the wrong person. The related
- * entity may not exist yet; the background profile-ingestion queue fills it independently and
- * readers join through `githubNodeId`.
+ * Public identities returned by GitHub's `GET /users/{login}/following` endpoint. `kind` keeps
+ * people and organizations distinguishable even before either has a tracked entity row. Personal
+ * leaderboards and profile ingestion only consume `user` members. Members are keyed by immutable
+ * GitHub node id rather than login so renames and recycled logins cannot move a relationship to
+ * the wrong entity.
  */
 export const profileNetworkMembers = pgTable(
 	"profile_network_members",
@@ -172,6 +171,9 @@ export const profileNetworkMembers = pgTable(
 			.references(() => entities.id),
 		memberGithubNodeId: text("member_github_node_id").notNull(),
 		login: text("login").notNull(),
+		// Fail closed during rolling deploys: an older writer that omits `kind` must never enqueue
+		// an organization as a person. Current writers always provide the explicit GitHub kind.
+		kind: text("kind").notNull().default("org"), // 'user' | 'org'
 		avatarUrl: text("avatar_url"),
 		htmlUrl: text("html_url"),
 		// A followed identity can disappear before its background ingestion starts. Recording that
