@@ -26,6 +26,7 @@ import {
 	type TimelineMode,
 } from "#/components/MultiCommitChart";
 import { OrgResultView } from "#/components/OrgView";
+import { ProfileNetworkLeaderboard } from "#/components/ProfileNetworkLeaderboard";
 import { parseLogins, type UserResult } from "#/lib/commit-history";
 import type { CommitPoint } from "#/lib/github";
 import { availableMetrics, METRIC_LABEL, METRIC_TOTAL } from "#/lib/metrics";
@@ -634,6 +635,12 @@ function SingleView({
 			<div className="mt-10 flex justify-center">
 				<AddUser currentLogins={otherLogins} label="Compare with…" />
 			</div>
+
+			<ProfileNetworkLeaderboard
+				login={user.login}
+				ownerGithubNodeId={user.nodeId}
+				metric={effectiveMode}
+			/>
 
 			<EmbedSnippet login={user.login} />
 		</>

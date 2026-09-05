@@ -7,17 +7,19 @@ import {
 } from "#/lib/github";
 import {
 	createProfileIngestion,
+	type RunProfileIngestionOptions as EngineRunProfileIngestionOptions,
 	type ProfileIngestionResult,
 	type ProfileIngestionTarget,
-	type RunProfileIngestionOptions,
 } from "#/lib/profile-ingestion-engine";
 import { createProfileIngestionStore } from "#/lib/profile-ingestion-store";
 
-export type {
-	ProfileIngestionResult,
-	ProfileIngestionTarget,
-	RunProfileIngestionOptions,
-};
+export type { ProfileIngestionResult, ProfileIngestionTarget };
+
+export interface RunProfileIngestionOptions
+	extends EngineRunProfileIngestionOptions {
+	/** Maximum simultaneous GitHub monthly-history requests for this caller. */
+	monthlyRequestConcurrency?: number;
+}
 
 /**
  * Turn one GitHub identity into a complete, resumable commit history.
@@ -38,7 +40,10 @@ export async function runProfileIngestion(
 		github: {
 			fetchProfileByLogin: fetchProfile,
 			fetchProfileByNodeId,
-			fetchMonthlyCommits,
+			fetchMonthlyCommits: (login, token, windows) =>
+				fetchMonthlyCommits(login, token, windows, {
+					concurrency: opts.monthlyRequestConcurrency,
+				}),
 			fetchRateLimitBudget,
 		},
 	});

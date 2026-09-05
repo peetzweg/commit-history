@@ -757,9 +757,14 @@ export async function fetchMonthlyCommits(
 	rawLogin: string,
 	token: string,
 	windows: MonthWindow[],
+	opts: { concurrency?: number } = {},
 ): Promise<MonthlyCount[]> {
 	const login = assertLogin(rawLogin);
 	if (windows.length === 0) return [];
+	const concurrency = opts.concurrency ?? CONCURRENCY;
+	if (!Number.isInteger(concurrency) || concurrency < 1) {
+		throw new Error("GitHub request concurrency must be a positive integer.");
+	}
 
 	// One GraphQL request for a batch of windows, returning counts aligned 1:1 with `batch`.
 	async function fetchBatch(batch: MonthWindow[]): Promise<MonthlyCount[]> {
@@ -820,7 +825,7 @@ export async function fetchMonthlyCommits(
 		batches.push(windows.slice(i, i + BATCH));
 	}
 
-	const results = await mapWithConcurrency(batches, CONCURRENCY, fetchAdaptive);
+	const results = await mapWithConcurrency(batches, concurrency, fetchAdaptive);
 	return results.flat();
 }
 

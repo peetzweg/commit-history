@@ -143,6 +143,50 @@ export const orgMembers = pgTable(
 );
 
 /**
+ * The latest complete snapshot of a tracked profile's public GitHub `following` network.
+ * A refresh request is separate from `enumeratedAt`: readers keep serving the last complete
+ * snapshot while a replacement is being fetched, and a failed partial enumeration never erases it.
+ */
+export const profileNetworks = pgTable("profile_networks", {
+	ownerId: text("owner_id")
+		.primaryKey()
+		.references(() => entities.id),
+	enumeratedAt: timestamp("enumerated_at", { withTimezone: true }),
+	refreshRequestedAt: timestamp("refresh_requested_at", { withTimezone: true }),
+	lastError: text("last_error"),
+});
+
+/**
+ * Public identities returned by GitHub's `GET /users/{login}/following` endpoint. `kind` keeps
+ * people and organizations distinguishable even before either has a tracked entity row. Personal
+ * leaderboards and profile ingestion only consume `user` members. Members are keyed by immutable
+ * GitHub node id rather than login so renames and recycled logins cannot move a relationship to
+ * the wrong entity.
+ */
+export const profileNetworkMembers = pgTable(
+	"profile_network_members",
+	{
+		ownerId: text("owner_id")
+			.notNull()
+			.references(() => entities.id),
+		memberGithubNodeId: text("member_github_node_id").notNull(),
+		login: text("login").notNull(),
+		// Fail closed during rolling deploys: an older writer that omits `kind` must never enqueue
+		// an organization as a person. Current writers always provide the explicit GitHub kind.
+		kind: text("kind").notNull().default("org"), // 'user' | 'org'
+		avatarUrl: text("avatar_url"),
+		htmlUrl: text("html_url"),
+		// A followed identity can disappear before its background ingestion starts. Recording that
+		// terminal outcome keeps the public progress indicator from polling forever.
+		unavailableAt: timestamp("unavailable_at", { withTimezone: true }),
+	},
+	(t) => [
+		primaryKey({ columns: [t.ownerId, t.memberGithubNodeId] }),
+		index("profile_network_members_node_idx").on(t.memberGithubNodeId),
+	],
+);
+
+/**
  * A small, deduplicated recency list — this is product UI state, not an analytics event log.
  * The writer caps it at 64 rows; the indexes make the homepage read a short ordered scan.
  */
