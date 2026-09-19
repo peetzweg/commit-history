@@ -638,6 +638,7 @@ function SingleView({
 
 			<ProfileNetworkLeaderboard
 				login={user.login}
+				profileName={user.name}
 				ownerGithubNodeId={user.nodeId}
 				metric={effectiveMode}
 			/>

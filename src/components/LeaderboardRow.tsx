@@ -16,12 +16,14 @@ export interface LeaderboardRowEntry extends LeaderboardTotals {
 }
 
 export function LeaderboardRow({
+	ref,
 	entry,
 	rank,
 	metric,
 	linkMetric,
 	highlighted = false,
 }: {
+	ref?: React.Ref<HTMLLIElement>;
 	entry: LeaderboardRowEntry;
 	rank: number;
 	metric: LeaderMetric;
@@ -30,6 +32,7 @@ export function LeaderboardRow({
 }) {
 	return (
 		<motion.li
+			ref={ref}
 			layout
 			initial={{ opacity: 0 }}
 			animate={{ opacity: 1 }}

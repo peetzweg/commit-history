@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { db } from "#/lib/db";
 import { profileNetworkMembers } from "#/lib/db/schema";
 import { fetchFollowing } from "#/lib/github-following";
+import { fetchProfileByNodeId } from "#/lib/github";
 import { runProfileIngestion } from "#/lib/profile-ingestion";
 import {
 	createProfileIngestionBoss,
@@ -27,6 +28,10 @@ const networkBoss = createProfileNetworkBoss(connectionString);
 const networkQueue = createProfileNetworkQueue(networkBoss);
 const discoverProfileNetwork = createProfileNetworkDiscovery({
 	store: createProfileNetworkDiscoveryStore(database),
+	resolveOwner: async (nodeId, token) => {
+		const owner = await fetchProfileByNodeId(nodeId, token);
+		return { login: owner.login, following: owner.following };
+	},
 	fetchFollowing,
 	requestIngestion: (job) => queue.request(job),
 });

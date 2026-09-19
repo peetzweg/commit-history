@@ -95,4 +95,27 @@ describe("fetchFollowing", () => {
 			},
 		]);
 	});
+
+	it("stops pagination before draining the shared REST quota", async () => {
+		const fetchMock = vi.fn(async () => ({
+			...response(
+				Array.from({ length: 100 }, (_, index) => row(index)),
+				'<https://api.github.com/users/owner/following?page=2>; rel="next"',
+			),
+			headers: {
+				get: (name: string) =>
+					name === "x-ratelimit-remaining"
+						? "500"
+						: name === "link"
+							? '<https://api.github.com/users/owner/following?page=2>; rel="next"'
+							: null,
+			},
+		}));
+		vi.stubGlobal("fetch", fetchMock);
+
+		await expect(fetchFollowing("owner", "token")).rejects.toThrow(
+			"REST rate limit reserve",
+		);
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+	});
 });

@@ -9,9 +9,12 @@ import {
 } from "#/lib/db/schema";
 import { leaderboardValue } from "#/lib/leaderboard-display";
 import { userNetworkMembers } from "#/lib/profile-network-members";
+import {
+	REQUEST_RETRY_MS,
+	shouldStartProfileNetworkDiscovery,
+} from "#/lib/profile-network-refresh";
 
 const SNAPSHOT_TTL_MS = 24 * 60 * 60 * 1_000;
-const REQUEST_RETRY_MS = 5 * 60 * 1_000;
 
 export interface NetworkLeaderEntry {
 	githubNodeId: string;
@@ -35,8 +38,14 @@ export interface PendingNetworkEntry {
 }
 
 export interface ProfileNetworkReadModel {
-	status: "unavailable" | "discovering" | "refreshing" | "ready";
+	status:
+		| "unavailable"
+		| "not_started"
+		| "discovering"
+		| "refreshing"
+		| "ready";
 	ownerLogin: string;
+	canRequest: boolean;
 	totalCount: number;
 	readyCount: number;
 	unavailableCount: number;
@@ -48,6 +57,7 @@ export interface ProfileNetworkReadModel {
 interface ProfileNetworkRequest {
 	ownerGithubNodeId: string;
 	metric: ChartMode;
+	discover?: boolean;
 }
 
 const entryColumns = {
@@ -81,6 +91,7 @@ export const getProfileNetwork = createServerFn({ method: "POST" })
 			"total",
 		];
 		return {
+			discover: value?.discover === true,
 			ownerGithubNodeId:
 				typeof value?.ownerGithubNodeId === "string" &&
 				Boolean(value.ownerGithubNodeId.trim()) &&
@@ -114,13 +125,7 @@ export const getProfileNetwork = createServerFn({ method: "POST" })
 		const now = new Date();
 		const staleBefore = new Date(now.getTime() - SNAPSHOT_TTL_MS);
 		const retryBefore = new Date(now.getTime() - REQUEST_RETRY_MS);
-		const needsRefresh =
-			!network?.enumeratedAt || network.enumeratedAt < staleBefore;
-		const needsWork = needsRefresh || network?.lastError != null;
-		const mayRequest =
-			!network?.refreshRequestedAt || network.refreshRequestedAt < retryBefore;
-
-		if (needsWork && mayRequest) {
+		if (shouldStartProfileNetworkDiscovery(network, now, data.discover)) {
 			const [claimed] = await database
 				.insert(profileNetworks)
 				.values({ ownerId: owner.id, refreshRequestedAt: now })
@@ -235,16 +240,22 @@ export const getProfileNetwork = createServerFn({ method: "POST" })
 
 		const snapshotStale =
 			!network?.enumeratedAt || network.enumeratedAt < staleBefore;
+		const canRequest =
+			!network?.refreshRequestedAt &&
+			(snapshotStale || network?.lastError != null);
 		const totalCount = network?.enumeratedAt
 			? membersForLeaderboard.length
 			: (owner.following ?? 0);
 		return {
 			status: !network?.enumeratedAt
-				? "discovering"
-				: snapshotStale
+				? network?.refreshRequestedAt
+					? "discovering"
+					: "not_started"
+				: snapshotStale && network?.refreshRequestedAt
 					? "refreshing"
 					: "ready",
 			ownerLogin: owner.login,
+			canRequest,
 			totalCount,
 			readyCount,
 			unavailableCount,
@@ -289,6 +300,7 @@ function unavailable(login: string): ProfileNetworkReadModel {
 	return {
 		status: "unavailable",
 		ownerLogin: login,
+		canRequest: false,
 		totalCount: 0,
 		readyCount: 0,
 		unavailableCount: 0,

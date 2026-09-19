@@ -15,6 +15,10 @@ export interface ProfileNetworkDiscoveryStore {
 
 interface ProfileNetworkDiscoveryDependencies {
 	store: ProfileNetworkDiscoveryStore;
+	resolveOwner(
+		githubNodeId: string,
+		token: string,
+	): Promise<{ login: string; following: number }>;
 	fetchFollowing(
 		login: string,
 		token: string,
@@ -28,6 +32,8 @@ export interface ProfileNetworkDiscoveryResult {
 	profilesEnqueued: number;
 }
 
+const MAX_FOLLOWED_PROFILES = 10_000;
+
 /**
  * Complete-snapshot discovery behind one interface. Callers do not need to understand GitHub
  * pagination, identity reconciliation, or how missing histories enter the ingestion queue.
@@ -40,8 +46,14 @@ export function createProfileNetworkDiscovery(
 		opts: { token: string; signal?: AbortSignal; now?: Date },
 	): Promise<ProfileNetworkDiscoveryResult> {
 		try {
+			const owner = await deps.resolveOwner(job.ownerGithubNodeId, opts.token);
+			if (owner.following > MAX_FOLLOWED_PROFILES) {
+				throw new Error(
+					`GitHub following lookup exceeded ${MAX_FOLLOWED_PROFILES} profiles.`,
+				);
+			}
 			const members = await deps.fetchFollowing(
-				job.login,
+				owner.login,
 				opts.token,
 				opts.signal,
 			);

@@ -32,6 +32,11 @@ async function startProducer(): Promise<ProfileNetworkQueue> {
 		);
 	});
 	const queue = createProfileNetworkQueue(boss);
-	await queue.start();
+	try {
+		await queue.start();
+	} catch (error) {
+		await queue.stop().catch(() => {});
+		throw error;
+	}
 	return queue;
 }

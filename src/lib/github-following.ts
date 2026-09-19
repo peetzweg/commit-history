@@ -2,6 +2,7 @@ import { GitHubError, isValidLogin } from "#/lib/github";
 
 const PAGE_SIZE = 100;
 const MAX_PAGES = 100;
+const REST_REMAINING_FLOOR = 500;
 
 export interface FollowedProfile {
 	githubNodeId: string;
@@ -105,6 +106,16 @@ export async function fetchFollowing(
 
 		if (!hasNextPage(response.headers.get("link"), body.length)) {
 			return followed;
+		}
+		const remainingHeader = response.headers.get("x-ratelimit-remaining");
+		if (remainingHeader != null) {
+			const remaining = Number(remainingHeader);
+			if (Number.isFinite(remaining) && remaining <= REST_REMAINING_FLOOR) {
+				throw new GitHubError(
+					"GitHub REST rate limit reserve reached during following lookup.",
+					429,
+				);
+			}
 		}
 	}
 

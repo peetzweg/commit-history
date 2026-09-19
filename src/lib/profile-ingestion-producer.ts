@@ -32,6 +32,11 @@ async function startProducer(): Promise<ProfileIngestionQueue> {
 		);
 	});
 	const queue = createProfileIngestionQueue(boss);
-	await queue.start();
+	try {
+		await queue.start();
+	} catch (error) {
+		await queue.stop().catch(() => {});
+		throw error;
+	}
 	return queue;
 }

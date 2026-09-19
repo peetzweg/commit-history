@@ -158,8 +158,11 @@ node .output/worker/enqueue-profile-ingestion.mjs peetzweg
 
 The command resolves the current login to its immutable GitHub identity and enqueues one ingestion
 request. It does not write profile data itself; the worker owns identity-safe persistence. Live web
-lookups remain synchronous. On the first single-profile page visit (and after the 24-hour snapshot
-TTL), the web process reads and stores the lightweight public `following` list immediately. It
+lookups remain synchronous. A visitor starts a single profile's network with the “Build this
+network leaderboard” button; ordinary page views display stored rankings without expanding the
+network. This keeps crawlers and routine profile visits from filling the ingestion queue. On an
+explicit start (or refresh after the 24-hour snapshot TTL), the web process reads and stores the
+lightweight public `following` list immediately. It
 stores GitHub's user/organization kind with every identity, shows known user profiles at once, and
 submits only missing user histories to the identity-safe ingestion queue. Organizations remain in
 the relationship snapshot for correct classification but never count toward the personal

@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence } from "motion/react";
+import { useState } from "react";
 import type { ChartMode } from "#/components/CommitChart";
 import { ExplainerLink } from "#/components/ExplainerLink";
 import { LeaderboardRow } from "#/components/LeaderboardRow";
@@ -8,19 +9,30 @@ import { getProfileNetwork } from "#/lib/profile-network";
 
 export function ProfileNetworkLeaderboard({
 	login,
+	profileName,
 	ownerGithubNodeId,
 	metric,
 }: {
 	login: string;
+	profileName?: string | null;
 	ownerGithubNodeId: string;
 	metric: ChartMode;
 }) {
+	const [discoveryRequest, setDiscoveryRequest] = useState(0);
 	const query = useQuery({
-		queryKey: ["profile-network", ownerGithubNodeId, metric],
-		queryFn: () => getProfileNetwork({ data: { ownerGithubNodeId, metric } }),
+		queryKey: ["profile-network", ownerGithubNodeId, metric, discoveryRequest],
+		queryFn: () =>
+			getProfileNetwork({
+				data: { ownerGithubNodeId, metric, discover: discoveryRequest > 0 },
+			}),
 		refetchInterval: (current) => {
 			const data = current.state.data;
-			if (!data || data.status === "unavailable") return false;
+			if (
+				!data ||
+				data.status === "unavailable" ||
+				data.status === "not_started"
+			)
+				return false;
 			return data.status !== "ready" ||
 				data.readyCount + data.unavailableCount < data.totalCount
 				? 8_000
@@ -43,12 +55,18 @@ export function ProfileNetworkLeaderboard({
 	return (
 		<section className="mt-16">
 			<div className="sticky top-0 z-20 border-border border-b bg-background pt-3 pb-3">
-				<h2 className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-2xl font-bold tracking-tight">
+				<h2
+					className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-2xl font-bold tracking-tight"
+					aria-label={`Network ${LEADERBOARD_HEADING[metric]} leaderboard for ${profileName || data?.ownerLogin || login}`}
+				>
 					Network
 					<span className="font-hand font-normal text-3xl text-primary leading-none">
 						{LEADERBOARD_HEADING[metric]}
 					</span>
 					leaderboard
+					<span className="text-xl font-medium text-muted-foreground">
+						for {profileName || data?.ownerLogin || login}
+					</span>
 				</h2>
 				<p className="mt-1.5 text-xs text-muted-foreground">
 					{data
@@ -65,6 +83,17 @@ export function ProfileNetworkLeaderboard({
 							? "This network leaderboard is temporarily unavailable."
 							: progressCopy(data)}
 					</p>
+				)}
+				{data?.canRequest && (
+					<button
+						type="button"
+						onClick={() => setDiscoveryRequest((request) => request + 1)}
+						className="btn-primary mt-3"
+					>
+						{data.status === "not_started"
+							? "Build this network leaderboard"
+							: "Refresh this network leaderboard"}
+					</button>
 				)}
 			</div>
 
@@ -139,6 +168,9 @@ function progressCopy(
 ): string {
 	if (!data) {
 		return "Looking up who this profile follows on GitHub. Most networks appear in a few seconds…";
+	}
+	if (data.status === "not_started") {
+		return "Build a leaderboard of the people this profile follows on GitHub.";
 	}
 	if (data.hasError && data.rows.length <= 1) {
 		return "This network could not be refreshed yet. It will retry automatically.";

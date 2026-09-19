@@ -1,15 +1,19 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { ComponentPropsWithoutRef, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
 	networkData: {} as Record<string, unknown>,
+	queryKey: [] as unknown[],
 }));
 
 vi.mock("@tanstack/react-query", () => ({
-	useQuery: () => ({ data: mocks.networkData }),
+	useQuery: ({ queryKey }: { queryKey: unknown[] }) => {
+		mocks.queryKey = queryKey;
+		return { data: mocks.networkData };
+	},
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -58,6 +62,7 @@ describe("ProfileNetworkLeaderboard", () => {
 		mocks.networkData = {
 			status: "ready",
 			ownerLogin: "owner",
+			canRequest: false,
 			totalCount: 2,
 			readyCount: 1,
 			unavailableCount: 0,
@@ -73,7 +78,14 @@ describe("ProfileNetworkLeaderboard", () => {
 		};
 	});
 
-	it("renders the available ranking and clearly marks it provisional", () => {
+	it("waits for a click before starting a new network", () => {
+		mocks.networkData = {
+			...mocks.networkData,
+			status: "not_started",
+			canRequest: true,
+			rows: [entry("owner", true)],
+			pendingRows: [],
+		};
 		render(
 			<ProfileNetworkLeaderboard
 				login="owner"
@@ -82,7 +94,29 @@ describe("ProfileNetworkLeaderboard", () => {
 			/>,
 		);
 
+		expect(mocks.queryKey.at(-1)).toBe(0);
+		fireEvent.click(
+			screen.getByRole("button", { name: "Build this network leaderboard" }),
+		);
+		expect(mocks.queryKey.at(-1)).toBe(1);
+	});
+
+	it("renders the available ranking and clearly marks it provisional", () => {
+		render(
+			<ProfileNetworkLeaderboard
+				login="owner"
+				profileName="Hors"
+				ownerGithubNodeId="U_owner"
+				metric="public"
+			/>,
+		);
+
 		expect(screen.getByText(/ready for 1 of 2 followed profiles/)).toBeTruthy();
+		expect(
+			screen.getByRole("heading", {
+				name: /Network Commit leaderboard for Hors/,
+			}),
+		).toBeTruthy();
 		expect(screen.getByText("this profile")).toBeTruthy();
 		expect(screen.getByText("pending-friend")).toBeTruthy();
 		expect(screen.getByText("Joining the leaderboard")).toBeTruthy();

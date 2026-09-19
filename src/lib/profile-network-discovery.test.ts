@@ -24,6 +24,7 @@ describe("profile network discovery", () => {
 		const requestIngestion = vi.fn(async () => ({}));
 		const discover = createProfileNetworkDiscovery({
 			store,
+			resolveOwner: async () => ({ login: "owner", following: 2 }),
 			fetchFollowing: async () => [member(1), member(2)],
 			requestIngestion,
 		});
@@ -49,6 +50,7 @@ describe("profile network discovery", () => {
 		};
 		const discover = createProfileNetworkDiscovery({
 			store,
+			resolveOwner: async () => ({ login: "owner", following: 2 }),
 			fetchFollowing: async () => {
 				throw new Error("page two failed");
 			},
@@ -79,6 +81,7 @@ describe("profile network discovery", () => {
 		const requestIngestion = vi.fn(async () => ({}));
 		const discover = createProfileNetworkDiscovery({
 			store,
+			resolveOwner: async () => ({ login: "owner", following: 2 }),
 			fetchFollowing: async () => [member(1), organization],
 			requestIngestion,
 		});
@@ -94,5 +97,56 @@ describe("profile network discovery", () => {
 			githubNodeId: "U_1",
 			login: "person-1",
 		});
+	});
+
+	it("uses the immutable owner's current login after a rename", async () => {
+		const store = {
+			replaceSnapshot: vi.fn(async () => []),
+			markComplete: vi.fn(async () => {}),
+			markFailed: vi.fn(async () => {}),
+		};
+		const fetchFollowing = vi.fn(async () => [member(1)]);
+		const discover = createProfileNetworkDiscovery({
+			store,
+			resolveOwner: async () => ({
+				login: "new-owner-login",
+				following: 1,
+			}),
+			fetchFollowing,
+			requestIngestion: async () => ({}),
+		});
+
+		await discover(job, { token: "token" });
+		expect(fetchFollowing).toHaveBeenCalledWith(
+			"new-owner-login",
+			"token",
+			undefined,
+		);
+		expect(store.replaceSnapshot).toHaveBeenCalledWith(
+			"U_owner",
+			[member(1)],
+			expect.any(Date),
+		);
+	});
+
+	it("rejects oversized networks before paginating GitHub", async () => {
+		const store = {
+			replaceSnapshot: vi.fn(async () => []),
+			markComplete: vi.fn(async () => {}),
+			markFailed: vi.fn(async () => {}),
+		};
+		const fetchFollowing = vi.fn(async () => []);
+		const discover = createProfileNetworkDiscovery({
+			store,
+			resolveOwner: async () => ({ login: "owner", following: 10_001 }),
+			fetchFollowing,
+			requestIngestion: async () => ({}),
+		});
+
+		await expect(discover(job, { token: "token" })).rejects.toThrow(
+			"exceeded 10000 profiles",
+		);
+		expect(fetchFollowing).not.toHaveBeenCalled();
+		expect(store.replaceSnapshot).not.toHaveBeenCalled();
 	});
 });

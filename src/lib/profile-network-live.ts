@@ -1,4 +1,5 @@
 import { db } from "#/lib/db";
+import { fetchProfileByNodeId } from "#/lib/github";
 import { fetchFollowing } from "#/lib/github-following";
 import { requestProfileIngestion } from "#/lib/profile-ingestion-producer";
 import { createProfileNetworkDiscovery } from "#/lib/profile-network-discovery";
@@ -16,6 +17,10 @@ export async function discoverProfileNetworkLive(job: ProfileNetworkJob) {
 
 	return createProfileNetworkDiscovery({
 		store: createProfileNetworkDiscoveryStore(db),
+		resolveOwner: async (nodeId, token) => {
+			const owner = await fetchProfileByNodeId(nodeId, token);
+			return { login: owner.login, following: owner.following };
+		},
 		fetchFollowing,
 		requestIngestion: requestProfileIngestion,
 	})(job, { token });
