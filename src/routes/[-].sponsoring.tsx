@@ -82,10 +82,10 @@ function SponsoringPage() {
 				</span>
 			</h1>
 			<p className="mt-3 text-muted-foreground">
-				Put your product, job opening, company, event, or other developer-relevant
-				opportunity in front of the commit-history audience. One sponsor slot on
-				each leaderboard is rendered like a leaderboard entry in 5th place — the
-				first thing people scroll past on every visit.
+				Put your product, job opening, company, event, or other
+				developer-relevant opportunity in front of the commit-history audience.
+				One sponsor slot on each leaderboard is rendered like a leaderboard
+				entry in 5th place — the first thing people scroll past on every visit.
 			</p>
 
 			{/* Live per-slot status: rent on the spot when a slot is open, mailto fallback otherwise. */}
@@ -120,19 +120,19 @@ function SponsoringPage() {
 
 			<h2 className="mt-12 text-xl font-semibold">The audience</h2>
 			<p className="mt-2 text-muted-foreground">
-				Developers plotting their own commit history, comparing themselves on the
-				leaderboards, and sharing profiles with each other. The leaderboards also
-				draw engineering teams, founders, and recruiters looking for talent — a
-				strong fit for products, job openings, developer events, and services that
-				help this community do its best work.
+				Developers plotting their own commit history, comparing themselves on
+				the leaderboards, and sharing profiles with each other. The leaderboards
+				also draw engineering teams, founders, and recruiters looking for talent
+				— a strong fit for products, job openings, developer events, and
+				services that help this community do its best work.
 			</p>
 
 			<h2 className="mt-12 text-xl font-semibold">The slot</h2>
 			<p className="mt-2 text-muted-foreground">
-				Your logo, title, and one-line description, clearly disclosed as sponsored,
-				linking to the destination you choose. Feature a product, company, job
-				opening, event, or another relevant opportunity. It sits in 5th place of
-				the{" "}
+				Your logo, title, and one-line description, clearly disclosed as
+				sponsored, linking to the destination you choose. Feature a product,
+				company, job opening, event, or another relevant opportunity. It sits in
+				5th place of the{" "}
 				<Link to="/" className="underline hover:text-foreground">
 					developer leaderboard
 				</Link>{" "}
