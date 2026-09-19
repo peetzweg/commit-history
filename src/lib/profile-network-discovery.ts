@@ -33,6 +33,11 @@ export interface ProfileNetworkDiscoveryResult {
 }
 
 const MAX_FOLLOWED_PROFILES = 10_000;
+const TOO_LARGE_MESSAGE = `GitHub following lookup exceeded ${MAX_FOLLOWED_PROFILES} profiles.`;
+
+export function isNetworkTooLargeFailure(error: unknown): boolean {
+	return String(error).includes(TOO_LARGE_MESSAGE);
+}
 
 /**
  * Complete-snapshot discovery behind one interface. Callers do not need to understand GitHub
@@ -48,9 +53,7 @@ export function createProfileNetworkDiscovery(
 		try {
 			const owner = await deps.resolveOwner(job.ownerGithubNodeId, opts.token);
 			if (owner.following > MAX_FOLLOWED_PROFILES) {
-				throw new Error(
-					`GitHub following lookup exceeded ${MAX_FOLLOWED_PROFILES} profiles.`,
-				);
+				throw new Error(TOO_LARGE_MESSAGE);
 			}
 			const members = await deps.fetchFollowing(
 				owner.login,

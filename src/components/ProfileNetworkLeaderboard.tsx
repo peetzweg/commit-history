@@ -30,7 +30,8 @@ export function ProfileNetworkLeaderboard({
 			if (
 				!data ||
 				data.status === "unavailable" ||
-				data.status === "not_started"
+				data.status === "not_started" ||
+				data.status === "too_large"
 			)
 				return false;
 			return data.status !== "ready" ||
@@ -171,6 +172,9 @@ function progressCopy(
 	}
 	if (data.status === "not_started") {
 		return "Build a leaderboard of the people this profile follows on GitHub.";
+	}
+	if (data.status === "too_large") {
+		return "This person follows more than 10,000 profiles. This network is too large to build right now.";
 	}
 	if (data.hasError && data.rows.length <= 1) {
 		return "This network could not be refreshed yet. It will retry automatically.";

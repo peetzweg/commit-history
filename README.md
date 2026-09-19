@@ -167,6 +167,8 @@ stores GitHub's user/organization kind with every identity, shows known user pro
 submits only missing user histories to the identity-safe ingestion queue. Organizations remain in
 the relationship snapshot for correct classification but never count toward the personal
 leaderboard or enter profile ingestion.
+Networks above GitHub's 10,000-following pagination limit show a clear unsupported-size state and
+do not repeatedly consume API quota.
 A coalesced network-discovery job remains the durable fallback if inline discovery fails. The page
 serves the completed subset, previews pending identities, and polls while the ranking grows.
 

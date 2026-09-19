@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { createProfileNetworkDiscovery } from "#/lib/profile-network-discovery";
+import {
+	createProfileNetworkDiscovery,
+	isNetworkTooLargeFailure,
+} from "#/lib/profile-network-discovery";
 
 const job = {
 	version: 1 as const,
@@ -148,5 +151,10 @@ describe("profile network discovery", () => {
 		);
 		expect(fetchFollowing).not.toHaveBeenCalled();
 		expect(store.replaceSnapshot).not.toHaveBeenCalled();
+		expect(
+			isNetworkTooLargeFailure(
+				"GitHubError: GitHub following lookup exceeded 10000 profiles.",
+			),
+		).toBe(true);
 	});
 });

@@ -8,6 +8,7 @@ import {
 	profileNetworks,
 } from "#/lib/db/schema";
 import { leaderboardValue } from "#/lib/leaderboard-display";
+import { isNetworkTooLargeFailure } from "#/lib/profile-network-discovery";
 import { userNetworkMembers } from "#/lib/profile-network-members";
 import {
 	REQUEST_RETRY_MS,
@@ -43,6 +44,7 @@ export interface ProfileNetworkReadModel {
 		| "not_started"
 		| "discovering"
 		| "refreshing"
+		| "too_large"
 		| "ready";
 	ownerLogin: string;
 	canRequest: boolean;
@@ -153,21 +155,23 @@ export const getProfileNetwork = createServerFn({ method: "POST" })
 				} catch (error) {
 					// Preserve the request's responsiveness and durability when GitHub or the direct
 					// producer is temporarily unavailable. The worker retries the complete operation.
-					const { requestProfileNetwork } = await import(
-						"#/lib/profile-network-producer"
-					);
-					await requestProfileNetwork(job).catch(async (queueError) => {
-						await database
-							.update(profileNetworks)
-							.set({
-								lastError:
-									`${String(error)}; fallback: ${String(queueError)}`.slice(
-										0,
-										2_000,
-									),
-							})
-							.where(eq(profileNetworks.ownerId, owner.id));
-					});
+					if (!isNetworkTooLargeFailure(error)) {
+						const { requestProfileNetwork } = await import(
+							"#/lib/profile-network-producer"
+						);
+						await requestProfileNetwork(job).catch(async (queueError) => {
+							await database
+								.update(profileNetworks)
+								.set({
+									lastError:
+										`${String(error)}; fallback: ${String(queueError)}`.slice(
+											0,
+											2_000,
+										),
+								})
+								.where(eq(profileNetworks.ownerId, owner.id));
+						});
+					}
 				}
 				[network] = await database
 					.select()
@@ -240,20 +244,24 @@ export const getProfileNetwork = createServerFn({ method: "POST" })
 
 		const snapshotStale =
 			!network?.enumeratedAt || network.enumeratedAt < staleBefore;
+		const tooLarge = isNetworkTooLargeFailure(network?.lastError);
 		const canRequest =
+			!tooLarge &&
 			!network?.refreshRequestedAt &&
 			(snapshotStale || network?.lastError != null);
 		const totalCount = network?.enumeratedAt
 			? membersForLeaderboard.length
 			: (owner.following ?? 0);
 		return {
-			status: !network?.enumeratedAt
-				? network?.refreshRequestedAt
-					? "discovering"
-					: "not_started"
-				: snapshotStale && network?.refreshRequestedAt
-					? "refreshing"
-					: "ready",
+			status: tooLarge
+				? "too_large"
+				: !network?.enumeratedAt
+					? network?.refreshRequestedAt
+						? "discovering"
+						: "not_started"
+					: snapshotStale && network?.refreshRequestedAt
+						? "refreshing"
+						: "ready",
 			ownerLogin: owner.login,
 			canRequest,
 			totalCount,

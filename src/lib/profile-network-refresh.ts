@@ -1,3 +1,5 @@
+import { isNetworkTooLargeFailure } from "#/lib/profile-network-discovery";
+
 const SNAPSHOT_TTL_MS = 24 * 60 * 60 * 1_000;
 export const REQUEST_RETRY_MS = 5 * 60 * 1_000;
 
@@ -12,6 +14,7 @@ export function shouldRequestProfileNetwork(
 	network: NetworkRefreshState | undefined,
 	now: Date,
 ): boolean {
+	if (isNetworkTooLargeFailure(network?.lastError)) return false;
 	const retryBefore = new Date(now.getTime() - REQUEST_RETRY_MS);
 	if (
 		network?.refreshRequestedAt &&

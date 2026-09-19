@@ -156,4 +156,24 @@ describe("ProfileNetworkLeaderboard", () => {
 		expect(screen.getByText(/1 could not be loaded/)).toBeTruthy();
 		expect(screen.queryByText(/being added in the background/)).toBeNull();
 	});
+
+	it("explains the supported size limit without promising a retry", () => {
+		mocks.networkData = {
+			...mocks.networkData,
+			status: "too_large",
+			canRequest: false,
+			rows: [entry("owner", true)],
+			pendingRows: [],
+		};
+		render(
+			<ProfileNetworkLeaderboard
+				login="owner"
+				ownerGithubNodeId="U_owner"
+				metric="public"
+			/>,
+		);
+
+		expect(screen.getByText(/more than 10,000 profiles/)).toBeTruthy();
+		expect(screen.queryByText(/retry automatically/)).toBeNull();
+	});
 });

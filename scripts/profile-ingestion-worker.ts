@@ -8,7 +8,10 @@ import {
 	createProfileIngestionBoss,
 	createProfileIngestionQueue,
 } from "#/lib/profile-ingestion-queue";
-import { createProfileNetworkDiscovery } from "#/lib/profile-network-discovery";
+import {
+	createProfileNetworkDiscovery,
+	isNetworkTooLargeFailure,
+} from "#/lib/profile-network-discovery";
 import {
 	createProfileNetworkBoss,
 	createProfileNetworkQueue,
@@ -129,6 +132,12 @@ if (!stopping) {
 			);
 			return result;
 		} catch (error) {
+			if (isNetworkTooLargeFailure(error)) {
+				console.warn(
+					`profile-network-worker status=too_large login=${JSON.stringify(job.login)} node_id=${JSON.stringify(job.ownerGithubNodeId)}`,
+				);
+				return { membersFound: 0, profilesEnqueued: 0 };
+			}
 			console.error(
 				`profile-network-worker status=failed login=${JSON.stringify(job.login)} node_id=${JSON.stringify(job.ownerGithubNodeId)} duration_ms=${Date.now() - startedAt} error=${JSON.stringify(String(error))}`,
 			);

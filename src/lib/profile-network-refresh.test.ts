@@ -53,4 +53,19 @@ describe("shouldRequestProfileNetwork", () => {
 			),
 		).toBe(true);
 	});
+
+	it("does not retry a network that exceeds the supported size", () => {
+		expect(
+			shouldStartProfileNetworkDiscovery(
+				{
+					enumeratedAt: null,
+					refreshRequestedAt: new Date("2026-09-19T11:54:00Z"),
+					lastError:
+						"NetworkTooLargeError: GitHub following lookup exceeded 10000 profiles.",
+				},
+				now,
+				true,
+			),
+		).toBe(false);
+	});
 });
