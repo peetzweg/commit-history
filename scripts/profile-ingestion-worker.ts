@@ -148,6 +148,11 @@ if (!stopping) {
 			);
 			return result;
 		} catch (error) {
+			if (String(error).includes("Network discovery is paused while the ingestion queue is busy.")) {
+				await networkQueue.defer(job, new Date(Date.now() + 5 * 60_000));
+				console.log(`profile-network-worker status=deferred login=${JSON.stringify(job.login)} reason=profile_queue_busy`);
+				return { membersFound: 0, profilesEnqueued: 0 };
+			}
 			console.error(
 				`profile-network-worker status=failed login=${JSON.stringify(job.login)} node_id=${JSON.stringify(job.ownerGithubNodeId)} duration_ms=${Date.now() - startedAt} error=${JSON.stringify(String(error))}`,
 			);

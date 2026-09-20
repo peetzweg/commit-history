@@ -132,6 +132,22 @@ export const getProfileNetwork = createServerFn({ method: "POST" })
 			);
 			admission = result.admission;
 			const { claimed } = result;
+			if (!claimed && admission === "busy") {
+				// Preserve the first visible request even if the profile queue is full. The network
+				// worker defers this intent until a bounded backfill batch can be admitted.
+				const { requestProfileNetwork } = await import(
+					"#/lib/profile-network-producer"
+				);
+				await requestProfileNetwork({
+					version: 1,
+					ownerGithubNodeId: owner.githubNodeId,
+					login: owner.login,
+				}).catch((error) => {
+					console.error(
+						`profile-network status=enqueue_failed error=${JSON.stringify(String(error))}`,
+					);
+				});
+			}
 			if (claimed) {
 				network = claimed;
 				const job = {

@@ -43,6 +43,13 @@ export interface ProfileNetworkQueue {
 		jobId: string;
 		disposition: "inserted" | "updated";
 	}>;
+	defer(
+		job: ProfileNetworkJob,
+		retryAt: Date,
+	): Promise<{
+		jobId: string;
+		disposition: "inserted" | "updated";
+	}>;
 	work(
 		handler: (job: ProfileNetworkJob, signal: AbortSignal) => Promise<unknown>,
 	): Promise<void>;
@@ -66,6 +73,20 @@ export function createProfileNetworkBoss(
 
 /** Durable discovery intent, coalesced by the network owner's immutable GitHub identity. */
 export function createProfileNetworkQueue(boss: PgBoss): ProfileNetworkQueue {
+	async function upsert(job: ProfileNetworkJob, startAfter?: Date) {
+		const payload = parseProfileNetworkJob(job);
+		const result = await boss.upsert(PROFILE_NETWORK_QUEUE_NAME, payload, {
+			singletonKey: payload.ownerGithubNodeId,
+			...(startAfter ? { startAfter } : {}),
+		});
+		const jobId = result.jobs[0];
+		if (!jobId) throw new Error("pg-boss did not return a network job id.");
+		return {
+			jobId,
+			disposition:
+				result.inserted === 1 ? ("inserted" as const) : ("updated" as const),
+		};
+	}
 	return {
 		async start(opts = {}) {
 			await boss.start();
@@ -78,16 +99,16 @@ export function createProfileNetworkQueue(boss: PgBoss): ProfileNetworkQueue {
 		},
 
 		async request(job) {
-			const payload = parseProfileNetworkJob(job);
-			const result = await boss.upsert(PROFILE_NETWORK_QUEUE_NAME, payload, {
-				singletonKey: payload.ownerGithubNodeId,
-			});
-			const jobId = result.jobs[0];
-			if (!jobId) throw new Error("pg-boss did not return a network job id.");
-			return {
-				jobId,
-				disposition: result.inserted === 1 ? "inserted" : "updated",
-			};
+			return upsert(job);
+		},
+
+		async defer(job, retryAt) {
+			if (retryAt.getTime() <= Date.now()) {
+				throw new Error(
+					"Deferred network discovery must be scheduled in the future.",
+				);
+			}
+			return upsert(job, retryAt);
 		},
 
 		async work(handler) {
