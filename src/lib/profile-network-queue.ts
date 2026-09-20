@@ -19,7 +19,7 @@ const DEAD_SETTINGS = {
 } satisfies QueueSettings;
 
 const NETWORK_SETTINGS = {
-	retryLimit: 5,
+	retryLimit: 20,
 	retryDelay: 60,
 	retryBackoff: true,
 	retryDelayMax: 60 * 60,

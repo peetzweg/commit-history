@@ -47,7 +47,7 @@ describe("shouldRequestProfileNetwork", () => {
 		).toBe(true);
 	});
 
-	it("does not retry a network that exceeds the supported size", () => {
+	it("retries legacy oversized-network failures after the cap is removed", () => {
 		expect(
 			shouldRequestProfileNetwork(
 				{
@@ -58,6 +58,6 @@ describe("shouldRequestProfileNetwork", () => {
 				},
 				now,
 			),
-		).toBe(false);
+		).toBe(true);
 	});
 });

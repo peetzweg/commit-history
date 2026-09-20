@@ -1,9 +1,4 @@
 import type { FollowedProfile } from "#/lib/github-following";
-import type { ProfileIngestionJob } from "#/lib/profile-ingestion-queue";
-import {
-	MAX_FOLLOWED_PROFILES,
-	TOO_LARGE_MESSAGE,
-} from "#/lib/profile-network-limits";
 import { userNetworkMembers } from "#/lib/profile-network-members";
 import type { ProfileNetworkJob } from "#/lib/profile-network-queue";
 
@@ -12,7 +7,7 @@ export interface ProfileNetworkDiscoveryStore {
 		ownerGithubNodeId: string,
 		members: FollowedProfile[],
 		at: Date,
-	): Promise<FollowedProfile[]>;
+	): Promise<void>;
 	markComplete(ownerGithubNodeId: string): Promise<void>;
 	markFailed(ownerGithubNodeId: string, error: string): Promise<void>;
 }
@@ -22,7 +17,7 @@ interface ProfileNetworkDiscoveryDependencies {
 	admit?(
 		ownerGithubNodeId: string,
 		following: number,
-	): Promise<"allowed" | "busy" | "too_large">;
+	): Promise<"allowed" | "busy">;
 	resolveOwner(
 		githubNodeId: string,
 		token: string,
@@ -32,7 +27,6 @@ interface ProfileNetworkDiscoveryDependencies {
 		token: string,
 		signal?: AbortSignal,
 	): Promise<FollowedProfile[]>;
-	requestIngestion(job: ProfileIngestionJob): Promise<unknown>;
 }
 
 export interface ProfileNetworkDiscoveryResult {
@@ -53,14 +47,10 @@ export function createProfileNetworkDiscovery(
 	): Promise<ProfileNetworkDiscoveryResult> {
 		try {
 			const owner = await deps.resolveOwner(job.ownerGithubNodeId, opts.token);
-			if (owner.following > MAX_FOLLOWED_PROFILES) {
-				throw new Error(TOO_LARGE_MESSAGE);
-			}
 			const admission = await deps.admit?.(
 				job.ownerGithubNodeId,
 				owner.following,
 			);
-			if (admission === "too_large") throw new Error(TOO_LARGE_MESSAGE);
 			if (admission === "busy") {
 				throw new Error(
 					"Network discovery is paused while the ingestion queue is busy.",
@@ -72,30 +62,15 @@ export function createProfileNetworkDiscovery(
 				opts.signal,
 			);
 			opts.signal?.throwIfAborted();
-			const missing = await deps.store.replaceSnapshot(
+			await deps.store.replaceSnapshot(
 				job.ownerGithubNodeId,
 				members,
 				opts.now ?? new Date(),
 			);
-			const missingUsers = userNetworkMembers(missing);
-
-			// Bound the fan-out while still letting pg-boss coalesce identities shared by networks.
-			for (let index = 0; index < missingUsers.length; index += 10) {
-				opts.signal?.throwIfAborted();
-				await Promise.all(
-					missingUsers.slice(index, index + 10).map((member) =>
-						deps.requestIngestion({
-							version: 1,
-							githubNodeId: member.githubNodeId,
-							login: member.login,
-						}),
-					),
-				);
-			}
 			await deps.store.markComplete(job.ownerGithubNodeId);
 			return {
 				membersFound: userNetworkMembers(members).length,
-				profilesEnqueued: missingUsers.length,
+				profilesEnqueued: 0,
 			};
 		} catch (error) {
 			await deps.store

@@ -2,8 +2,8 @@ import { isNull, lt, or, sql } from "drizzle-orm";
 import type { DB } from "#/lib/db";
 import { profileNetworks } from "#/lib/db/schema";
 import {
-	MAX_FOLLOWED_PROFILES,
 	MAX_PENDING_PROFILE_JOBS,
+	NETWORK_BACKFILL_BATCH,
 	networkAdmission,
 } from "#/lib/profile-network-limits";
 import { REQUEST_RETRY_MS } from "#/lib/profile-network-refresh";
@@ -12,7 +12,7 @@ import { REQUEST_RETRY_MS } from "#/lib/profile-network-refresh";
 export async function claimNetworkDiscovery(
 	database: DB,
 	ownerId: string,
-	following: number | null,
+	_following: number | null,
 	now: Date,
 	allowRecent = false,
 ): Promise<{
@@ -22,7 +22,7 @@ export async function claimNetworkDiscovery(
 	const retryBefore = new Date(now.getTime() - REQUEST_RETRY_MS);
 	return database.transaction(async (tx) => {
 		// All web and worker claims take the same transaction lock. Existing claims reserve
-		// up to 250 slots until their requests are sent or the recovery window expires.
+		// one backfill batch until their requests are sent or the recovery window expires.
 		await tx.execute(sql`SELECT pg_advisory_xact_lock(787888369009)`);
 		const [budget] = await tx.execute<{
 			pending: number;
@@ -40,8 +40,7 @@ export async function claimNetworkDiscovery(
 						AND owner_id <> ${ownerId}) AS reserved
 		`);
 		const admission = networkAdmission(
-			following,
-			(budget?.pending ?? 0) + (budget?.reserved ?? 0) * MAX_FOLLOWED_PROFILES,
+			(budget?.pending ?? 0) + (budget?.reserved ?? 0) * NETWORK_BACKFILL_BATCH,
 		);
 		if (admission !== "allowed") return { admission, claimed: undefined };
 

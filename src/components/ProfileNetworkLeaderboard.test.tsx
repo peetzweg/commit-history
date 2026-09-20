@@ -190,12 +190,11 @@ describe("ProfileNetworkLeaderboard", () => {
 		expect(screen.queryByText(/being added in the background/)).toBeNull();
 	});
 
-	it("explains the supported size limit without promising a retry", () => {
+	it("shows progress for a network larger than 250 people", () => {
 		mocks.networkData = {
 			...mocks.networkData,
-			status: "too_large",
-			rows: [entry("owner", true)],
-			pendingRows: [],
+			totalCount: 300,
+			readyCount: 1,
 		};
 		render(
 			<ProfileNetworkLeaderboard
@@ -205,7 +204,8 @@ describe("ProfileNetworkLeaderboard", () => {
 			/>,
 		);
 
-		expect(screen.getByText(/more than 250 profiles/)).toBeTruthy();
-		expect(screen.queryByText(/retry automatically/)).toBeNull();
+		expect(
+			screen.getByText(/history ready for 1 of 300 followed profiles/),
+		).toBeTruthy();
 	});
 });

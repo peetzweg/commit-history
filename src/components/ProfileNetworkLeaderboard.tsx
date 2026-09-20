@@ -48,8 +48,7 @@ export function ProfileNetworkLeaderboard({
 			if (
 				!data ||
 				data.status === "unavailable" ||
-				data.status === "not_started" ||
-				data.status === "too_large"
+				data.status === "not_started"
 			)
 				return false;
 			if (data.status === "busy") return 60_000;
@@ -184,9 +183,6 @@ function progressCopy(
 	if (data.status === "busy") {
 		return "Network discovery is paused while profile histories catch up. This page will retry automatically.";
 	}
-	if (data.status === "too_large") {
-		return "This person follows more than 250 profiles. This network is too large to build right now.";
-	}
 	if (data.hasError && data.rows.length <= 1) {
 		return "This network could not be refreshed yet. It will retry automatically.";
 	}
@@ -196,7 +192,7 @@ function progressCopy(
 			: "Looking up who this profile follows on GitHub. Most networks appear in a few seconds…";
 	}
 	if (data.readyCount + data.unavailableCount < data.totalCount) {
-		return `Following list found: history ready for ${data.readyCount.toLocaleString()} of ${data.totalCount.toLocaleString()} followed profiles. Keep this page open and new rankings will appear automatically.`;
+		return `Following list found: history ready for ${data.readyCount.toLocaleString()} of ${data.totalCount.toLocaleString()} followed profiles. New rankings will appear as histories finish.`;
 	}
 	if (data.unavailableCount > 0) {
 		return `${data.readyCount.toLocaleString()} of ${data.totalCount.toLocaleString()} followed profiles are available; ${data.unavailableCount.toLocaleString()} could not be loaded.`;

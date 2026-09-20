@@ -96,16 +96,19 @@ describe("fetchFollowing", () => {
 		]);
 	});
 
-	it("rejects a following list above the cap without storing a partial snapshot", async () => {
-		const fetchMock = vi.fn(async () =>
-			response(Array.from({ length: 100 }, (_, index) => row(index))),
-		);
+	it("paginates beyond 250 followed accounts", async () => {
+		const fetchMock = vi.fn(async (url: URL) => {
+			const page = Number(url.searchParams.get("page"));
+			return response(
+				Array.from({ length: page === 4 ? 1 : 100 }, (_, index) =>
+					row((page - 1) * 100 + index),
+				),
+			);
+		});
 		vi.stubGlobal("fetch", fetchMock);
 
-		await expect(fetchFollowing("owner", "token")).rejects.toThrow(
-			"exceeded 250 profiles",
-		);
-		expect(fetchMock).toHaveBeenCalledTimes(3);
+		await expect(fetchFollowing("owner", "token")).resolves.toHaveLength(301);
+		expect(fetchMock).toHaveBeenCalledTimes(4);
 	});
 
 	it("stops pagination before draining the shared REST quota", async () => {

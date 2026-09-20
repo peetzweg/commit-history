@@ -153,6 +153,9 @@ export const profileNetworks = pgTable("profile_networks", {
 		.references(() => entities.id),
 	enumeratedAt: timestamp("enumerated_at", { withTimezone: true }),
 	refreshRequestedAt: timestamp("refresh_requested_at", { withTimezone: true }),
+	// Non-null while the worker is submitting this snapshot's user histories in bounded batches.
+	// Empty string is the starting cursor; a null cursor means all requests were submitted.
+	backfillCursor: text("backfill_cursor"),
 	lastError: text("last_error"),
 });
 

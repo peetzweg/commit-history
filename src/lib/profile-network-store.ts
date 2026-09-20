@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNotNull } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import type { DB } from "#/lib/db";
 import {
 	entities,
@@ -6,10 +6,6 @@ import {
 	profileNetworks,
 } from "#/lib/db/schema";
 import type { ProfileNetworkDiscoveryStore } from "#/lib/profile-network-discovery";
-import { userNetworkMembers } from "#/lib/profile-network-members";
-
-const ID_QUERY_CHUNK = 500;
-const PROFILE_REFRESH_TTL_MS = 7 * 24 * 60 * 60 * 1_000;
 
 export function createProfileNetworkDiscoveryStore(
 	database: DB,
@@ -31,19 +27,21 @@ export function createProfileNetworkDiscoveryStore(
 		async replaceSnapshot(ownerGithubNodeId, members, at) {
 			const id = await ownerId(ownerGithubNodeId);
 			await database.transaction(async (tx) => {
+				// Keep cursor resets and member replacement atomic with a worker backfill pass.
+				await tx.execute(sql`SELECT pg_advisory_xact_lock(787888369009)`);
 				await tx
 					.insert(profileNetworks)
-					.values({ ownerId: id, enumeratedAt: at })
+					.values({ ownerId: id, enumeratedAt: at, backfillCursor: "" })
 					.onConflictDoUpdate({
 						target: profileNetworks.ownerId,
-						set: { enumeratedAt: at },
+						set: { enumeratedAt: at, backfillCursor: "" },
 					});
 				await tx
 					.delete(profileNetworkMembers)
 					.where(eq(profileNetworkMembers.ownerId, id));
-				if (members.length > 0) {
+				for (let index = 0; index < members.length; index += 500) {
 					await tx.insert(profileNetworkMembers).values(
-						members.map((member) => ({
+						members.slice(index, index + 500).map((member) => ({
 							ownerId: id,
 							memberGithubNodeId: member.githubNodeId,
 							login: member.login,
@@ -54,38 +52,6 @@ export function createProfileNetworkDiscoveryStore(
 					);
 				}
 			});
-
-			const userMembers = userNetworkMembers(members);
-			const fresh = new Set<string>();
-			const freshAfter = new Date(at.getTime() - PROFILE_REFRESH_TTL_MS);
-			for (let index = 0; index < userMembers.length; index += ID_QUERY_CHUNK) {
-				const ids = userMembers
-					.slice(index, index + ID_QUERY_CHUNK)
-					.map((member) => member.githubNodeId);
-				const rows = await database
-					.select({
-						githubNodeId: entities.githubNodeId,
-						lastFetched: entities.lastFetched,
-					})
-					.from(entities)
-					.where(
-						and(
-							eq(entities.kind, "user"),
-							isNotNull(entities.builtAt),
-							inArray(entities.githubNodeId, ids),
-						),
-					);
-				for (const row of rows) {
-					if (
-						row.githubNodeId &&
-						row.lastFetched &&
-						row.lastFetched >= freshAfter
-					) {
-						fresh.add(row.githubNodeId);
-					}
-				}
-			}
-			return userMembers.filter((member) => !fresh.has(member.githubNodeId));
 		},
 
 		async markComplete(ownerGithubNodeId) {

@@ -1,0 +1,1 @@
+ALTER TABLE "profile_networks" ADD COLUMN "backfill_cursor" text;

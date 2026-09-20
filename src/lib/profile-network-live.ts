@@ -1,7 +1,6 @@
 import { db } from "#/lib/db";
 import { fetchProfileByNodeId } from "#/lib/github";
 import { fetchFollowing } from "#/lib/github-following";
-import { requestProfileIngestion } from "#/lib/profile-ingestion-producer";
 import { createProfileNetworkDiscovery } from "#/lib/profile-network-discovery";
 import type { ProfileNetworkJob } from "#/lib/profile-network-queue";
 import { createProfileNetworkDiscoveryStore } from "#/lib/profile-network-store";
@@ -22,6 +21,5 @@ export async function discoverProfileNetworkLive(job: ProfileNetworkJob) {
 			return { login: owner.login, following: owner.following };
 		},
 		fetchFollowing,
-		requestIngestion: requestProfileIngestion,
 	})(job, { token });
 }

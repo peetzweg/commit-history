@@ -9,7 +9,6 @@ import {
 } from "#/lib/db/schema";
 import { leaderboardValue } from "#/lib/leaderboard-display";
 import { claimNetworkDiscovery } from "#/lib/profile-network-capacity";
-import { isNetworkTooLargeFailure } from "#/lib/profile-network-limits";
 import { userNetworkMembers } from "#/lib/profile-network-members";
 import { shouldRequestProfileNetwork } from "#/lib/profile-network-refresh";
 
@@ -43,7 +42,6 @@ export interface ProfileNetworkReadModel {
 		| "busy"
 		| "discovering"
 		| "refreshing"
-		| "too_large"
 		| "ready";
 	ownerLogin: string;
 	totalCount: number;
@@ -124,7 +122,7 @@ export const getProfileNetwork = createServerFn({ method: "POST" })
 			.limit(1);
 		const now = new Date();
 		const staleBefore = new Date(now.getTime() - SNAPSHOT_TTL_MS);
-		let admission: "allowed" | "too_large" | "busy" = "allowed";
+		let admission: "allowed" | "busy" = "allowed";
 		if (data.discover && shouldRequestProfileNetwork(network, now)) {
 			const result = await claimNetworkDiscovery(
 				database,
@@ -142,30 +140,36 @@ export const getProfileNetwork = createServerFn({ method: "POST" })
 					login: owner.login,
 				} as const;
 				try {
-					const { discoverProfileNetworkLive } = await import(
-						"#/lib/profile-network-live"
-					);
-					await discoverProfileNetworkLive(job);
-				} catch (error) {
-					// Preserve the request's responsiveness and durability when GitHub or the direct
-					// producer is temporarily unavailable. The worker retries the complete operation.
-					if (!isNetworkTooLargeFailure(error)) {
+					// Large lists are enumerated in the worker so this server request stays short.
+					if ((owner.following ?? 0) > 250) {
 						const { requestProfileNetwork } = await import(
 							"#/lib/profile-network-producer"
 						);
-						await requestProfileNetwork(job).catch(async (queueError) => {
-							await database
-								.update(profileNetworks)
-								.set({
-									lastError:
-										`${String(error)}; fallback: ${String(queueError)}`.slice(
-											0,
-											2_000,
-										),
-								})
-								.where(eq(profileNetworks.ownerId, owner.id));
-						});
+						await requestProfileNetwork(job);
+					} else {
+						const { discoverProfileNetworkLive } = await import(
+							"#/lib/profile-network-live"
+						);
+						await discoverProfileNetworkLive(job);
 					}
+				} catch (error) {
+					// Preserve the request's responsiveness and durability when GitHub or the direct
+					// producer is temporarily unavailable. The worker retries the complete operation.
+					const { requestProfileNetwork } = await import(
+						"#/lib/profile-network-producer"
+					);
+					await requestProfileNetwork(job).catch(async (queueError) => {
+						await database
+							.update(profileNetworks)
+							.set({
+								lastError:
+									`${String(error)}; fallback: ${String(queueError)}`.slice(
+										0,
+										2_000,
+									),
+							})
+							.where(eq(profileNetworks.ownerId, owner.id));
+					});
 				}
 				[network] = await database
 					.select()
@@ -238,15 +242,12 @@ export const getProfileNetwork = createServerFn({ method: "POST" })
 
 		const snapshotStale =
 			!network?.enumeratedAt || network.enumeratedAt < staleBefore;
-		const tooLarge =
-			isNetworkTooLargeFailure(network?.lastError) || admission === "too_large";
 		const totalCount = network?.enumeratedAt
 			? membersForLeaderboard.length
 			: (owner.following ?? 0);
 		return {
-			status: tooLarge
-				? "too_large"
-				: admission === "busy"
+			status:
+				admission === "busy"
 					? "busy"
 					: !network?.enumeratedAt
 						? network?.refreshRequestedAt

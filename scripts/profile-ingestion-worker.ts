@@ -4,13 +4,13 @@ import { entities, profileNetworkMembers } from "#/lib/db/schema";
 import { fetchFollowing } from "#/lib/github-following";
 import { fetchProfileByNodeId } from "#/lib/github";
 import { runProfileIngestion } from "#/lib/profile-ingestion";
+import { backfillProfileNetwork } from "#/lib/profile-network-backfill";
 import {
 	createProfileIngestionBoss,
 	createProfileIngestionQueue,
 } from "#/lib/profile-ingestion-queue";
 import { createProfileNetworkDiscovery } from "#/lib/profile-network-discovery";
 import { claimNetworkDiscovery } from "#/lib/profile-network-capacity";
-import { isNetworkTooLargeFailure } from "#/lib/profile-network-limits";
 import {
 	createProfileNetworkBoss,
 	createProfileNetworkQueue,
@@ -52,10 +52,10 @@ const discoverProfileNetwork = createProfileNetworkDiscovery({
 		return { login: owner.login, following: owner.following };
 	},
 	fetchFollowing,
-	requestIngestion: (job) => queue.request(job),
 });
 let stopping = false;
 let startup: Promise<void> | undefined;
+let backfillTimer: ReturnType<typeof setInterval> | undefined;
 
 for (const signal of ["SIGTERM", "SIGINT"] as const) {
 	process.once(signal, () => void shutdown(signal));
@@ -148,18 +148,29 @@ if (!stopping) {
 			);
 			return result;
 		} catch (error) {
-			if (isNetworkTooLargeFailure(error)) {
-				console.warn(
-					`profile-network-worker status=too_large login=${JSON.stringify(job.login)} node_id=${JSON.stringify(job.ownerGithubNodeId)}`,
-				);
-				return { membersFound: 0, profilesEnqueued: 0 };
-			}
 			console.error(
 				`profile-network-worker status=failed login=${JSON.stringify(job.login)} node_id=${JSON.stringify(job.ownerGithubNodeId)} duration_ms=${Date.now() - startedAt} error=${JSON.stringify(String(error))}`,
 			);
 			throw error;
 		}
 	});
+	// The saved cursor lets the worker resume after a restart and keeps large networks moving
+	// even after the visitor leaves the page. At most one pass runs in this process at a time.
+	let backfillRunning = false;
+	backfillTimer = setInterval(() => {
+		if (stopping || backfillRunning) return;
+		backfillRunning = true;
+		void backfillProfileNetwork(database, queue)
+			.then((result) => {
+				if (result.enqueued || result.completed) {
+					console.log(`profile-network-worker status=backfill examined=${result.examined} enqueued=${result.enqueued} completed=${result.completed}`);
+				}
+			})
+			.catch((error) => {
+				console.error(`profile-network-worker status=backfill_error error=${JSON.stringify(String(error))}`);
+			})
+			.finally(() => { backfillRunning = false; });
+	}, 5_000);
 	console.log(
 		"profile-ingestion-worker status=ready ingestion_concurrency=1 network_concurrency=1",
 	);
@@ -168,6 +179,7 @@ if (!stopping) {
 async function shutdown(signal: NodeJS.Signals): Promise<void> {
 	if (stopping) return;
 	stopping = true;
+	if (backfillTimer) clearInterval(backfillTimer);
 	console.log(`profile-ingestion-worker status=stopping signal=${signal}`);
 	let exitCode = 0;
 	try {

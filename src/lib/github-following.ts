@@ -1,11 +1,6 @@
 import { GitHubError, isValidLogin } from "#/lib/github";
-import {
-	MAX_FOLLOWED_PROFILES,
-	TOO_LARGE_MESSAGE,
-} from "#/lib/profile-network-limits";
 
 const PAGE_SIZE = 100;
-const MAX_PAGES = Math.ceil((MAX_FOLLOWED_PROFILES + 1) / PAGE_SIZE);
 const REST_REMAINING_FLOOR = 500;
 
 export interface FollowedProfile {
@@ -33,9 +28,7 @@ export async function fetchFollowing(
 	if (!isValidLogin(login)) throw new GitHubError("Invalid GitHub login.", 400);
 	const followed: FollowedProfile[] = [];
 	const seen = new Set<string>();
-	let rawCount = 0;
-
-	for (let page = 1; page <= MAX_PAGES; page += 1) {
+	for (let page = 1; ; page += 1) {
 		signal?.throwIfAborted();
 		const url = new URL(
 			`https://api.github.com/users/${encodeURIComponent(login)}/following`,
@@ -68,10 +61,6 @@ export async function fetchFollowing(
 				"GitHub returned an invalid following response.",
 				502,
 			);
-		}
-		rawCount += body.length;
-		if (rawCount > MAX_FOLLOWED_PROFILES) {
-			throw new GitHubError(TOO_LARGE_MESSAGE, 400);
 		}
 		for (const value of body) {
 			const row = value as GitHubFollowingRow;
@@ -127,8 +116,6 @@ export async function fetchFollowing(
 			}
 		}
 	}
-
-	throw new GitHubError(TOO_LARGE_MESSAGE, 400);
 }
 
 function hasNextPage(link: string | null, rowCount: number): boolean {
