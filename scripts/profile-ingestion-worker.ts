@@ -1,9 +1,21 @@
+import { eq } from "drizzle-orm";
 import { db } from "#/lib/db";
+import { entities, profileNetworkMembers } from "#/lib/db/schema";
+import { fetchFollowing } from "#/lib/github-following";
+import { fetchProfileByNodeId } from "#/lib/github";
 import { runProfileIngestion } from "#/lib/profile-ingestion";
+import { backfillProfileNetwork } from "#/lib/profile-network-backfill";
 import {
 	createProfileIngestionBoss,
 	createProfileIngestionQueue,
 } from "#/lib/profile-ingestion-queue";
+import { createProfileNetworkDiscovery } from "#/lib/profile-network-discovery";
+import { claimNetworkDiscovery } from "#/lib/profile-network-capacity";
+import {
+	createProfileNetworkBoss,
+	createProfileNetworkQueue,
+} from "#/lib/profile-network-queue";
+import { createProfileNetworkDiscoveryStore } from "#/lib/profile-network-store";
 
 const connectionString = process.env.DATABASE_URL;
 const token = process.env.GITHUB_TOKEN;
@@ -14,8 +26,36 @@ const database = db;
 
 const boss = createProfileIngestionBoss(connectionString);
 const queue = createProfileIngestionQueue(boss);
+const networkBoss = createProfileNetworkBoss(connectionString);
+const networkQueue = createProfileNetworkQueue(networkBoss);
+const discoverProfileNetwork = createProfileNetworkDiscovery({
+	store: createProfileNetworkDiscoveryStore(database),
+	admit: async (nodeId, following) => {
+		const [owner] = await database
+			.select({ id: entities.id })
+			.from(entities)
+			.where(eq(entities.githubNodeId, nodeId))
+			.limit(1);
+		if (!owner) throw new Error(`Network owner ${nodeId} is not tracked.`);
+		return (
+			await claimNetworkDiscovery(
+				database,
+				owner.id,
+				following,
+				new Date(),
+				true,
+			)
+		).admission;
+	},
+	resolveOwner: async (nodeId, token) => {
+		const owner = await fetchProfileByNodeId(nodeId, token);
+		return { login: owner.login, following: owner.following };
+	},
+	fetchFollowing,
+});
 let stopping = false;
 let startup: Promise<void> | undefined;
+let backfillTimer: ReturnType<typeof setInterval> | undefined;
 
 for (const signal of ["SIGTERM", "SIGINT"] as const) {
 	process.once(signal, () => void shutdown(signal));
@@ -31,8 +71,18 @@ boss.on("warning", (warning) => {
 		`profile-ingestion-worker status=queue_warning warning=${JSON.stringify(warning)}`,
 	);
 });
+networkBoss.on("error", (error) => {
+	console.error(
+		`profile-network-worker status=queue_error error=${JSON.stringify(String(error))}`,
+	);
+});
+networkBoss.on("warning", (warning) => {
+	console.warn(
+		`profile-network-worker status=queue_warning warning=${JSON.stringify(String(warning))}`,
+	);
+});
 
-startup = queue.start();
+startup = Promise.all([queue.start(), networkQueue.start()]).then(() => undefined);
 await startup;
 
 // A signal may arrive while pg-boss is starting. Shutdown then owns the connections, and no new
@@ -48,6 +98,9 @@ if (!stopping) {
 				{ login: job.login, githubNodeId: job.githubNodeId },
 				{
 					token,
+					// One queued profile at a time, and one GitHub GraphQL request at a time within
+					// that profile. Interactive lookups keep their latency-oriented bounded default.
+					monthlyRequestConcurrency: 1,
 					remainingFloor: numberFromEnv(
 						"PROFILE_INGESTION_REMAINING_FLOOR",
 						500,
@@ -57,6 +110,20 @@ if (!stopping) {
 			);
 			if (result.status === "deferred") {
 				await queue.defer(job, result.retryAt);
+			}
+			if (result.status === "unreachable" && !result.history) {
+				await database
+					.update(profileNetworkMembers)
+					.set({ unavailableAt: new Date() })
+					.where(eq(profileNetworkMembers.memberGithubNodeId, job.githubNodeId));
+			} else if (
+				result.status === "complete" ||
+				(result.status === "unreachable" && result.history)
+			) {
+				await database
+					.update(profileNetworkMembers)
+					.set({ unavailableAt: null })
+					.where(eq(profileNetworkMembers.memberGithubNodeId, job.githubNodeId));
 			}
 			console.log(
 				`profile-ingestion-worker status=${result.status} login=${JSON.stringify(job.login)} node_id=${JSON.stringify(job.githubNodeId)} duration_ms=${Date.now() - startedAt}`,
@@ -69,18 +136,61 @@ if (!stopping) {
 			throw error;
 		}
 	});
-	console.log("profile-ingestion-worker status=ready concurrency=1");
+	await networkQueue.work(async (job, signal) => {
+		const startedAt = Date.now();
+		console.log(
+			`profile-network-worker status=started login=${JSON.stringify(job.login)} node_id=${JSON.stringify(job.ownerGithubNodeId)}`,
+		);
+		try {
+			const result = await discoverProfileNetwork(job, { token, signal });
+			console.log(
+				`profile-network-worker status=completed login=${JSON.stringify(job.login)} node_id=${JSON.stringify(job.ownerGithubNodeId)} members=${result.membersFound} enqueued=${result.profilesEnqueued} duration_ms=${Date.now() - startedAt}`,
+			);
+			return result;
+		} catch (error) {
+			if (String(error).includes("Network discovery is paused while the ingestion queue is busy.")) {
+				await networkQueue.defer(job, new Date(Date.now() + 5 * 60_000));
+				console.log(`profile-network-worker status=deferred login=${JSON.stringify(job.login)} reason=profile_queue_busy`);
+				return { membersFound: 0, profilesEnqueued: 0 };
+			}
+			console.error(
+				`profile-network-worker status=failed login=${JSON.stringify(job.login)} node_id=${JSON.stringify(job.ownerGithubNodeId)} duration_ms=${Date.now() - startedAt} error=${JSON.stringify(String(error))}`,
+			);
+			throw error;
+		}
+	});
+	// The saved cursor lets the worker resume after a restart and keeps large networks moving
+	// even after the visitor leaves the page. At most one pass runs in this process at a time.
+	let backfillRunning = false;
+	backfillTimer = setInterval(() => {
+		if (stopping || backfillRunning) return;
+		backfillRunning = true;
+		void backfillProfileNetwork(database, queue)
+			.then((result) => {
+				if (result.enqueued || result.completed) {
+					console.log(`profile-network-worker status=backfill examined=${result.examined} enqueued=${result.enqueued} completed=${result.completed}`);
+				}
+			})
+			.catch((error) => {
+				console.error(`profile-network-worker status=backfill_error error=${JSON.stringify(String(error))}`);
+			})
+			.finally(() => { backfillRunning = false; });
+	}, 5_000);
+	console.log(
+		"profile-ingestion-worker status=ready ingestion_concurrency=1 network_concurrency=1",
+	);
 }
 
 async function shutdown(signal: NodeJS.Signals): Promise<void> {
 	if (stopping) return;
 	stopping = true;
+	if (backfillTimer) clearInterval(backfillTimer);
 	console.log(`profile-ingestion-worker status=stopping signal=${signal}`);
 	let exitCode = 0;
 	try {
 		// Do not race PgBoss.start() with stop() when the platform terminates during startup.
 		await startup?.catch(() => {});
-		await queue.stop();
+		await Promise.all([queue.stop(), networkQueue.stop()]);
 	} catch (error) {
 		exitCode = 1;
 		console.error(

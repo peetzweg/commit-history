@@ -1,0 +1,28 @@
+const SNAPSHOT_TTL_MS = 24 * 60 * 60 * 1_000;
+export const REQUEST_RETRY_MS = 5 * 60 * 1_000;
+
+interface NetworkRefreshState {
+	enumeratedAt: Date | null;
+	refreshRequestedAt: Date | null;
+	lastError: string | null;
+}
+
+/** A saved snapshot is unfinished until its ingestion requests have been submitted. */
+export function shouldRequestProfileNetwork(
+	network: NetworkRefreshState | undefined,
+	now: Date,
+): boolean {
+	const retryBefore = new Date(now.getTime() - REQUEST_RETRY_MS);
+	if (
+		network?.refreshRequestedAt &&
+		network.refreshRequestedAt >= retryBefore
+	) {
+		return false;
+	}
+	return (
+		!network?.enumeratedAt ||
+		network.enumeratedAt < new Date(now.getTime() - SNAPSHOT_TTL_MS) ||
+		network.lastError != null ||
+		network.refreshRequestedAt != null
+	);
+}

@@ -177,6 +177,28 @@ describe("fetchMonthlyCommits adaptive batching", () => {
 			},
 		]);
 	});
+
+	it("honors a sequential concurrency cap for background ingestion", async () => {
+		let active = 0;
+		let maxActive = 0;
+		vi.stubGlobal("fetch", async (_url: string, init: RequestInit) => {
+			active += 1;
+			maxActive = Math.max(maxActive, active);
+			await new Promise((resolve) => setTimeout(resolve, 5));
+			active -= 1;
+			return dataFor(aliasCount(init));
+		});
+
+		const counts = await fetchMonthlyCommits(
+			"backgrounduser",
+			"tok",
+			windows(18),
+			{ concurrency: 1 },
+		);
+
+		expect(counts).toHaveLength(18);
+		expect(maxActive).toBe(1);
+	});
 });
 
 describe("fetchOrgMembers pagination", () => {
