@@ -36,7 +36,7 @@ export async function claimNetworkDiscovery(
 					LIMIT ${MAX_PENDING_PROFILE_JOBS}
 				) AS jobs) AS pending,
 				(SELECT count(*)::int FROM profile_networks
-					WHERE refresh_requested_at >= ${retryBefore}
+					WHERE refresh_requested_at >= ${retryBefore.toISOString()}::timestamptz
 						AND owner_id <> ${ownerId}) AS reserved
 		`);
 		const admission = networkAdmission(
