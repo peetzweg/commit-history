@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence } from "motion/react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ChartMode } from "#/components/CommitChart";
 import { ExplainerLink } from "#/components/ExplainerLink";
 import { LeaderboardRow } from "#/components/LeaderboardRow";
@@ -18,12 +18,30 @@ export function ProfileNetworkLeaderboard({
 	ownerGithubNodeId: string;
 	metric: ChartMode;
 }) {
-	const [discoveryRequest, setDiscoveryRequest] = useState(0);
+	const sectionRef = useRef<HTMLElement>(null);
+	const [viewedOwnerId, setViewedOwnerId] = useState<string | null>(null);
+	const inView = viewedOwnerId === ownerGithubNodeId;
+	useEffect(() => {
+		const section = sectionRef.current;
+		if (!section || inView) return;
+		if (typeof IntersectionObserver === "undefined") {
+			setViewedOwnerId(ownerGithubNodeId);
+			return;
+		}
+		const observer = new IntersectionObserver((entries) => {
+			if (entries.some((entry) => entry.isIntersecting)) {
+				setViewedOwnerId(ownerGithubNodeId);
+				observer.disconnect();
+			}
+		});
+		observer.observe(section);
+		return () => observer.disconnect();
+	}, [inView, ownerGithubNodeId]);
 	const query = useQuery({
-		queryKey: ["profile-network", ownerGithubNodeId, metric, discoveryRequest],
+		queryKey: ["profile-network", ownerGithubNodeId, metric, inView],
 		queryFn: () =>
 			getProfileNetwork({
-				data: { ownerGithubNodeId, metric, discover: discoveryRequest > 0 },
+				data: { ownerGithubNodeId, metric, discover: inView },
 			}),
 		refetchInterval: (current) => {
 			const data = current.state.data;
@@ -34,6 +52,7 @@ export function ProfileNetworkLeaderboard({
 				data.status === "too_large"
 			)
 				return false;
+			if (data.status === "busy") return 60_000;
 			return data.status !== "ready" ||
 				data.readyCount + data.unavailableCount < data.totalCount
 				? 8_000
@@ -54,7 +73,7 @@ export function ProfileNetworkLeaderboard({
 	const pendingRows = data?.pendingRows ?? [];
 
 	return (
-		<section className="mt-16">
+		<section ref={sectionRef} className="mt-16">
 			<div className="sticky top-0 z-20 border-border border-b bg-background pt-3 pb-3">
 				<h2
 					className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-2xl font-bold tracking-tight"
@@ -84,17 +103,6 @@ export function ProfileNetworkLeaderboard({
 							? "This network leaderboard is temporarily unavailable."
 							: progressCopy(data)}
 					</p>
-				)}
-				{data?.canRequest && (
-					<button
-						type="button"
-						onClick={() => setDiscoveryRequest((request) => request + 1)}
-						className="btn-primary mt-3"
-					>
-						{data.status === "not_started"
-							? "Build this network leaderboard"
-							: "Refresh this network leaderboard"}
-					</button>
 				)}
 			</div>
 
@@ -171,10 +179,13 @@ function progressCopy(
 		return "Looking up who this profile follows on GitHub. Most networks appear in a few seconds…";
 	}
 	if (data.status === "not_started") {
-		return "Build a leaderboard of the people this profile follows on GitHub.";
+		return "The network leaderboard will start when you scroll here.";
+	}
+	if (data.status === "busy") {
+		return "Network discovery is paused while profile histories catch up. This page will retry automatically.";
 	}
 	if (data.status === "too_large") {
-		return "This person follows more than 10,000 profiles. This network is too large to build right now.";
+		return "This person follows more than 250 profiles. This network is too large to build right now.";
 	}
 	if (data.hasError && data.rows.length <= 1) {
 		return "This network could not be refreshed yet. It will retry automatically.";

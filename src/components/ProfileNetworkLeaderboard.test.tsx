@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen } from "@testing-library/react";
 import type { ComponentPropsWithoutRef, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
 	networkData: {} as Record<string, unknown>,
 	queryKey: [] as unknown[],
+	onIntersect: undefined as IntersectionObserverCallback | undefined,
 }));
 
 vi.mock("@tanstack/react-query", () => ({
@@ -56,13 +57,26 @@ const entry = (login: string, isOwner = false) => ({
 });
 
 describe("ProfileNetworkLeaderboard", () => {
-	afterEach(cleanup);
+	afterEach(() => {
+		cleanup();
+		vi.unstubAllGlobals();
+	});
 
 	beforeEach(() => {
+		mocks.onIntersect = undefined;
+		vi.stubGlobal(
+			"IntersectionObserver",
+			class {
+				constructor(callback: IntersectionObserverCallback) {
+					mocks.onIntersect = callback;
+				}
+				observe() {}
+				disconnect() {}
+			},
+		);
 		mocks.networkData = {
 			status: "ready",
 			ownerLogin: "owner",
-			canRequest: false,
 			totalCount: 2,
 			readyCount: 1,
 			unavailableCount: 0,
@@ -78,15 +92,14 @@ describe("ProfileNetworkLeaderboard", () => {
 		};
 	});
 
-	it("waits for a click before starting a new network", () => {
+	it("reads stored results immediately and starts discovery when viewed", () => {
 		mocks.networkData = {
 			...mocks.networkData,
 			status: "not_started",
-			canRequest: true,
 			rows: [entry("owner", true)],
 			pendingRows: [],
 		};
-		render(
+		const { rerender } = render(
 			<ProfileNetworkLeaderboard
 				login="owner"
 				ownerGithubNodeId="U_owner"
@@ -94,11 +107,31 @@ describe("ProfileNetworkLeaderboard", () => {
 			/>,
 		);
 
-		expect(mocks.queryKey.at(-1)).toBe(0);
-		fireEvent.click(
-			screen.getByRole("button", { name: "Build this network leaderboard" }),
+		expect(mocks.queryKey.at(-1)).toBe(false);
+		expect(screen.getByText("owner")).toBeTruthy();
+		expect(screen.queryByRole("button")).toBeNull();
+		act(() => {
+			mocks.onIntersect?.(
+				[{ isIntersecting: true } as IntersectionObserverEntry],
+				{} as IntersectionObserver,
+			);
+		});
+		expect(mocks.queryKey.at(-1)).toBe(true);
+		rerender(
+			<ProfileNetworkLeaderboard
+				login="another"
+				ownerGithubNodeId="U_another"
+				metric="public"
+			/>,
 		);
-		expect(mocks.queryKey.at(-1)).toBe(1);
+		expect(mocks.queryKey.at(-1)).toBe(false);
+		act(() => {
+			mocks.onIntersect?.(
+				[{ isIntersecting: true } as IntersectionObserverEntry],
+				{} as IntersectionObserver,
+			);
+		});
+		expect(mocks.queryKey.at(-1)).toBe(true);
 	});
 
 	it("renders the available ranking and clearly marks it provisional", () => {
@@ -161,7 +194,6 @@ describe("ProfileNetworkLeaderboard", () => {
 		mocks.networkData = {
 			...mocks.networkData,
 			status: "too_large",
-			canRequest: false,
 			rows: [entry("owner", true)],
 			pendingRows: [],
 		};
@@ -173,7 +205,7 @@ describe("ProfileNetworkLeaderboard", () => {
 			/>,
 		);
 
-		expect(screen.getByText(/more than 10,000 profiles/)).toBeTruthy();
+		expect(screen.getByText(/more than 250 profiles/)).toBeTruthy();
 		expect(screen.queryByText(/retry automatically/)).toBeNull();
 	});
 });

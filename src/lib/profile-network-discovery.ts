@@ -1,5 +1,9 @@
 import type { FollowedProfile } from "#/lib/github-following";
 import type { ProfileIngestionJob } from "#/lib/profile-ingestion-queue";
+import {
+	MAX_FOLLOWED_PROFILES,
+	TOO_LARGE_MESSAGE,
+} from "#/lib/profile-network-limits";
 import { userNetworkMembers } from "#/lib/profile-network-members";
 import type { ProfileNetworkJob } from "#/lib/profile-network-queue";
 
@@ -15,6 +19,10 @@ export interface ProfileNetworkDiscoveryStore {
 
 interface ProfileNetworkDiscoveryDependencies {
 	store: ProfileNetworkDiscoveryStore;
+	admit?(
+		ownerGithubNodeId: string,
+		following: number,
+	): Promise<"allowed" | "busy" | "too_large">;
 	resolveOwner(
 		githubNodeId: string,
 		token: string,
@@ -32,13 +40,6 @@ export interface ProfileNetworkDiscoveryResult {
 	profilesEnqueued: number;
 }
 
-const MAX_FOLLOWED_PROFILES = 10_000;
-const TOO_LARGE_MESSAGE = `GitHub following lookup exceeded ${MAX_FOLLOWED_PROFILES} profiles.`;
-
-export function isNetworkTooLargeFailure(error: unknown): boolean {
-	return String(error).includes(TOO_LARGE_MESSAGE);
-}
-
 /**
  * Complete-snapshot discovery behind one interface. Callers do not need to understand GitHub
  * pagination, identity reconciliation, or how missing histories enter the ingestion queue.
@@ -54,6 +55,16 @@ export function createProfileNetworkDiscovery(
 			const owner = await deps.resolveOwner(job.ownerGithubNodeId, opts.token);
 			if (owner.following > MAX_FOLLOWED_PROFILES) {
 				throw new Error(TOO_LARGE_MESSAGE);
+			}
+			const admission = await deps.admit?.(
+				job.ownerGithubNodeId,
+				owner.following,
+			);
+			if (admission === "too_large") throw new Error(TOO_LARGE_MESSAGE);
+			if (admission === "busy") {
+				throw new Error(
+					"Network discovery is paused while the ingestion queue is busy.",
+				);
 			}
 			const members = await deps.fetchFollowing(
 				owner.login,

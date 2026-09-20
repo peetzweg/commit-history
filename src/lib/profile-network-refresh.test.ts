@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-	shouldRequestProfileNetwork,
-	shouldStartProfileNetworkDiscovery,
-} from "#/lib/profile-network-refresh";
+import { shouldRequestProfileNetwork } from "#/lib/profile-network-refresh";
 
 const now = new Date("2026-09-19T12:00:00Z");
 
@@ -33,30 +30,26 @@ describe("shouldRequestProfileNetwork", () => {
 		).toBe(false);
 	});
 
-	it("does not expand an untouched profile during a passive page view", () => {
-		expect(shouldStartProfileNetworkDiscovery(undefined, now, false)).toBe(
-			false,
-		);
-		expect(shouldStartProfileNetworkDiscovery(undefined, now, true)).toBe(true);
+	it("automatically starts an untouched profile", () => {
+		expect(shouldRequestProfileNetwork(undefined, now)).toBe(true);
 	});
 
 	it("recovers an abandoned explicit discovery on a later page view", () => {
 		expect(
-			shouldStartProfileNetworkDiscovery(
+			shouldRequestProfileNetwork(
 				{
 					enumeratedAt: new Date("2026-09-19T11:59:00Z"),
 					refreshRequestedAt: new Date("2026-09-19T11:54:00Z"),
 					lastError: null,
 				},
 				now,
-				false,
 			),
 		).toBe(true);
 	});
 
 	it("does not retry a network that exceeds the supported size", () => {
 		expect(
-			shouldStartProfileNetworkDiscovery(
+			shouldRequestProfileNetwork(
 				{
 					enumeratedAt: null,
 					refreshRequestedAt: new Date("2026-09-19T11:54:00Z"),
@@ -64,7 +57,6 @@ describe("shouldRequestProfileNetwork", () => {
 						"NetworkTooLargeError: GitHub following lookup exceeded 10000 profiles.",
 				},
 				now,
-				true,
 			),
 		).toBe(false);
 	});

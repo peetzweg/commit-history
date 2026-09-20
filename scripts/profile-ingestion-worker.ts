@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { db } from "#/lib/db";
-import { profileNetworkMembers } from "#/lib/db/schema";
+import { entities, profileNetworkMembers } from "#/lib/db/schema";
 import { fetchFollowing } from "#/lib/github-following";
 import { fetchProfileByNodeId } from "#/lib/github";
 import { runProfileIngestion } from "#/lib/profile-ingestion";
@@ -8,10 +8,9 @@ import {
 	createProfileIngestionBoss,
 	createProfileIngestionQueue,
 } from "#/lib/profile-ingestion-queue";
-import {
-	createProfileNetworkDiscovery,
-	isNetworkTooLargeFailure,
-} from "#/lib/profile-network-discovery";
+import { createProfileNetworkDiscovery } from "#/lib/profile-network-discovery";
+import { claimNetworkDiscovery } from "#/lib/profile-network-capacity";
+import { isNetworkTooLargeFailure } from "#/lib/profile-network-limits";
 import {
 	createProfileNetworkBoss,
 	createProfileNetworkQueue,
@@ -31,6 +30,23 @@ const networkBoss = createProfileNetworkBoss(connectionString);
 const networkQueue = createProfileNetworkQueue(networkBoss);
 const discoverProfileNetwork = createProfileNetworkDiscovery({
 	store: createProfileNetworkDiscoveryStore(database),
+	admit: async (nodeId, following) => {
+		const [owner] = await database
+			.select({ id: entities.id })
+			.from(entities)
+			.where(eq(entities.githubNodeId, nodeId))
+			.limit(1);
+		if (!owner) throw new Error(`Network owner ${nodeId} is not tracked.`);
+		return (
+			await claimNetworkDiscovery(
+				database,
+				owner.id,
+				following,
+				new Date(),
+				true,
+			)
+		).admission;
+	},
 	resolveOwner: async (nodeId, token) => {
 		const owner = await fetchProfileByNodeId(nodeId, token);
 		return { login: owner.login, following: owner.following };

@@ -1,8 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import {
-	createProfileNetworkDiscovery,
-	isNetworkTooLargeFailure,
-} from "#/lib/profile-network-discovery";
+import { createProfileNetworkDiscovery } from "#/lib/profile-network-discovery";
+import { isNetworkTooLargeFailure } from "#/lib/profile-network-limits";
 
 const job = {
 	version: 1 as const,
@@ -141,13 +139,13 @@ describe("profile network discovery", () => {
 		const fetchFollowing = vi.fn(async () => []);
 		const discover = createProfileNetworkDiscovery({
 			store,
-			resolveOwner: async () => ({ login: "owner", following: 10_001 }),
+			resolveOwner: async () => ({ login: "owner", following: 251 }),
 			fetchFollowing,
 			requestIngestion: async () => ({}),
 		});
 
 		await expect(discover(job, { token: "token" })).rejects.toThrow(
-			"exceeded 10000 profiles",
+			"exceeded 250 profiles",
 		);
 		expect(fetchFollowing).not.toHaveBeenCalled();
 		expect(store.replaceSnapshot).not.toHaveBeenCalled();
@@ -156,5 +154,27 @@ describe("profile network discovery", () => {
 				"GitHubError: GitHub following lookup exceeded 10000 profiles.",
 			),
 		).toBe(true);
+	});
+
+	it("does not enumerate when worker admission finds a full queue", async () => {
+		const store = {
+			replaceSnapshot: vi.fn(async () => []),
+			markComplete: vi.fn(async () => {}),
+			markFailed: vi.fn(async () => {}),
+		};
+		const fetchFollowing = vi.fn(async () => [member(1)]);
+		const discover = createProfileNetworkDiscovery({
+			store,
+			resolveOwner: async () => ({ login: "owner", following: 1 }),
+			admit: async () => "busy",
+			fetchFollowing,
+			requestIngestion: async () => ({}),
+		});
+
+		await expect(discover(job, { token: "token" })).rejects.toThrow(
+			"ingestion queue is busy",
+		);
+		expect(fetchFollowing).not.toHaveBeenCalled();
+		expect(store.replaceSnapshot).not.toHaveBeenCalled();
 	});
 });

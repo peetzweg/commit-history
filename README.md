@@ -158,16 +158,17 @@ node .output/worker/enqueue-profile-ingestion.mjs peetzweg
 
 The command resolves the current login to its immutable GitHub identity and enqueues one ingestion
 request. It does not write profile data itself; the worker owns identity-safe persistence. Live web
-lookups remain synchronous. A visitor starts a single profile's network with the “Build this
-network leaderboard” button; ordinary page views display stored rankings without expanding the
-network. This keeps crawlers and routine profile visits from filling the ingestion queue. On an
-explicit start (or refresh after the 24-hour snapshot TTL), the web process reads and stores the
+lookups remain synchronous. The page displays stored rankings immediately and starts or refreshes
+network discovery once the leaderboard enters the visitor's viewport. Each network is limited to
+250 followed profiles. New discovery pauses while roughly 1,000 profile jobs are pending, so page
+crawls and routine visits do not flood the shared ingestion queue. On a visible start (or refresh
+after the 24-hour snapshot TTL), the web process reads and stores the
 lightweight public `following` list immediately. It
 stores GitHub's user/organization kind with every identity, shows known user profiles at once, and
 submits only missing user histories to the identity-safe ingestion queue. Organizations remain in
 the relationship snapshot for correct classification but never count toward the personal
 leaderboard or enter profile ingestion.
-Networks above GitHub's 10,000-following pagination limit show a clear unsupported-size state and
+Networks above the 250-profile limit show a clear unsupported-size state and
 do not repeatedly consume API quota.
 A coalesced network-discovery job remains the durable fallback if inline discovery fails. The page
 serves the completed subset, previews pending identities, and polls while the ranking grows.

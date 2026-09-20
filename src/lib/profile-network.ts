@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { and, eq, isNotNull, isNull, lt, or } from "drizzle-orm";
+import { and, eq, isNotNull } from "drizzle-orm";
 import type { ChartMode } from "#/components/CommitChart";
 import { db } from "#/lib/db";
 import {
@@ -8,12 +8,10 @@ import {
 	profileNetworks,
 } from "#/lib/db/schema";
 import { leaderboardValue } from "#/lib/leaderboard-display";
-import { isNetworkTooLargeFailure } from "#/lib/profile-network-discovery";
+import { claimNetworkDiscovery } from "#/lib/profile-network-capacity";
+import { isNetworkTooLargeFailure } from "#/lib/profile-network-limits";
 import { userNetworkMembers } from "#/lib/profile-network-members";
-import {
-	REQUEST_RETRY_MS,
-	shouldStartProfileNetworkDiscovery,
-} from "#/lib/profile-network-refresh";
+import { shouldRequestProfileNetwork } from "#/lib/profile-network-refresh";
 
 const SNAPSHOT_TTL_MS = 24 * 60 * 60 * 1_000;
 
@@ -42,12 +40,12 @@ export interface ProfileNetworkReadModel {
 	status:
 		| "unavailable"
 		| "not_started"
+		| "busy"
 		| "discovering"
 		| "refreshing"
 		| "too_large"
 		| "ready";
 	ownerLogin: string;
-	canRequest: boolean;
 	totalCount: number;
 	readyCount: number;
 	unavailableCount: number;
@@ -126,20 +124,16 @@ export const getProfileNetwork = createServerFn({ method: "POST" })
 			.limit(1);
 		const now = new Date();
 		const staleBefore = new Date(now.getTime() - SNAPSHOT_TTL_MS);
-		const retryBefore = new Date(now.getTime() - REQUEST_RETRY_MS);
-		if (shouldStartProfileNetworkDiscovery(network, now, data.discover)) {
-			const [claimed] = await database
-				.insert(profileNetworks)
-				.values({ ownerId: owner.id, refreshRequestedAt: now })
-				.onConflictDoUpdate({
-					target: profileNetworks.ownerId,
-					set: { refreshRequestedAt: now },
-					setWhere: or(
-						isNull(profileNetworks.refreshRequestedAt),
-						lt(profileNetworks.refreshRequestedAt, retryBefore),
-					),
-				})
-				.returning();
+		let admission: "allowed" | "too_large" | "busy" = "allowed";
+		if (data.discover && shouldRequestProfileNetwork(network, now)) {
+			const result = await claimNetworkDiscovery(
+				database,
+				owner.id,
+				owner.following,
+				now,
+			);
+			admission = result.admission;
+			const { claimed } = result;
 			if (claimed) {
 				network = claimed;
 				const job = {
@@ -244,26 +238,24 @@ export const getProfileNetwork = createServerFn({ method: "POST" })
 
 		const snapshotStale =
 			!network?.enumeratedAt || network.enumeratedAt < staleBefore;
-		const tooLarge = isNetworkTooLargeFailure(network?.lastError);
-		const canRequest =
-			!tooLarge &&
-			!network?.refreshRequestedAt &&
-			(snapshotStale || network?.lastError != null);
+		const tooLarge =
+			isNetworkTooLargeFailure(network?.lastError) || admission === "too_large";
 		const totalCount = network?.enumeratedAt
 			? membersForLeaderboard.length
 			: (owner.following ?? 0);
 		return {
 			status: tooLarge
 				? "too_large"
-				: !network?.enumeratedAt
-					? network?.refreshRequestedAt
-						? "discovering"
-						: "not_started"
-					: snapshotStale && network?.refreshRequestedAt
-						? "refreshing"
-						: "ready",
+				: admission === "busy"
+					? "busy"
+					: !network?.enumeratedAt
+						? network?.refreshRequestedAt
+							? "discovering"
+							: "not_started"
+						: snapshotStale && network?.refreshRequestedAt
+							? "refreshing"
+							: "ready",
 			ownerLogin: owner.login,
-			canRequest,
 			totalCount,
 			readyCount,
 			unavailableCount,
@@ -308,7 +300,6 @@ function unavailable(login: string): ProfileNetworkReadModel {
 	return {
 		status: "unavailable",
 		ownerLogin: login,
-		canRequest: false,
 		totalCount: 0,
 		readyCount: 0,
 		unavailableCount: 0,
