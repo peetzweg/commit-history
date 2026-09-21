@@ -147,7 +147,7 @@ describe("ProfileNetworkLeaderboard", () => {
 		expect(screen.getByText(/ready for 1 of 2 followed profiles/)).toBeTruthy();
 		expect(
 			screen.getByRole("heading", {
-				name: /Network Commit leaderboard for Hors/,
+				name: "Hors's Commit Leaderboard",
 			}),
 		).toBeTruthy();
 		expect(screen.getByText("this profile")).toBeTruthy();

@@ -1,4 +1,6 @@
 import { useMatch, useNavigate, useRouterState } from "@tanstack/react-router";
+import { AnimatePresence } from "motion/react";
+import { useEffect, useState } from "react";
 import { SegmentedControl } from "#/components/SegmentedControl";
 import type { LeaderMode } from "#/lib/commit-history";
 import { ALL_METRICS, METRIC_LABEL } from "#/lib/metrics";
@@ -18,15 +20,16 @@ const LEADER_MODES: LeaderMode[] = [
 ];
 
 /**
- * The floating metric tab bar, rendered ONCE at the app root so it's a single persistent element
- * across navigations — that's what lets it grow/shrink with a real layout animation (e.g. dropping
- * "Followers" when you go from the leaderboard to a profile) instead of being replaced.
+ * The metric tab bar is rendered at the app root so it stays persistent across navigations — that's
+ * what lets it grow/shrink with a real layout animation (e.g. dropping "Followers" when you go
+ * from the leaderboard to a profile) instead of being replaced.
  *
  * It reads the current route + `?metric=` and drives the right control: the leaderboard ranking on
  * the home page, the chart metric on a profile (the full set while a profile loads, then narrowing
  * to what's actually available). It's absent on routes with no metric to pick (e.g. 404).
  */
 export function MetricBar() {
+	const [showFloatingChartBar, setShowFloatingChartBar] = useState(false);
 	const navigate = useNavigate();
 	const { routeId, metric, boardKind, isLoading } = useRouterState({
 		select: (s) => ({
@@ -54,6 +57,31 @@ export function MetricBar() {
 	}
 
 	const present = modes !== null;
+	const isChart = routeId === "/$user";
+
+	useEffect(() => {
+		if (!isChart) {
+			setShowFloatingChartBar(false);
+			return;
+		}
+
+		const updateVisibility = () => {
+			const anchor = document.querySelector<HTMLElement>(
+				"[data-metric-bar-anchor]",
+			);
+			setShowFloatingChartBar(
+				Boolean(anchor && anchor.getBoundingClientRect().bottom < 0),
+			);
+		};
+
+		updateVisibility();
+		window.addEventListener("scroll", updateVisibility, { passive: true });
+		window.addEventListener("resize", updateVisibility);
+		return () => {
+			window.removeEventListener("scroll", updateVisibility);
+			window.removeEventListener("resize", updateVisibility);
+		};
+	}, [isChart]);
 	const options = (modes ?? []).map((m) => ({
 		value: m,
 		label: METRIC_LABEL[m],
@@ -74,11 +102,26 @@ export function MetricBar() {
 
 	if (!present) return null;
 	return (
-		<SegmentedControl
-			options={options}
-			value={value}
-			onChange={onChange}
-			placement={routeId === "/" ? "bottom" : "chart"}
-		/>
+		<>
+			<SegmentedControl
+				options={options}
+				value={value}
+				onChange={onChange}
+				placement={routeId === "/" ? "bottom" : "chart"}
+			/>
+			<AnimatePresence>
+				{isChart && showFloatingChartBar && (
+					<SegmentedControl
+						key="floating-chart-metric-bar"
+						options={options}
+						value={value}
+						onChange={onChange}
+						placement="bottom"
+						entrance
+						keyboardShortcuts={false}
+					/>
+				)}
+			</AnimatePresence>
+		</>
 	);
 }
