@@ -635,7 +635,7 @@ function SingleView({
 					params={{ user: user.login }}
 					className="underline hover:text-foreground"
 				>
-					Embed this graph in your GitHub profile.
+					Embed in GitHub profile
 				</Link>
 			</p>
 			<div data-metric-bar-anchor className="mt-4 h-12" />
