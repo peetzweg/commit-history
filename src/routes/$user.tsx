@@ -479,7 +479,7 @@ function SuspendedNotice() {
 					href="https://github.com/peetzweg/commit-history/issues"
 					target="_blank"
 					rel="noopener"
-					className="whitespace-nowrap underline decoration-dotted underline-offset-2 hover:text-foreground"
+					className="underline hover:text-foreground"
 				>
 					open an issue
 				</a>
@@ -633,7 +633,7 @@ function SingleView({
 				<Link
 					to="/-/embed/$user"
 					params={{ user: user.login }}
-					className="underline hover:text-foreground"
+					className="whitespace-nowrap underline decoration-dotted underline-offset-2 hover:text-foreground"
 				>
 					Embed in GitHub profile
 				</Link>
