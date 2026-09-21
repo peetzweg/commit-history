@@ -63,6 +63,7 @@ export function ProfileNetworkLeaderboard({
 	if (query.data?.status === "unavailable") return null;
 	const data = query.data;
 	const linkMetric = metric === "public" ? undefined : metric;
+	const ownerName = profileName || data?.ownerLogin || login;
 	const incomplete =
 		!data ||
 		data.status !== "ready" ||
@@ -76,16 +77,15 @@ export function ProfileNetworkLeaderboard({
 			<div className="sticky top-0 z-20 border-border border-b bg-background pt-3 pb-3">
 				<h2
 					className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-2xl font-bold tracking-tight"
-					aria-label={`Network ${LEADERBOARD_HEADING[metric]} leaderboard for ${profileName || data?.ownerLogin || login}`}
+					aria-label={`${ownerName}'s ${LEADERBOARD_HEADING[metric]} Leaderboard`}
 				>
-					Network
+					<span className="font-hand font-normal text-3xl text-foreground leading-none">
+						{ownerName}'s
+					</span>
 					<span className="font-hand font-normal text-3xl text-primary leading-none">
 						{LEADERBOARD_HEADING[metric]}
 					</span>
-					leaderboard
-					<span className="text-xl font-medium text-muted-foreground">
-						for {profileName || data?.ownerLogin || login}
-					</span>
+					Leaderboard
 				</h2>
 				<p className="mt-1.5 text-xs text-muted-foreground">
 					{data

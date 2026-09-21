@@ -15,8 +15,8 @@ import { cn } from "#/lib/utils";
  * It reads as one long white chip (thin border, fully rounded) with a dark thumb that slides to the
  * active option, sized to match the "Plot" button so it's chunky and touch-friendly.
  *
- * It's rendered once, at the app root (see MetricBar), so it's a single persistent element across
- * navigations: when the option set changes (e.g. "Followers" only exists on the leaderboard) the
+ * It's rendered at the app root (see MetricBar), so it stays persistent across navigations: when
+ * the option set changes (e.g. "Followers" only exists on the leaderboard) the
  * pill's width morphs and the surviving chips reflow to their new positions via a layout animation,
  * rather than the whole bar being replaced. The thumb is positioned in content coordinates (active
  * chip's offsetLeft/width) so it's
@@ -29,11 +29,15 @@ export function SegmentedControl<T extends string>({
 	value,
 	onChange,
 	placement,
+	entrance = false,
+	keyboardShortcuts = true,
 }: {
 	options: readonly { value: T; label: string }[];
 	value: T;
 	onChange: (value: T) => void;
 	placement: "bottom" | "chart";
+	entrance?: boolean;
+	keyboardShortcuts?: boolean;
 }) {
 	const barRef = useRef<HTMLDivElement>(null);
 	const scrollRef = useRef<HTMLDivElement>(null);
@@ -92,6 +96,7 @@ export function SegmentedControl<T extends string>({
 	const onChangeRef = useRef(onChange);
 	onChangeRef.current = onChange;
 	useEffect(() => {
+		if (!keyboardShortcuts) return;
 		function onKey(e: KeyboardEvent) {
 			if (e.metaKey || e.ctrlKey || e.altKey) return;
 			const t = e.target as HTMLElement | null;
@@ -110,7 +115,7 @@ export function SegmentedControl<T extends string>({
 		}
 		window.addEventListener("keydown", onKey);
 		return () => window.removeEventListener("keydown", onKey);
-	}, []);
+	}, [keyboardShortcuts]);
 
 	const spring = { type: "spring", stiffness: 500, damping: 40 } as const;
 
@@ -163,7 +168,9 @@ export function SegmentedControl<T extends string>({
 		<motion.div
 			ref={barRef}
 			layout
-			initial={false}
+			initial={entrance ? { y: 80, opacity: 0 } : false}
+			animate={{ y: 0, opacity: 1 }}
+			exit={entrance ? { y: 80, opacity: 0 } : undefined}
 			transition={spring}
 			className={cn(
 				"inset-x-0 z-50 flex justify-center px-4",

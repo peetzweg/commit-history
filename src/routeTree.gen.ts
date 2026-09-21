@@ -24,6 +24,7 @@ import { Route as MetricsExplainedRouteImport } from './routes/metrics.explained
 import { Route as OgGithubRouteImport } from './routes/og.github'
 import { Route as OrganizationsSlugRouteImport } from './routes/organizations.$slug'
 import { Route as Char91Char93ApiStripeWebhookRouteImport } from './routes/[-].api.stripe-webhook'
+import { Route as Char91Char93EmbedUserRouteImport } from './routes/[-].embed.$user'
 import { Route as Char91Char93MetricsIndexRouteImport } from './routes/[-].metrics.index'
 import { Route as Char91Char93MetricsSlugRouteImport } from './routes/[-].metrics.$slug'
 import { Route as Char91Char93OrganizationsSlugRouteImport } from './routes/[-].organizations.$slug'
@@ -105,6 +106,11 @@ const Char91Char93ApiStripeWebhookRoute =
     path: '/-/api/stripe-webhook',
     getParentRoute: () => rootRouteImport,
   } as any)
+const Char91Char93EmbedUserRoute = Char91Char93EmbedUserRouteImport.update({
+  id: '/-/embed/$user',
+  path: '/-/embed/$user',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const Char91Char93MetricsIndexRoute =
   Char91Char93MetricsIndexRouteImport.update({
     id: '/-/metrics/',
@@ -144,6 +150,7 @@ export interface FileRoutesByFullPath {
   '/og/github': typeof OgGithubRoute
   '/organizations/$slug': typeof OrganizationsSlugRoute
   '/-/api/stripe-webhook': typeof Char91Char93ApiStripeWebhookRoute
+  '/-/embed/$user': typeof Char91Char93EmbedUserRoute
   '/-/metrics/$slug': typeof Char91Char93MetricsSlugRoute
   '/-/organizations/$slug': typeof Char91Char93OrganizationsSlugRoute
   '/og/$kind/$login': typeof OgKindLoginRoute
@@ -165,6 +172,7 @@ export interface FileRoutesByTo {
   '/og/github': typeof OgGithubRoute
   '/organizations/$slug': typeof OrganizationsSlugRoute
   '/-/api/stripe-webhook': typeof Char91Char93ApiStripeWebhookRoute
+  '/-/embed/$user': typeof Char91Char93EmbedUserRoute
   '/-/metrics/$slug': typeof Char91Char93MetricsSlugRoute
   '/-/organizations/$slug': typeof Char91Char93OrganizationsSlugRoute
   '/og/$kind/$login': typeof OgKindLoginRoute
@@ -187,6 +195,7 @@ export interface FileRoutesById {
   '/og/github': typeof OgGithubRoute
   '/organizations/$slug': typeof OrganizationsSlugRoute
   '/-/api/stripe-webhook': typeof Char91Char93ApiStripeWebhookRoute
+  '/-/embed/$user': typeof Char91Char93EmbedUserRoute
   '/-/metrics/$slug': typeof Char91Char93MetricsSlugRoute
   '/-/organizations/$slug': typeof Char91Char93OrganizationsSlugRoute
   '/og/$kind/$login': typeof OgKindLoginRoute
@@ -210,6 +219,7 @@ export interface FileRouteTypes {
     | '/og/github'
     | '/organizations/$slug'
     | '/-/api/stripe-webhook'
+    | '/-/embed/$user'
     | '/-/metrics/$slug'
     | '/-/organizations/$slug'
     | '/og/$kind/$login'
@@ -231,6 +241,7 @@ export interface FileRouteTypes {
     | '/og/github'
     | '/organizations/$slug'
     | '/-/api/stripe-webhook'
+    | '/-/embed/$user'
     | '/-/metrics/$slug'
     | '/-/organizations/$slug'
     | '/og/$kind/$login'
@@ -252,6 +263,7 @@ export interface FileRouteTypes {
     | '/og/github'
     | '/organizations/$slug'
     | '/-/api/stripe-webhook'
+    | '/-/embed/$user'
     | '/-/metrics/$slug'
     | '/-/organizations/$slug'
     | '/og/$kind/$login'
@@ -274,6 +286,7 @@ export interface RootRouteChildren {
   OgGithubRoute: typeof OgGithubRoute
   OrganizationsSlugRoute: typeof OrganizationsSlugRoute
   Char91Char93ApiStripeWebhookRoute: typeof Char91Char93ApiStripeWebhookRoute
+  Char91Char93EmbedUserRoute: typeof Char91Char93EmbedUserRoute
   Char91Char93MetricsSlugRoute: typeof Char91Char93MetricsSlugRoute
   Char91Char93OrganizationsSlugRoute: typeof Char91Char93OrganizationsSlugRoute
   OgKindLoginRoute: typeof OgKindLoginRoute
@@ -387,6 +400,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof Char91Char93ApiStripeWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/-/embed/$user': {
+      id: '/-/embed/$user'
+      path: '/-/embed/$user'
+      fullPath: '/-/embed/$user'
+      preLoaderRoute: typeof Char91Char93EmbedUserRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/-/metrics/': {
       id: '/-/metrics/'
       path: '/-/metrics'
@@ -434,6 +454,7 @@ const rootRouteChildren: RootRouteChildren = {
   OgGithubRoute: OgGithubRoute,
   OrganizationsSlugRoute: OrganizationsSlugRoute,
   Char91Char93ApiStripeWebhookRoute: Char91Char93ApiStripeWebhookRoute,
+  Char91Char93EmbedUserRoute: Char91Char93EmbedUserRoute,
   Char91Char93MetricsSlugRoute: Char91Char93MetricsSlugRoute,
   Char91Char93OrganizationsSlugRoute: Char91Char93OrganizationsSlugRoute,
   OgKindLoginRoute: OgKindLoginRoute,
