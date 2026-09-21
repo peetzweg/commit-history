@@ -479,7 +479,7 @@ function SuspendedNotice() {
 					href="https://github.com/peetzweg/commit-history/issues"
 					target="_blank"
 					rel="noopener"
-					className="underline hover:text-foreground"
+					className="whitespace-nowrap underline decoration-dotted underline-offset-2 hover:text-foreground"
 				>
 					open an issue
 				</a>
