@@ -69,7 +69,7 @@ export interface RunMonthlyUserRefreshOptions {
 	 * site traffic, which shares the same token. Only enforced when `fetchRateLimit` is supplied.
 	 */
 	remainingFloor?: number;
-	/** How many users between budget polls. The poll itself costs 0 points. */
+	/** How many users between budget polls. Each poll costs one GraphQL point. */
 	pollEvery?: number;
 	fetchRateLimit?: () => Promise<RateLimitBudget | null>;
 	fetchMonthlyCommits: (

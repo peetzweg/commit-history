@@ -5,6 +5,7 @@ import {
 	type UpdateQueueOptions,
 } from "pg-boss";
 import { isValidLogin } from "#/lib/github";
+import { QUEUE_HISTORY_OPTIONS } from "#/lib/profile-ingestion-queue";
 
 export const PROFILE_NETWORK_QUEUE_NAME = "profile-network-v1";
 export const PROFILE_NETWORK_DEAD_QUEUE_NAME = "profile-network-dead-v1";
@@ -66,6 +67,7 @@ export function createProfileNetworkBoss(
 		application_name: "commit-history-profile-network",
 		useListenNotify: false,
 		migrate: false,
+		...QUEUE_HISTORY_OPTIONS,
 		...overrides,
 		createSchema: overrides.createSchema ?? overrides.migrate ?? false,
 	});

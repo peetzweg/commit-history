@@ -93,7 +93,9 @@ const config = defineConfig({
 				})),
 			],
 		}),
-		nitro(),
+		// Server-boot plugins. Telemetry lives here so its Node-only SDK never enters the client
+		// graph (#202).
+		nitro({ plugins: ["./src/server/plugins/telemetry.ts"] }),
 		viteReact(),
 	],
 });

@@ -42,8 +42,10 @@ Every job must: take its advisory lock from `LOCK_KEYS` in `src/lib/job-runner.t
 per job); use `createBudgetGuard` so it can't drain the GitHub token below the floor that live
 traffic needs; stop cleanly on a wall-clock cap instead of being killed; resume off a DB
 freshness marker (**the missing row is the retry queue** — no job-state table); write only
-idempotent upserts; isolate per-item failures to a narrow status allowlist; and emit one
-greppable `<job> done status=… ` summary line. Size the **unit of work** so no single item can
+idempotent upserts; isolate per-item failures to a narrow status allowlist; emit one
+greppable `<job> done status=… ` summary line; and call `startTelemetry` (`src/lib/telemetry-node.ts`)
+with its own service name and GitHub `source`, awaiting `shutdown()` before closing the pool so a
+short run still exports (see `ops/grafana/README.md`). Size the **unit of work** so no single item can
 monopolise a run — `refresh-orgs` works one (org, member) pair at a time precisely because
 one-org-at-a-time made a 4,000-member org an indivisible multi-hour job that could never finish. Stagger schedules: the prod box has no swap and
 `docker exec` adds a second node process inside the app container.
