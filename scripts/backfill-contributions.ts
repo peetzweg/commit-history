@@ -42,7 +42,7 @@ const TARGET_RATE = Number(process.env.BACKFILL_RATE ?? 2500);
 // Never let the remaining budget drop below this — pure headroom for live traffic. If we ever get
 // this low, we wait for GitHub's window to reset before continuing.
 const REMAINING_FLOOR = 500;
-// How often (in users) to poll the live rate-limit budget. The poll itself costs 0 points.
+// How often (in users) to poll the live rate-limit budget. Each poll costs one GraphQL point.
 const POLL_EVERY = 25;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -52,7 +52,7 @@ interface RateLimit {
 	resetAt: string;
 }
 
-/** Query GitHub's current rate-limit budget. `rateLimit` queries themselves cost 0 points. */
+/** Query GitHub's current rate-limit budget. The query itself costs one point (GitHub's minimum). */
 async function rateLimit(): Promise<RateLimit | null> {
 	try {
 		const res = await fetch("https://api.github.com/graphql", {
