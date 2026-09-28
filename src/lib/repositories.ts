@@ -26,17 +26,61 @@ export const REPO_METRICS = [
 ] as const;
 export type RepoMetric = (typeof REPO_METRICS)[number];
 
+/** Tab label in the shared metric bar. */
 export const REPO_METRIC_LABEL: Record<RepoMetric, string> = {
 	stars: "Stars",
 	forks: "Forks",
 	commits: "Commits",
-	commitsLastYear: "Commits (12 mo)",
+	commitsLastYear: "Commits 12 mo",
 	contributors: "Contributors",
-	activeContributorsLastYear: "Active contributors (12 mo)",
+	activeContributorsLastYear: "Active 12 mo",
 	mergedPullRequests: "Merged PRs",
-	prsMergedLastYear: "Merged PRs (12 mo)",
-	starsLastYear: "New stars (12 mo)",
+	prsMergedLastYear: "PRs 12 mo",
+	starsLastYear: "New stars",
 };
+
+/** The word called out in the board heading ("<Stars> repository leaderboard"). */
+export const REPO_METRIC_HEADING: Record<RepoMetric, string> = {
+	stars: "Stars",
+	forks: "Forks",
+	commits: "Commits",
+	commitsLastYear: "Commits",
+	contributors: "Contributors",
+	activeContributorsLastYear: "Active contributors",
+	mergedPullRequests: "Merged PRs",
+	prsMergedLastYear: "Merged PRs",
+	starsLastYear: "New stars",
+};
+
+/** Unit under the value in a row, and the one-line definition under the heading. */
+export const REPO_METRIC_UNIT: Record<RepoMetric, string> = {
+	stars: "stars",
+	forks: "forks",
+	commits: "commits",
+	commitsLastYear: "commits",
+	contributors: "contributors",
+	activeContributorsLastYear: "active",
+	mergedPullRequests: "merged PRs",
+	prsMergedLastYear: "merged PRs",
+	starsLastYear: "new stars",
+};
+
+export const REPO_METRIC_SUBTITLE: Record<RepoMetric, string> = {
+	stars: "Current stargazers.",
+	forks: "Current forks.",
+	commits: "Commits reachable from the default branch, merges included.",
+	commitsLastYear: "Default-branch commits in the last 12 months.",
+	contributors:
+		"Distinct commit authors GitHub lists, unlinked emails included.",
+	activeContributorsLastYear:
+		"Contributors with a commit in the last 52 weeks. ≥ marks a lower bound: GitHub's statistics often cover only the top contributors.",
+	mergedPullRequests: "Pull requests merged, all time.",
+	prsMergedLastYear: "Pull requests merged in the last 12 completed months.",
+	starsLastYear:
+		"Stars gained in the last 12 completed months. Very large repositories skip star history.",
+};
+
+export const REPO_DEFAULT_METRIC: RepoMetric = "stars";
 
 export function isRepoMetric(v: unknown): v is RepoMetric {
 	return (
@@ -127,7 +171,7 @@ async function queryRepoLeaderboard(
 			),
 		)
 		.orderBy(sql`${order} desc nulls last`, asc(repositories.id))
-		.limit(200);
+		.limit(100);
 	return rows.map((r) => ({
 		...r,
 		metricsFetchedAt: r.metricsFetchedAt?.toISOString() ?? null,
@@ -137,7 +181,7 @@ async function queryRepoLeaderboard(
 
 export const getRepoLeaderboard = createServerFn({ method: "GET" })
 	.validator((p: { metric: unknown }) => ({
-		metric: isRepoMetric(p?.metric) ? p.metric : ("stars" as RepoMetric),
+		metric: isRepoMetric(p?.metric) ? p.metric : REPO_DEFAULT_METRIC,
 	}))
 	.handler(({ data }) => queryRepoLeaderboard(data.metric));
 

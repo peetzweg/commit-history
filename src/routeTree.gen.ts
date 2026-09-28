@@ -14,6 +14,7 @@ import { Route as UserRouteImport } from './routes/$user'
 import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as SponsoringRouteImport } from './routes/sponsoring'
+import { Route as UserRepoRouteImport } from './routes/$user_.$repo'
 import { Route as Char91Char93SlugRouteImport } from './routes/[-].$slug'
 import { Route as Char91Char93GithubRouteImport } from './routes/[-].github'
 import { Route as Char91Char93SponsoringRouteImport } from './routes/[-].sponsoring'
@@ -28,9 +29,7 @@ import { Route as Char91Char93EmbedUserRouteImport } from './routes/[-].embed.$u
 import { Route as Char91Char93MetricsIndexRouteImport } from './routes/[-].metrics.index'
 import { Route as Char91Char93MetricsSlugRouteImport } from './routes/[-].metrics.$slug'
 import { Route as Char91Char93OrganizationsSlugRouteImport } from './routes/[-].organizations.$slug'
-import { Route as Char91Char93RepositoriesIndexRouteImport } from './routes/[-].repositories.index'
 import { Route as OgKindLoginRouteImport } from './routes/og.$kind.$login'
-import { Route as Char91Char93RepositoriesOwnerRepoRouteImport } from './routes/[-].repositories.$owner.$repo'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -55,6 +54,11 @@ const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
 const SponsoringRoute = SponsoringRouteImport.update({
   id: '/sponsoring',
   path: '/sponsoring',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UserRepoRoute = UserRepoRouteImport.update({
+  id: '/$user_/$repo',
+  path: '/$user/$repo',
   getParentRoute: () => rootRouteImport,
 } as any)
 const Char91Char93SlugRoute = Char91Char93SlugRouteImport.update({
@@ -130,23 +134,11 @@ const Char91Char93OrganizationsSlugRoute =
     path: '/-/organizations/$slug',
     getParentRoute: () => rootRouteImport,
   } as any)
-const Char91Char93RepositoriesIndexRoute =
-  Char91Char93RepositoriesIndexRouteImport.update({
-    id: '/-/repositories/',
-    path: '/-/repositories/',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 const OgKindLoginRoute = OgKindLoginRouteImport.update({
   id: '/og/$kind/$login',
   path: '/og/$kind/$login',
   getParentRoute: () => rootRouteImport,
 } as any)
-const Char91Char93RepositoriesOwnerRepoRoute =
-  Char91Char93RepositoriesOwnerRepoRouteImport.update({
-    id: '/-/repositories/$owner/$repo',
-    path: '/-/repositories/$owner/$repo',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -154,6 +146,7 @@ export interface FileRoutesByFullPath {
   '/robots.txt': typeof RobotsDottxtRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/sponsoring': typeof SponsoringRoute
+  '/$user/$repo': typeof UserRepoRoute
   '/-/$slug': typeof Char91Char93SlugRoute
   '/-/github': typeof Char91Char93GithubRoute
   '/-/sponsoring': typeof Char91Char93SponsoringRoute
@@ -169,8 +162,6 @@ export interface FileRoutesByFullPath {
   '/-/organizations/$slug': typeof Char91Char93OrganizationsSlugRoute
   '/og/$kind/$login': typeof OgKindLoginRoute
   '/-/metrics/': typeof Char91Char93MetricsIndexRoute
-  '/-/repositories/': typeof Char91Char93RepositoriesIndexRoute
-  '/-/repositories/$owner/$repo': typeof Char91Char93RepositoriesOwnerRepoRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -178,6 +169,7 @@ export interface FileRoutesByTo {
   '/robots.txt': typeof RobotsDottxtRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/sponsoring': typeof SponsoringRoute
+  '/$user/$repo': typeof UserRepoRoute
   '/-/$slug': typeof Char91Char93SlugRoute
   '/-/github': typeof Char91Char93GithubRoute
   '/-/sponsoring': typeof Char91Char93SponsoringRoute
@@ -193,8 +185,6 @@ export interface FileRoutesByTo {
   '/-/organizations/$slug': typeof Char91Char93OrganizationsSlugRoute
   '/og/$kind/$login': typeof OgKindLoginRoute
   '/-/metrics': typeof Char91Char93MetricsIndexRoute
-  '/-/repositories': typeof Char91Char93RepositoriesIndexRoute
-  '/-/repositories/$owner/$repo': typeof Char91Char93RepositoriesOwnerRepoRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -203,6 +193,7 @@ export interface FileRoutesById {
   '/robots.txt': typeof RobotsDottxtRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/sponsoring': typeof SponsoringRoute
+  '/$user_/$repo': typeof UserRepoRoute
   '/-/$slug': typeof Char91Char93SlugRoute
   '/-/github': typeof Char91Char93GithubRoute
   '/-/sponsoring': typeof Char91Char93SponsoringRoute
@@ -218,8 +209,6 @@ export interface FileRoutesById {
   '/-/organizations/$slug': typeof Char91Char93OrganizationsSlugRoute
   '/og/$kind/$login': typeof OgKindLoginRoute
   '/-/metrics/': typeof Char91Char93MetricsIndexRoute
-  '/-/repositories/': typeof Char91Char93RepositoriesIndexRoute
-  '/-/repositories/$owner/$repo': typeof Char91Char93RepositoriesOwnerRepoRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -229,6 +218,7 @@ export interface FileRouteTypes {
     | '/robots.txt'
     | '/sitemap.xml'
     | '/sponsoring'
+    | '/$user/$repo'
     | '/-/$slug'
     | '/-/github'
     | '/-/sponsoring'
@@ -244,8 +234,6 @@ export interface FileRouteTypes {
     | '/-/organizations/$slug'
     | '/og/$kind/$login'
     | '/-/metrics/'
-    | '/-/repositories/'
-    | '/-/repositories/$owner/$repo'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -253,6 +241,7 @@ export interface FileRouteTypes {
     | '/robots.txt'
     | '/sitemap.xml'
     | '/sponsoring'
+    | '/$user/$repo'
     | '/-/$slug'
     | '/-/github'
     | '/-/sponsoring'
@@ -268,8 +257,6 @@ export interface FileRouteTypes {
     | '/-/organizations/$slug'
     | '/og/$kind/$login'
     | '/-/metrics'
-    | '/-/repositories'
-    | '/-/repositories/$owner/$repo'
   id:
     | '__root__'
     | '/'
@@ -277,6 +264,7 @@ export interface FileRouteTypes {
     | '/robots.txt'
     | '/sitemap.xml'
     | '/sponsoring'
+    | '/$user_/$repo'
     | '/-/$slug'
     | '/-/github'
     | '/-/sponsoring'
@@ -292,8 +280,6 @@ export interface FileRouteTypes {
     | '/-/organizations/$slug'
     | '/og/$kind/$login'
     | '/-/metrics/'
-    | '/-/repositories/'
-    | '/-/repositories/$owner/$repo'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -302,6 +288,7 @@ export interface RootRouteChildren {
   RobotsDottxtRoute: typeof RobotsDottxtRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   SponsoringRoute: typeof SponsoringRoute
+  UserRepoRoute: typeof UserRepoRoute
   Char91Char93SlugRoute: typeof Char91Char93SlugRoute
   Char91Char93GithubRoute: typeof Char91Char93GithubRoute
   Char91Char93SponsoringRoute: typeof Char91Char93SponsoringRoute
@@ -317,8 +304,6 @@ export interface RootRouteChildren {
   Char91Char93OrganizationsSlugRoute: typeof Char91Char93OrganizationsSlugRoute
   OgKindLoginRoute: typeof OgKindLoginRoute
   Char91Char93MetricsIndexRoute: typeof Char91Char93MetricsIndexRoute
-  Char91Char93RepositoriesIndexRoute: typeof Char91Char93RepositoriesIndexRoute
-  Char91Char93RepositoriesOwnerRepoRoute: typeof Char91Char93RepositoriesOwnerRepoRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -356,6 +341,13 @@ declare module '@tanstack/react-router' {
       path: '/sponsoring'
       fullPath: '/sponsoring'
       preLoaderRoute: typeof SponsoringRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$user_/$repo': {
+      id: '/$user_/$repo'
+      path: '/$user/$repo'
+      fullPath: '/$user/$repo'
+      preLoaderRoute: typeof UserRepoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/-/$slug': {
@@ -456,25 +448,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof Char91Char93OrganizationsSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/-/repositories/': {
-      id: '/-/repositories/'
-      path: '/-/repositories'
-      fullPath: '/-/repositories/'
-      preLoaderRoute: typeof Char91Char93RepositoriesIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/og/$kind/$login': {
       id: '/og/$kind/$login'
       path: '/og/$kind/$login'
       fullPath: '/og/$kind/$login'
       preLoaderRoute: typeof OgKindLoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/-/repositories/$owner/$repo': {
-      id: '/-/repositories/$owner/$repo'
-      path: '/-/repositories/$owner/$repo'
-      fullPath: '/-/repositories/$owner/$repo'
-      preLoaderRoute: typeof Char91Char93RepositoriesOwnerRepoRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -486,6 +464,7 @@ const rootRouteChildren: RootRouteChildren = {
   RobotsDottxtRoute: RobotsDottxtRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   SponsoringRoute: SponsoringRoute,
+  UserRepoRoute: UserRepoRoute,
   Char91Char93SlugRoute: Char91Char93SlugRoute,
   Char91Char93GithubRoute: Char91Char93GithubRoute,
   Char91Char93SponsoringRoute: Char91Char93SponsoringRoute,
@@ -501,9 +480,6 @@ const rootRouteChildren: RootRouteChildren = {
   Char91Char93OrganizationsSlugRoute: Char91Char93OrganizationsSlugRoute,
   OgKindLoginRoute: OgKindLoginRoute,
   Char91Char93MetricsIndexRoute: Char91Char93MetricsIndexRoute,
-  Char91Char93RepositoriesIndexRoute: Char91Char93RepositoriesIndexRoute,
-  Char91Char93RepositoriesOwnerRepoRoute:
-    Char91Char93RepositoriesOwnerRepoRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

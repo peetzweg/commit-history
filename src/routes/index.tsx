@@ -22,6 +22,18 @@ import {
 	LEADERBOARD_SUBTITLE,
 } from "#/lib/leaderboard-display";
 import { getOrgLeaderboard, type OrgLeaderEntry } from "#/lib/org";
+import { fmt, fmtLowerBound } from "#/lib/repo-format";
+import { isStatsTruncated } from "#/lib/repo-metrics";
+import {
+	getRepoLeaderboard,
+	isRepoMetric,
+	REPO_DEFAULT_METRIC,
+	REPO_METRIC_HEADING,
+	REPO_METRIC_SUBTITLE,
+	REPO_METRIC_UNIT,
+	type RepoLeaderEntry,
+	type RepoMetric,
+} from "#/lib/repositories";
 import { cn } from "#/lib/utils";
 
 // Leaderboard metrics that live in the URL as `?metric=…`. "public" (commits) is the default and
@@ -41,11 +53,23 @@ function isLeaderMetricParam(v: unknown): v is LeaderMode {
 }
 
 interface HomeSearch {
-	/** Selected leaderboard metric; absent = the default (commits). */
-	metric?: LeaderMode;
-	/** Which board is shown; absent = developers, "org" = the organization board. */
-	kind?: "org";
+	/**
+	 * Selected leaderboard metric; absent = the board's default (commits for developers, stars for
+	 * repositories). Its vocabulary depends on `kind`: the repository board has its own metrics.
+	 */
+	metric?: LeaderMode | RepoMetric;
+	/** Which board is shown; absent = developers. */
+	kind?: "org" | "repo";
 }
+
+// The GitHub-wide aggregate is the same whichever board is shown. Cached in the query client so
+// toggling `?kind=` (a loader dep) doesn't refetch it: in development it scans every monthly row
+// and takes ~18s, which made the board toggle look broken.
+const githubHistoryQuery = {
+	queryKey: ["github-history"],
+	queryFn: () => getGithubHistory(),
+	staleTime: 10 * 60_000,
+};
 
 // Organization board page size — a single page for now (the board is young); swap for the
 // LEADERBOARD_PAGE_STOPS infinite-scroll pattern when it outgrows this.
@@ -67,22 +91,37 @@ const RANKING_POST_SLUG: Partial<Record<LeaderMode, string>> = {
 export const Route = createFileRoute("/")({
 	// `?metric=` selects the leaderboard type so a view can be shared; invalid/absent → commits.
 	// `?kind=org` flips the board to organizations (same clean-URL convention: default is absent).
-	validateSearch: (search: Record<string, unknown>): HomeSearch => ({
-		...(isLeaderMetricParam(search.metric) ? { metric: search.metric } : {}),
-		...(search.kind === "org" ? { kind: "org" as const } : {}),
-	}),
+	validateSearch: (search: Record<string, unknown>): HomeSearch => {
+		if (search.kind === "repo") {
+			return {
+				kind: "repo",
+				...(isRepoMetric(search.metric) && search.metric !== REPO_DEFAULT_METRIC
+					? { metric: search.metric }
+					: {}),
+			};
+		}
+		return {
+			...(isLeaderMetricParam(search.metric) ? { metric: search.metric } : {}),
+			...(search.kind === "org" ? { kind: "org" as const } : {}),
+		};
+	},
 	// The share card follows the board on show: the org board gets its own "Organization
 	// leaderboard" card, the default the "Developer leaderboard" one (both static, built by
 	// scripts/generate-og.ts). Read the board from `match.search` (not loaderData — depending on
 	// the loader's output here closes a type cycle with loaderDeps that collapses inference).
 	head: ({ match }: { match: { search: HomeSearch } }) => {
 		const isOrg = match.search.kind === "org";
-		const title = isOrg
-			? "Organization leaderboard — Commit History"
-			: "Developer leaderboard — Commit History";
-		const description = isOrg
-			? "GitHub organizations ranked by their members’ lifetime commits."
-			: "GitHub developers ranked by their lifetime commits.";
+		const isRepo = match.search.kind === "repo";
+		const title = isRepo
+			? "Repository leaderboard — Commit History"
+			: isOrg
+				? "Organization leaderboard — Commit History"
+				: "Developer leaderboard — Commit History";
+		const description = isRepo
+			? "Open-source GitHub repositories ranked by stars, commits, contributors and activity."
+			: isOrg
+				? "GitHub organizations ranked by their members’ lifetime commits."
+				: "GitHub developers ranked by their lifetime commits.";
 		const ogImage = `https://commit-history.com/og/leaderboard/${
 			isOrg ? "org" : "developer"
 		}.png`;
@@ -101,23 +140,41 @@ export const Route = createFileRoute("/")({
 		};
 	},
 	// The board kind changes what the loader fetches, so it's a loader dep — toggling re-runs it.
-	loaderDeps: ({ search }) => ({ kind: search.kind }),
-	loader: async ({ deps }) => {
-		if (deps.kind === "org") {
-			const [recent, orgs, github] = await Promise.all([
+	// The repository board ranks server-side per metric, so its metric is a dep too; the developer
+	// board's metric is not (its Leaderboard pages through useInfiniteQuery itself).
+	loaderDeps: ({ search }) => ({
+		kind: search.kind,
+		repoMetric:
+			search.kind === "repo" && isRepoMetric(search.metric)
+				? search.metric
+				: REPO_DEFAULT_METRIC,
+	}),
+	loader: async ({ deps, context }) => {
+		const github = context.queryClient.ensureQueryData(githubHistoryQuery);
+		const none = {
+			orgs: [] as OrgLeaderEntry[],
+			repos: [] as RepoLeaderEntry[],
+		};
+		if (deps.kind === "org" || deps.kind === "repo") {
+			const [recent, orgs, repos] = await Promise.all([
 				getRecentLookups(),
-				getOrgLeaderboard({
-					data: { offset: 0, limit: ORG_PAGE_SIZE },
-				}),
-				getGithubHistory(),
+				deps.kind === "org"
+					? getOrgLeaderboard({ data: { offset: 0, limit: ORG_PAGE_SIZE } })
+					: none.orgs,
+				deps.kind === "repo"
+					? getRepoLeaderboard({ data: { metric: deps.repoMetric } })
+					: none.repos,
 			]);
-			return { recent, leaderboard: [] as LeaderEntry[], orgs, github };
+			return {
+				recent,
+				leaderboard: [] as LeaderEntry[],
+				orgs,
+				repos,
+				github: await github,
+			};
 		}
-		const [start, github] = await Promise.all([
-			getStartPageData(),
-			getGithubHistory(),
-		]);
-		return { ...start, orgs: [] as OrgLeaderEntry[], github };
+		const start = await getStartPageData();
+		return { ...start, ...none, github: await github };
 	},
 	component: Home,
 });
@@ -187,6 +244,8 @@ function Home() {
 			</div>
 			{kind === "org" ? (
 				<OrgBoard rows={initial.orgs} />
+			) : kind === "repo" ? (
+				<RepoBoard rows={initial.repos} />
 			) : (
 				initial.leaderboard.length > 0 && (
 					<Leaderboard initialPage={initial.leaderboard} />
@@ -233,20 +292,19 @@ function GithubTotal({
 }
 
 /**
- * Centered tab bar above the leaderboard heading, switching between the developer and
- * organization boards via `?kind=`. Switching also drops `?metric=` — the organization board
- * ranks by commits only (per-metric org boards can follow), so a stale metric param would be
- * meaningless.
+ * Centered tab bar above the leaderboard heading, switching between the developer, organization
+ * and repository boards via `?kind=`. Switching also drops `?metric=`: each board has its own
+ * metric vocabulary (the organization board has none yet), so a carried-over one is meaningless.
  */
 function BoardKindToggle() {
 	const { kind } = Route.useSearch();
 	const navigate = useNavigate();
-	const set = (next: "user" | "org") =>
+	const set = (next: "user" | "org" | "repo") =>
 		navigate({
 			to: ".",
 			search: (prev) => ({
 				...prev,
-				kind: next === "org" ? ("org" as const) : undefined,
+				kind: next === "user" ? undefined : next,
 				metric: undefined,
 			}),
 			replace: true,
@@ -258,6 +316,7 @@ function BoardKindToggle() {
 				[
 					["user", "Developers"],
 					["org", "Organizations"],
+					["repo", "Repositories"],
 				] as const
 			).map(([k, label]) => (
 				<button
@@ -428,7 +487,7 @@ function Leaderboard({ initialPage }: { initialPage: LeaderEntry[] }) {
 	// The leaderboard metric lives in `?metric=` (written by the shared MetricBar); we just read it
 	// here to rank the list. Commits is the default and stays param-free.
 	const { metric } = Route.useSearch();
-	const mode = metric ?? "public";
+	const mode: LeaderMode = isLeaderMetricParam(metric) ? metric : "public";
 	// Carry the selected metric into the profile links so a click keeps the current view. Commits is
 	// the profile default (clean URL, no param), and followers has no chart, so both omit it.
 	const linkMetric =
@@ -661,6 +720,102 @@ function OrgBoard({ rows }: { rows: OrgLeaderEntry[] }) {
 					if (i === 4 && rows.length > 5)
 						items.push(<SponsorRow key="sponsor" slot="org" />);
 					return items;
+				})}
+			</ol>
+		</section>
+	);
+}
+
+/**
+ * The repository board (#212 prototype): tracked repositories ranked by the metric in `?metric=`
+ * (stars by default), picked in the shared metric bar like the developer board. Same row anatomy
+ * as the organization board. Rows link to the repository's GitHub path, /<owner>/<repo>.
+ * Repositories enter the board via scripts/refresh-repos.ts; there is no lookup-to-add yet.
+ */
+function RepoBoard({ rows }: { rows: RepoLeaderEntry[] }) {
+	const { metric } = Route.useSearch();
+	const mode = isRepoMetric(metric) ? metric : REPO_DEFAULT_METRIC;
+	if (rows.length === 0) {
+		return (
+			<p className="mt-14 text-center text-sm text-muted-foreground">
+				No repositories on the board yet.
+			</p>
+		);
+	}
+	return (
+		<section className="mt-14">
+			<div className="sticky top-0 z-20 border-border border-b bg-background pt-3 pb-3">
+				<h2 className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-2xl font-bold tracking-tight">
+					<span className="font-hand font-normal text-3xl text-primary leading-none">
+						{REPO_METRIC_HEADING[mode]}
+					</span>
+					repository leaderboard
+				</h2>
+				<p className="mt-1.5 text-xs text-muted-foreground">
+					{REPO_METRIC_SUBTITLE[mode]}
+				</p>
+			</div>
+			<ol>
+				{rows.map((repo, i) => {
+					const value = repo[mode];
+					const truncated =
+						mode === "activeContributorsLastYear" &&
+						isStatsTruncated(repo.contributorStatsRows, repo.contributors);
+					return (
+						<li key={repo.id} className="border-border border-b">
+							<Link
+								to="/$user/$repo"
+								params={{ user: repo.owner, repo: repo.name }}
+								preload={false}
+								className="group flex w-full items-center gap-3 py-2.5 text-left hover:bg-muted"
+							>
+								<span className="flex w-6 items-center justify-center text-sm tabular-nums text-muted-foreground">
+									{i === 0 ? (
+										<img
+											src="/crown.svg"
+											alt="1st place"
+											className="h-4 w-auto"
+										/>
+									) : (
+										i + 1
+									)}
+								</span>
+								<img
+									src={repo.ownerAvatarUrl ?? ""}
+									alt=""
+									className="h-8 w-8 rounded-lg border border-border"
+								/>
+								<span className="flex min-w-0 flex-1 items-center gap-1.5 truncate font-medium">
+									{/* The name keeps its width on desktop; only the hover description truncates.
+									    On phones the description is hidden, so the name truncates instead. */}
+									<span className="truncate sm:shrink-0">
+										<span className="font-normal text-muted-foreground">
+											{repo.owner}/
+										</span>
+										{repo.name}
+									</span>
+									{repo.isArchived && (
+										<span className="shrink-0 rounded border border-border px-1 text-xs font-normal text-muted-foreground">
+											archived
+										</span>
+									)}
+									{repo.description && (
+										<span className="hidden min-w-0 truncate font-normal text-muted-foreground opacity-0 transition-opacity duration-200 sm:inline desktop:group-hover:opacity-100 desktop:group-focus-within:opacity-100">
+											{repo.description}
+										</span>
+									)}
+								</span>
+								<span className="text-right">
+									<span className="block font-semibold tabular-nums">
+										{truncated ? fmtLowerBound(value, true) : fmt(value)}
+									</span>
+									<span className="block text-xs text-muted-foreground tabular-nums">
+										{REPO_METRIC_UNIT[mode]}
+									</span>
+								</span>
+							</Link>
+						</li>
+					);
 				})}
 			</ol>
 		</section>

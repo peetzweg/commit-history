@@ -4,18 +4,28 @@ import { fmt, fmtLowerBound, relativeAge } from "#/lib/repo-format";
 import { isStatsTruncated } from "#/lib/repo-metrics";
 import { getRepository, type RepoMonthRow } from "#/lib/repositories";
 
-/** One repository's numbers and monthly history (#212 prototype). See [-].repositories.index.tsx. */
-export const Route = createFileRoute("/-/repositories/$owner/$repo")({
+/**
+ * One repository's numbers and monthly history (#212 prototype), at the repository's own GitHub
+ * path: /paritytech/polkadot-sdk. The trailing underscore in the file name (`$user_`) keeps this
+ * route out of the /$user layout, so it is a sibling of the profile page, not a child of it.
+ *
+ * Only repositories already tracked render; anything else is a 404 without a GitHub request, so
+ * two-segment scanner probes (/wp-admin/setup.php, …) cost one indexed read. Static two-segment
+ * routes (/embed/…, /metrics/…, /og/…) outrank this dynamic one, which shadows repositories of
+ * accounts with those logins, the same trade-off the reserved words already make for /$user.
+ */
+export const Route = createFileRoute("/$user_/$repo")({
 	loader: async ({ params }) => {
 		const detail = await getRepository({
-			data: { owner: params.owner, name: params.repo },
+			data: { owner: params.user, name: params.repo },
 		});
 		if (!detail) throw notFound();
 		return detail;
 	},
 	head: ({ params }) => ({
 		meta: [
-			{ title: `${params.owner}/${params.repo} · Repository leaderboard` },
+			{ title: `${params.user}/${params.repo} — repository stats` },
+			// Prototype: kept out of search until repositories are tracked in production.
 			{ name: "robots", content: "noindex" },
 		],
 	}),
@@ -54,7 +64,8 @@ function RepoPage() {
 	return (
 		<main className="mx-auto max-w-5xl px-6 py-12">
 			<Link
-				to="/-/repositories"
+				to="/"
+				search={{ kind: "repo" }}
 				className="text-sm text-muted-foreground hover:text-foreground"
 			>
 				← repository leaderboard
