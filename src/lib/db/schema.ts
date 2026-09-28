@@ -209,3 +209,115 @@ export const lookups = pgTable(
 		index("lookups_searched_at_idx").on(t.searchedAt),
 	],
 );
+
+/**
+ * A tracked GitHub repository — the repository leaderboard's current state (#212). Deliberately a
+ * separate table rather than `entities` with kind 'repo': dozens of user/org queries read
+ * `entities.total_*` and a repo row there would silently leak into those aggregates.
+ *
+ * `id` is the lowercased `owner/name` the repo was first tracked under. A rename keeps the id and
+ * updates `owner`/`name`; `githubNodeId` is the immutable identity. Every metric column is
+ * nullable: null = never measured, distinct from a real 0.
+ */
+export const repositories = pgTable("repositories", {
+	id: text("id").primaryKey(),
+	githubNodeId: text("github_node_id"),
+	owner: text("owner").notNull(),
+	name: text("name").notNull(),
+	description: text("description"),
+	ownerAvatarUrl: text("owner_avatar_url"),
+	primaryLanguage: text("primary_language"),
+	license: text("license"), // SPDX id; null when GitHub can't classify it
+	createdAt: timestamp("created_at", { withTimezone: true }),
+	pushedAt: timestamp("pushed_at", { withTimezone: true }),
+	isArchived: boolean("is_archived"),
+	isFork: boolean("is_fork"),
+	// Read from GitHub on every refresh, never assumed to be main/master.
+	defaultBranch: text("default_branch"),
+	defaultBranchTipSha: text("default_branch_tip_sha"),
+	// Latest snapshot (GraphQL, exact at `metricsFetchedAt`).
+	stars: integer("stars"),
+	forks: integer("forks"),
+	watchers: integer("watchers"),
+	commits: integer("commits"), // commits reachable from the default-branch tip (merges included)
+	commitsLastYear: integer("commits_last_year"), // same history, committed in the trailing 365 days
+	openIssues: integer("open_issues"),
+	closedIssues: integer("closed_issues"),
+	openPullRequests: integer("open_pull_requests"),
+	mergedPullRequests: integer("merged_pull_requests"),
+	closedPullRequests: integer("closed_pull_requests"), // closed without merge
+	releases: integer("releases"),
+	// REST /contributors?anon=true: distinct contributors by author email, anonymous included.
+	contributors: integer("contributors"),
+	anonymousContributors: integer("anonymous_contributors"), // not linked to a GitHub account
+	// Derived from GitHub contributor statistics (REST /stats/contributors), which exclude merge
+	// and empty commits and usually return only the top 100 contributors — see github-repo.ts.
+	contributorStatsRows: integer("contributor_stats_rows"), // 100 = truncated; the two below are lower bounds
+	activeContributorsLastYear: integer("active_contributors_last_year"), // ≥1 commit in last 52 weeks
+	busFactor: integer("bus_factor"), // fewest contributors authoring ≥50% of all counted commits
+	metricsFetchedAt: timestamp("metrics_fetched_at", { withTimezone: true }),
+	// Null = contributor statistics never computed yet (GitHub answered 202). The stats columns above
+	// then hold whatever the last successful read produced, and the UI must not call them fresh.
+	statsFetchedAt: timestamp("stats_fetched_at", { withTimezone: true }),
+	// Tip SHA the statistics were computed for. GitHub caches stats per default-branch SHA.
+	statsTipSha: text("stats_tip_sha"),
+	// Stars were back-filled per month from `stargazers.starredAt`. Null = not (yet) — or skipped
+	// because the repo is over the job's star cap.
+	starsBackfilledAt: timestamp("stars_backfilled_at", { withTimezone: true }),
+	// GitHub no longer resolves the repo (deleted, made private, or transferred away).
+	unreachableAt: timestamp("unreachable_at", { withTimezone: true }),
+});
+
+/**
+ * One point-in-time reading per repo per UTC day. Stock metrics (stars, open issues, …) have no
+ * reliable back-history on GitHub, so their trend exists only from the day we started reading
+ * them. Re-reading on the same day overwrites that day's row — the upsert is idempotent.
+ */
+export const repositorySnapshots = pgTable(
+	"repository_snapshots",
+	{
+		repoId: text("repo_id")
+			.notNull()
+			.references(() => repositories.id),
+		day: date("day").notNull(),
+		stars: integer("stars").notNull(),
+		forks: integer("forks").notNull(),
+		watchers: integer("watchers").notNull(),
+		commits: integer("commits").notNull(),
+		openIssues: integer("open_issues").notNull(),
+		openPullRequests: integer("open_pull_requests").notNull(),
+		mergedPullRequests: integer("merged_pull_requests").notNull(),
+		releases: integer("releases").notNull(),
+		contributors: integer("contributors"), // null when GitHub refuses to list them
+		measuredAt: timestamp("measured_at", { withTimezone: true }).notNull(),
+	},
+	(t) => [primaryKey({ columns: [t.repoId, t.day] })],
+);
+
+/**
+ * Per-month *flow* metrics, back-filled to the repo's first month. Unlike the stocks above, every
+ * one of these can be reconstructed from GitHub after the fact: commit history windows, search
+ * counts over created/closed/merged dates, contributor-statistics weeks, and stargazer timestamps.
+ *
+ * Only closed months are stored, and a row is final once `fetchedAt` is at/after the month's end
+ * (same rule as monthly_commits). Nullable columns are filled by optional sources.
+ */
+export const repositoryMonthly = pgTable(
+	"repository_monthly",
+	{
+		repoId: text("repo_id")
+			.notNull()
+			.references(() => repositories.id),
+		month: date("month").notNull(), // YYYY-MM-01
+		commits: integer("commits").notNull(), // default-branch commits committed in the month
+		issuesOpened: integer("issues_opened").notNull(),
+		issuesClosed: integer("issues_closed").notNull(),
+		pullRequestsOpened: integer("pull_requests_opened").notNull(),
+		pullRequestsMerged: integer("pull_requests_merged").notNull(),
+		activeContributors: integer("active_contributors"), // from contributor stats; null = pending
+		newContributors: integer("new_contributors"), // first counted commit fell in this month
+		starsGained: integer("stars_gained"), // null = stars not back-filled
+		fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull(),
+	},
+	(t) => [primaryKey({ columns: [t.repoId, t.month] })],
+);

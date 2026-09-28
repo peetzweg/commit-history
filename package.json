@@ -10,7 +10,7 @@
     "generate-routes": "tsr generate",
     "og": "tsx scripts/generate-og.ts",
     "build": "tsx scripts/generate-og.ts && vite build && pnpm run build:worker",
-    "build:worker": "esbuild scripts/monthly-user-refresh.ts scripts/refresh-orgs.ts scripts/profile-ingestion-worker.ts scripts/profile-ingestion-queue-migrate.ts scripts/enqueue-profile-ingestion.ts --bundle --platform=node --target=node24 --format=esm --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\" --outdir=.output/worker --out-extension:.js=.mjs",
+    "build:worker": "esbuild scripts/monthly-user-refresh.ts scripts/refresh-orgs.ts scripts/refresh-repos.ts scripts/profile-ingestion-worker.ts scripts/profile-ingestion-queue-migrate.ts scripts/enqueue-profile-ingestion.ts --bundle --platform=node --target=node24 --format=esm --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\" --outdir=.output/worker --out-extension:.js=.mjs",
     "start": "node .output/server/index.mjs",
     "preview": "vite preview",
     "test": "vitest run",

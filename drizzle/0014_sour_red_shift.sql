@@ -1,0 +1,1 @@
+ALTER TABLE "repositories" ADD COLUMN "contributor_stats_rows" integer;

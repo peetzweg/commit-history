@@ -321,7 +321,7 @@ async function graphqlOnce<T>(
 	if (json.errors?.length) {
 		const msg = json.errors.map((e) => e.message).join("; ");
 		// A missing user/org is a hard 404; anything else (incl. heavy-query timeouts) is a transient 502.
-		if (/could not resolve to an? (user|organization)/i.test(msg)) {
+		if (/could not resolve to an? (user|organization|repository)/i.test(msg)) {
 			throw new GitHubError(msg, 404);
 		}
 		// The primary GraphQL rate limit arrives as HTTP 200 + RATE_LIMITED — map it to 429 so it
@@ -344,9 +344,10 @@ async function graphqlOnce<T>(
  * GitHub GraphQL request with bounded retries. Transient failures (secondary-rate-limit, 429,
  * 5xx, heavy-query timeouts) are retried with capped backoff; hard failures (401/404) throw
  * immediately. Backoff honors Retry-After but is clamped to MAX_BACKOFF_MS so a request never
- * hangs on GitHub's multi-minute abuse cooldowns.
+ * hangs on GitHub's multi-minute abuse cooldowns. Exported for the repository fetchers
+ * (github-repo.ts), which share this retry policy.
  */
-async function graphql<T>(token: string, query: string): Promise<T> {
+export async function graphql<T>(token: string, query: string): Promise<T> {
 	let lastError: GitHubError | undefined;
 	for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
 		const result = await graphqlOnce<T>(token, query);
