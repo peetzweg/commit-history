@@ -62,9 +62,11 @@ interface HomeSearch {
 	kind?: "org" | "repo";
 }
 
-// The GitHub-wide aggregate is the same whichever board is shown. Cached in the query client so
-// toggling `?kind=` (a loader dep) doesn't refetch it: in development it scans every monthly row
-// and takes ~18s, which made the board toggle look broken.
+// The GitHub-wide aggregate under the title. In development it scans every monthly row and takes
+// ~13-18s (production disables it, see isGithubHistoryEnabled), so it must never gate navigation:
+// the loader awaits it only while server-rendering (the SSR query integration hands the result to
+// the client), and after a client-side navigation GithubTotal fills in whenever it arrives.
+// Awaiting it in the loader made every board toggle and every link back to / hang.
 const githubHistoryQuery = {
 	queryKey: ["github-history"],
 	queryFn: () => getGithubHistory(),
@@ -150,7 +152,11 @@ export const Route = createFileRoute("/")({
 				: REPO_DEFAULT_METRIC,
 	}),
 	loader: async ({ deps, context }) => {
-		const github = context.queryClient.ensureQueryData(githubHistoryQuery);
+		if (typeof window === "undefined") {
+			await context.queryClient.ensureQueryData(githubHistoryQuery);
+		} else {
+			void context.queryClient.prefetchQuery(githubHistoryQuery);
+		}
 		const none = {
 			orgs: [] as OrgLeaderEntry[],
 			repos: [] as RepoLeaderEntry[],
@@ -170,11 +176,10 @@ export const Route = createFileRoute("/")({
 				leaderboard: [] as LeaderEntry[],
 				orgs,
 				repos,
-				github: await github,
 			};
 		}
 		const start = await getStartPageData();
-		return { ...start, ...none, github: await github };
+		return { ...start, ...none };
 	},
 	component: Home,
 });
@@ -219,7 +224,7 @@ function Home() {
 			<p className="mt-4 text-center text-lg text-muted-foreground">
 				A GitHub user’s cumulative commits over their whole lifetime.
 			</p>
-			<GithubTotal history={initial.github} />
+			<GithubTotal />
 
 			<form onSubmit={submit} className="mt-10 flex items-stretch gap-2">
 				<div className="flex min-w-0 flex-1 items-center rounded-md border shadow-inner focus-within:shadow-[0_0_0_0.125em_var(--ring)]">
@@ -267,12 +272,9 @@ function Home() {
 	);
 }
 
-function GithubTotal({
-	history,
-}: {
-	history: Awaited<ReturnType<typeof getGithubHistory>>;
-}) {
-	if (!history.enabled) return null;
+function GithubTotal() {
+	const { data: history } = useQuery(githubHistoryQuery);
+	if (!history?.enabled) return null;
 	const months = history.points.map((point) => metricDelta(point, "total"));
 	const total = months.reduce((sum, value) => sum + value, 0);
 	if (history.points.length === 0) return null;
