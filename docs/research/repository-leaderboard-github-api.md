@@ -157,7 +157,9 @@ polkadot-sdk's complete history (106 months back to 2017-11, including 29 pages 
   142 and 160 contributors listed by `/contributors?anon=true`. Very large repositories returned
   about 500 rows. It is still the only source of per-week, per-author activity, so the prototype
   uses it for active contributors, the bus factor and monthly contributor activity, and marks
-  those numbers as lower bounds when the answer has 100 or more rows.
+  those numbers as lower bounds whenever the statistics have fewer rows than `/contributors`
+  lists. The account-linked count can't be the yardstick: `/contributors` links only the first
+  500 emails, so rust-lang/rust shows 442 linked against 499 statistics rows and 8,839 listed.
 - `/stats/contributors` can answer `200 []` while it is still computing (seen on anza-xyz/agave),
   not only `202`. An empty list for a repository that has commits has to be treated as pending.
 - `/contributors` answers 403 "history or contributor list is too large" for torvalds/linux, so

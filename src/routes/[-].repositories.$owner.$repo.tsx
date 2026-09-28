@@ -47,7 +47,6 @@ function RepoPage() {
 	const truncated = isStatsTruncated(
 		repo.contributorStatsRows,
 		repo.contributors,
-		repo.anonymousContributors,
 	);
 	const statsStale =
 		!repo.statsFetchedAt || repo.statsTipSha !== repo.defaultBranchTipSha;

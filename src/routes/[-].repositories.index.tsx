@@ -173,7 +173,6 @@ function Row({
 											isStatsTruncated(
 												repo.contributorStatsRows,
 												repo.contributors,
-												repo.anonymousContributors,
 											),
 										)
 									: fmt(repo[c.key])}

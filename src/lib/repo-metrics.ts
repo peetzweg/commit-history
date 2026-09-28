@@ -78,18 +78,19 @@ export function summarizeContributors(
 }
 
 /**
- * Whether the statistics cover fewer people than GitHub lists as account-linked contributors. The
- * cap is not documented and not constant (100 rows for substrate, ~500 for rust-lang/rust, 495 of
- * 381 linked for polkadot-sdk), so compare against the list instead of guessing a number. Unknown
- * counts → false: nothing to claim either way.
+ * Whether stats-derived numbers must be shown as lower bounds: the statistics have fewer rows than
+ * GitHub lists contributors. Deliberately conservative. The row cap is undocumented and not
+ * constant (100 for substrate, ~500 for rust-lang/rust), and the account-linked count can't serve
+ * as the yardstick because /contributors links only the first 500 emails. Some fully covered repos
+ * get a needless "≥" (an author with two emails counts twice in the list), but a truncated one is
+ * never presented as complete. Unknown count → false: nothing to claim either way.
  */
 export function isStatsTruncated(
 	statsRows: number | null,
 	contributors: number | null,
-	anonymousContributors: number | null,
 ): boolean {
 	if (statsRows == null || contributors == null) return false;
-	return statsRows < contributors - (anonymousContributors ?? 0);
+	return statsRows < contributors;
 }
 
 /** Fewest contributors covering ≥50% of commits. 0 when there are no counted commits. */

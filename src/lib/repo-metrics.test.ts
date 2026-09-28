@@ -157,12 +157,11 @@ describe("fetchContributorCounts", () => {
 });
 
 describe("isStatsTruncated", () => {
-	it("compares statistics rows with the account-linked contributor count", () => {
-		// substrate: 100 rows, 483 listed of which 102 unlinked.
-		expect(isStatsTruncated(100, 483, 102)).toBe(true);
-		// polkadot-sdk: 495 rows cover all 381 linked contributors.
-		expect(isStatsTruncated(495, 870, 489)).toBe(false);
-		// torvalds/linux: GitHub refuses the list.
-		expect(isStatsTruncated(500, null, null)).toBe(false);
+	it("treats statistics with fewer rows than listed contributors as lower bounds", () => {
+		expect(isStatsTruncated(100, 483)).toBe(true); // substrate
+		// rust-lang/rust: 499 rows, 8,839 listed; the linked count (442) is itself capped.
+		expect(isStatsTruncated(499, 8839)).toBe(true);
+		expect(isStatsTruncated(20, 17)).toBe(false); // polkadot-api
+		expect(isStatsTruncated(500, null)).toBe(false); // torvalds/linux: list refused
 	});
 });
