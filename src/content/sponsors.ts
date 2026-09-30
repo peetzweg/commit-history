@@ -41,12 +41,7 @@ export interface SponsorCreative {
 }
 
 export const SPONSORS: Record<SponsorSlotId, SponsorCreative | null> = {
-	dev: {
-		name: "SteadyMaps",
-		tagline: "First-party maps for business websites",
-		href: "https://steadymaps.com/?utm_source=commit-history.com&utm_medium=leaderboard&utm_campaign=commit-history_sponsorship&utm_content=developer-slot-5",
-		logo: "https://steadymaps.com/assets/steadymaps-cfd27e1a18b1.svg",
-	},
+	dev: null,
 	// No paid org sponsor yet → the board shows the self-advertising empty row. When the org slot
 	// sells via Stripe, drop the sponsor's creative here and deploy.
 	org: null,
