@@ -118,8 +118,9 @@ export interface BudgetGuard {
 
 /**
  * Keeps a run above `remainingFloor` GraphQL points. The token is shared with live site traffic, so
- * a batch job that drains the hourly quota takes the site down with it. Polling costs nothing but a
- * round-trip, so we poll every `pollEvery` requests and decrement locally in between.
+ * a batch job that drains the hourly quota takes the site down with it. Each poll costs a point
+ * (GitHub's minimum query cost), so we poll every `pollEvery` requests, decrement locally in
+ * between, and count the poll's reported cost in `spent()`.
  *
  * Below the floor the only options are "wait for the window to reset" or "stop". Waiting is allowed
  * only if it fits inside the remaining max-runtime budget: a scheduled job that sleeps past its
@@ -167,6 +168,8 @@ export function createBudgetGuard(opts: {
 
 			const budget = await fetchRateLimit();
 			sincePoll = 0;
+			// The probe is a GraphQL query too. `remaining` already reflects it; the run total must too.
+			if (budget) total += budget.cost ?? 1;
 			if (!budget) {
 				// The poll itself failed. Don't invent a budget; let the request try and fail.
 				logger.warn(`${label} status=budget_poll_failed`);

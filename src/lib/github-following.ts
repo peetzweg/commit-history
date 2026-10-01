@@ -1,4 +1,11 @@
 import { GitHubError, isValidLogin } from "#/lib/github";
+import {
+	type GitHubOutcome,
+	outcomeForHttpStatus,
+	parseRateLimitHeaders,
+	type RateLimitSnapshot,
+	recordGitHubCall,
+} from "#/lib/telemetry";
 
 const PAGE_SIZE = 100;
 const REST_REMAINING_FLOOR = 500;
@@ -35,15 +42,34 @@ export async function fetchFollowing(
 		);
 		url.searchParams.set("per_page", String(PAGE_SIZE));
 		url.searchParams.set("page", String(page));
-		const response = await fetch(url, {
-			headers: {
-				Accept: "application/vnd.github+json",
-				Authorization: `Bearer ${token}`,
-				"User-Agent": "commit-history",
-				"X-GitHub-Api-Version": "2022-11-28",
-			},
-			signal,
-		});
+		const startedAt = performance.now();
+		let response: Response;
+		try {
+			response = await fetch(url, {
+				headers: {
+					Accept: "application/vnd.github+json",
+					Authorization: `Bearer ${token}`,
+					"User-Agent": "commit-history",
+					"X-GitHub-Api-Version": "2022-11-28",
+				},
+				signal,
+			});
+		} catch (error) {
+			recordPage("network_error", null, startedAt);
+			throw error;
+		}
+		const rateLimit = parseRateLimitHeaders(response.headers);
+		recordPage(
+			response.ok
+				? "ok"
+				: outcomeForHttpStatus(
+						response.status,
+						rateLimit,
+						response.headers.get("retry-after"),
+					),
+			rateLimit,
+			startedAt,
+		);
 		if (!response.ok) {
 			const retryAfter = response.headers.get("retry-after");
 			const suffix = retryAfter ? ` Retry after ${retryAfter}s.` : "";
@@ -116,6 +142,21 @@ export async function fetchFollowing(
 			}
 		}
 	}
+}
+
+/** Each page is one REST request against the `core` budget, recorded like any GraphQL call. */
+function recordPage(
+	outcome: GitHubOutcome,
+	rateLimit: RateLimitSnapshot | null,
+	startedAt: number,
+): void {
+	recordGitHubCall({
+		api: "rest",
+		operation: "fetchFollowing",
+		outcome,
+		durationMs: performance.now() - startedAt,
+		rateLimit,
+	});
 }
 
 function hasNextPage(link: string | null, rowCount: number): boolean {

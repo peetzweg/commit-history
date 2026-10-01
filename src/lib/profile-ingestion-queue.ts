@@ -71,6 +71,18 @@ export interface ProfileIngestionQueue {
 	stop(): Promise<void>;
 }
 
+/**
+ * Keep pg-boss's own queue-depth snapshots and backlog/slow-query warnings in its tables, so
+ * backlog and failure history survive process restarts (#202). Bounded to two weeks, matching the
+ * metrics retention in Grafana Cloud.
+ */
+export const QUEUE_HISTORY_OPTIONS = {
+	persistQueueStats: true,
+	queueStatRetentionDays: 14,
+	persistWarnings: true,
+	warningRetentionDays: 14,
+} satisfies Partial<ConstructorOptions>;
+
 /** A bounded pg-boss pool. Polling is deliberate; no session-pinned LISTEN connection is needed. */
 export function createProfileIngestionBoss(
 	connectionString: string,
@@ -82,6 +94,7 @@ export function createProfileIngestionBoss(
 		application_name: "commit-history-profile-ingestion",
 		useListenNotify: false,
 		migrate: false,
+		...QUEUE_HISTORY_OPTIONS,
 		...overrides,
 		createSchema: overrides.createSchema ?? overrides.migrate ?? false,
 	});

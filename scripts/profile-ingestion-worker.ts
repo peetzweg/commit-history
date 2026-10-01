@@ -8,14 +8,26 @@ import { backfillProfileNetwork } from "#/lib/profile-network-backfill";
 import {
 	createProfileIngestionBoss,
 	createProfileIngestionQueue,
+	PROFILE_INGESTION_DEAD_LETTER_QUEUE_NAME,
+	PROFILE_INGESTION_QUEUE_NAME,
 } from "#/lib/profile-ingestion-queue";
 import { createProfileNetworkDiscovery } from "#/lib/profile-network-discovery";
 import { claimNetworkDiscovery } from "#/lib/profile-network-capacity";
 import {
 	createProfileNetworkBoss,
 	createProfileNetworkQueue,
+	PROFILE_NETWORK_DEAD_QUEUE_NAME,
+	PROFILE_NETWORK_QUEUE_NAME,
 } from "#/lib/profile-network-queue";
 import { createProfileNetworkDiscoveryStore } from "#/lib/profile-network-store";
+import {
+	createJobOutcomeRecorder,
+	type JobOutcomeRecorder,
+	observeQueues,
+	readQueueSnapshots,
+} from "#/lib/queue-telemetry";
+import { withGitHubSource } from "#/lib/telemetry";
+import { startTelemetry } from "#/lib/telemetry-node";
 
 const connectionString = process.env.DATABASE_URL;
 const token = process.env.GITHUB_TOKEN;
@@ -56,6 +68,33 @@ const discoverProfileNetwork = createProfileNetworkDiscovery({
 let stopping = false;
 let startup: Promise<void> | undefined;
 let backfillTimer: ReturnType<typeof setInterval> | undefined;
+
+// No-op unless an OTLP endpoint is configured.
+const telemetry = startTelemetry({
+	serviceName: "commit-history-worker",
+	defaultSource: "profile-worker",
+});
+let recordJob: JobOutcomeRecorder = () => {};
+if (telemetry.meter) {
+	observeQueues(
+		telemetry.meter,
+		// The final export on shutdown runs after pg-boss has stopped; skip the read then.
+		async () =>
+			stopping
+				? []
+				: readQueueSnapshots(boss, database, [
+						PROFILE_INGESTION_QUEUE_NAME,
+						PROFILE_INGESTION_DEAD_LETTER_QUEUE_NAME,
+						PROFILE_NETWORK_QUEUE_NAME,
+						PROFILE_NETWORK_DEAD_QUEUE_NAME,
+					]),
+		(error) =>
+			console.warn(
+				`profile-ingestion-worker status=queue_metrics_error error=${JSON.stringify(String(error))}`,
+			),
+	);
+	recordJob = createJobOutcomeRecorder(telemetry.meter);
+}
 
 for (const signal of ["SIGTERM", "SIGINT"] as const) {
 	process.once(signal, () => void shutdown(signal));
@@ -125,11 +164,13 @@ if (!stopping) {
 					.set({ unavailableAt: null })
 					.where(eq(profileNetworkMembers.memberGithubNodeId, job.githubNodeId));
 			}
+			recordJob(PROFILE_INGESTION_QUEUE_NAME, result.status, Date.now() - startedAt);
 			console.log(
 				`profile-ingestion-worker status=${result.status} login=${JSON.stringify(job.login)} node_id=${JSON.stringify(job.githubNodeId)} duration_ms=${Date.now() - startedAt}`,
 			);
 			return result;
 		} catch (error) {
+			recordJob(PROFILE_INGESTION_QUEUE_NAME, "failed", Date.now() - startedAt);
 			console.error(
 				`profile-ingestion-worker status=failed login=${JSON.stringify(job.login)} node_id=${JSON.stringify(job.githubNodeId)} duration_ms=${Date.now() - startedAt} error=${JSON.stringify(String(error))}`,
 			);
@@ -142,7 +183,10 @@ if (!stopping) {
 			`profile-network-worker status=started login=${JSON.stringify(job.login)} node_id=${JSON.stringify(job.ownerGithubNodeId)}`,
 		);
 		try {
-			const result = await discoverProfileNetwork(job, { token, signal });
+			const result = await withGitHubSource("network-discovery", () =>
+				discoverProfileNetwork(job, { token, signal }),
+			);
+			recordJob(PROFILE_NETWORK_QUEUE_NAME, "completed", Date.now() - startedAt);
 			console.log(
 				`profile-network-worker status=completed login=${JSON.stringify(job.login)} node_id=${JSON.stringify(job.ownerGithubNodeId)} members=${result.membersFound} enqueued=${result.profilesEnqueued} duration_ms=${Date.now() - startedAt}`,
 			);
@@ -150,9 +194,11 @@ if (!stopping) {
 		} catch (error) {
 			if (String(error).includes("Network discovery is paused while the ingestion queue is busy.")) {
 				await networkQueue.defer(job, new Date(Date.now() + 5 * 60_000));
+				recordJob(PROFILE_NETWORK_QUEUE_NAME, "deferred", Date.now() - startedAt);
 				console.log(`profile-network-worker status=deferred login=${JSON.stringify(job.login)} reason=profile_queue_busy`);
 				return { membersFound: 0, profilesEnqueued: 0 };
 			}
+			recordJob(PROFILE_NETWORK_QUEUE_NAME, "failed", Date.now() - startedAt);
 			console.error(
 				`profile-network-worker status=failed login=${JSON.stringify(job.login)} node_id=${JSON.stringify(job.ownerGithubNodeId)} duration_ms=${Date.now() - startedAt} error=${JSON.stringify(String(error))}`,
 			);
@@ -197,6 +243,8 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
 			`profile-ingestion-worker status=shutdown_error error=${JSON.stringify(String(error))}`,
 		);
 	} finally {
+		// Flush the final export while the pool can still answer the queue gauges.
+		await telemetry.shutdown();
 		await database.$client.end({ timeout: 5 }).catch(() => {});
 	}
 	console.log(`profile-ingestion-worker status=stopped code=${exitCode}`);

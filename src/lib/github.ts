@@ -17,6 +17,14 @@
  * separate, opaque all-types count that GitHub does not break down by type.
  */
 
+import {
+	type GitHubOperation,
+	type GitHubOutcome,
+	outcomeForHttpStatus,
+	parseRateLimitHeaders,
+	recordGitHubCall,
+} from "#/lib/telemetry";
+
 const GITHUB_GRAPHQL = "https://api.github.com/graphql";
 
 // GitHub logins contain only ASCII alphanumerics and hyphens, 1-39 chars. This is ONLY an
@@ -277,25 +285,60 @@ export function yearlyWindows(start: Date, now: Date): MonthWindow[] {
 	return windows;
 }
 
-/** One GitHub GraphQL request, no retries. `retryAfterMs` carries a parsed Retry-After (if any). */
+/**
+ * One GitHub GraphQL request, no retries. `retryAfterMs` carries a parsed Retry-After (if any).
+ * Every attempt is recorded for telemetry, including retries, so their spend stays visible; the
+ * rate-limit headers ride along on the response, so no separate budget query is needed for that.
+ */
 async function graphqlOnce<T>(
 	token: string,
 	query: string,
+	operation: GitHubOperation,
 ): Promise<{ data: T } | { error: GitHubError; retryAfterMs: number | null }> {
-	const res = await fetch(GITHUB_GRAPHQL, {
-		method: "POST",
-		headers: {
-			Authorization: `Bearer ${token}`,
-			"Content-Type": "application/json",
-			"User-Agent": "commit-history",
-		},
-		body: JSON.stringify({ query }),
-	});
+	const startedAt = performance.now();
+	let res: Response;
+	try {
+		res = await fetch(GITHUB_GRAPHQL, {
+			method: "POST",
+			headers: {
+				Authorization: `Bearer ${token}`,
+				"Content-Type": "application/json",
+				"User-Agent": "commit-history",
+			},
+			body: JSON.stringify({ query }),
+		});
+	} catch (error) {
+		recordGitHubCall({
+			api: "graphql",
+			operation,
+			outcome: "network_error",
+			durationMs: performance.now() - startedAt,
+			rateLimit: null,
+		});
+		throw error;
+	}
+	const rateLimit = parseRateLimitHeaders(res.headers);
+	const record = (outcome: GitHubOutcome) =>
+		recordGitHubCall({
+			api: "graphql",
+			operation,
+			outcome,
+			durationMs: performance.now() - startedAt,
+			rateLimit,
+		});
 
 	if (res.status === 401) {
+		record("unauthorized");
 		throw new GitHubError("GitHub token is missing or invalid.", 401);
 	}
 	if (!res.ok) {
+		record(
+			outcomeForHttpStatus(
+				res.status,
+				rateLimit,
+				res.headers.get("retry-after"),
+			),
+		);
 		const ra = Number(res.headers.get("retry-after"));
 		return {
 			error: new GitHubError(`GitHub API error (${res.status}).`, res.status),
@@ -313,6 +356,7 @@ async function graphqlOnce<T>(
 		// GitHub occasionally 200s with an empty/truncated body. Left uncaught, res.json()'s raw
 		// SyntaxError ("Unexpected end of JSON input") would bypass the retry loop and surface to
 		// the user — map it to a transient 502 so it retries like any other server hiccup.
+		record("malformed");
 		return {
 			error: new GitHubError("GitHub returned a malformed response.", 502),
 			retryAfterMs: null,
@@ -322,21 +366,26 @@ async function graphqlOnce<T>(
 		const msg = json.errors.map((e) => e.message).join("; ");
 		// A missing user/org is a hard 404; anything else (incl. heavy-query timeouts) is a transient 502.
 		if (/could not resolve to an? (user|organization)/i.test(msg)) {
+			record("not_found");
 			throw new GitHubError(msg, 404);
 		}
 		// The primary GraphQL rate limit arrives as HTTP 200 + RATE_LIMITED — map it to 429 so it
 		// fails fast like the HTTP-level rate limits instead of being retried as a transient 502.
 		if (json.errors.some((e) => e.type === "RATE_LIMITED")) {
+			record("rate_limited");
 			return { error: new GitHubError(msg, 429), retryAfterMs: null };
 		}
+		record("graphql_error");
 		return { error: new GitHubError(msg, 502), retryAfterMs: null };
 	}
 	if (!json.data) {
+		record("malformed");
 		return {
 			error: new GitHubError("Empty response from GitHub.", 502),
 			retryAfterMs: null,
 		};
 	}
+	record("ok");
 	return { data: json.data };
 }
 
@@ -346,10 +395,14 @@ async function graphqlOnce<T>(
  * immediately. Backoff honors Retry-After but is clamped to MAX_BACKOFF_MS so a request never
  * hangs on GitHub's multi-minute abuse cooldowns.
  */
-async function graphql<T>(token: string, query: string): Promise<T> {
+async function graphql<T>(
+	token: string,
+	query: string,
+	operation: GitHubOperation,
+): Promise<T> {
 	let lastError: GitHubError | undefined;
 	for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-		const result = await graphqlOnce<T>(token, query);
+		const result = await graphqlOnce<T>(token, query, operation);
 		if ("data" in result) return result.data;
 
 		lastError = result.error;
@@ -377,11 +430,14 @@ export interface RateLimitBudget {
 	remaining: number;
 	/** ISO timestamp when the window resets and `remaining` returns to the full quota. */
 	resetAt: string;
+	/** Points this probe itself cost. GitHub charges every GraphQL query at least one point. */
+	cost?: number;
 }
 
 /**
- * Current GraphQL points budget for the token. `rateLimit` queries cost 0 points, so batch jobs
- * can poll this to stay above a reserved floor (the token is SHARED with live site traffic).
+ * Current GraphQL points budget for the token, so batch jobs can poll this to stay above a
+ * reserved floor (the token is SHARED with live site traffic). The probe is not free: GitHub's
+ * minimum query cost is one point, which it reports back as `cost` for budget accounting.
  * Best-effort: returns null if the poll itself fails, so a caller can only ever *add* caution.
  */
 export async function fetchRateLimitBudget(
@@ -389,8 +445,12 @@ export async function fetchRateLimitBudget(
 ): Promise<RateLimitBudget | null> {
 	try {
 		const data = await graphql<{
-			rateLimit: { remaining: number; resetAt: string } | null;
-		}>(token, `query { rateLimit { remaining resetAt } }`);
+			rateLimit: { remaining: number; resetAt: string; cost: number } | null;
+		}>(
+			token,
+			`query { rateLimit { cost remaining resetAt } }`,
+			"fetchRateLimitBudget",
+		);
 		return data.rateLimit ?? null;
 	} catch {
 		return null;
@@ -440,6 +500,7 @@ export async function fetchProfile(
 			following { totalCount }
 			repositories(ownerAffiliations: OWNER, privacy: PUBLIC) { totalCount }
 		} }`,
+		"fetchProfile",
 	);
 	if (!data.user) throw new GitHubError(`User "${login}" not found.`, 404);
 	const u = data.user;
@@ -462,6 +523,7 @@ export async function fetchProfileByNodeId(
 				repositories(ownerAffiliations: OWNER, privacy: PUBLIC) { totalCount }
 			}
 		} }`,
+		"fetchProfileByNodeId",
 	);
 	if (!data.node) throw new GitHubError("GitHub user no longer exists.", 404);
 	return profileFromGraphQL(data.node);
@@ -547,6 +609,7 @@ export async function fetchOrgProfile(
 			membersWithRole { totalCount }
 			repositories(privacy: PUBLIC) { totalCount }
 		} }`,
+		"fetchOrgProfile",
 	);
 	if (!data.organization)
 		throw new GitHubError(`Organization "${login}" not found.`, 404);
@@ -616,6 +679,7 @@ export async function fetchOrgMembers(
 					edges { role node { login name avatarUrl createdAt } }
 				}
 			} }`,
+			"fetchOrgMembers",
 		);
 		const conn = data.organization?.membersWithRole;
 		if (!conn) throw new GitHubError(`Organization "${login}" not found.`, 404);
@@ -688,7 +752,11 @@ export async function fetchOrgMemberContributions(
 					totalPullRequestReviewContributions: number;
 				}
 			> | null;
-		}>(token, `query { user(login: "${login}") { ${aliases} } }`);
+		}>(
+			token,
+			`query { user(login: "${login}") { ${aliases} } }`,
+			"fetchOrgMemberContributions",
+		);
 		if (!data.user) throw new GitHubError(`User "${login}" not found.`, 404);
 		const sums: OrgMemberTotals = {
 			commits: 0,
@@ -786,7 +854,11 @@ export async function fetchMonthlyCommits(
 					totalRepositoryContributions: number;
 				}
 			>;
-		}>(token, `query { user(login: "${login}") { ${aliases} } }`);
+		}>(
+			token,
+			`query { user(login: "${login}") { ${aliases} } }`,
+			"fetchMonthlyCommits",
+		);
 		return batch.map((_, i) => {
 			const w = res.user[`w${i}`];
 			return {

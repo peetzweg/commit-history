@@ -43,6 +43,7 @@ import {
 } from "#/lib/github";
 import { runOrgRefresh } from "#/lib/org-refresh";
 import { createOrgRefreshStore } from "#/lib/org-refresh-store";
+import { startTelemetry } from "#/lib/telemetry-node";
 
 const VALID_FLAGS = new Set([
 	"dry-run",
@@ -71,6 +72,12 @@ const GITHUB_TOKEN = env.GITHUB_TOKEN;
 if (!DATABASE_URL) throw new Error("DATABASE_URL is required.");
 if (!GITHUB_TOKEN) throw new Error("GITHUB_TOKEN is required.");
 if (!db) throw new Error("Database client failed to initialise.");
+
+// No-op unless an OTLP endpoint is configured; flushed in shutdown() so a short run still exports.
+const telemetry = startTelemetry({
+	serviceName: "commit-history-refresh-orgs",
+	defaultSource: "organization-refresh",
+});
 
 const maxRuntimeMinutes = numberValue(
 	flags,
@@ -122,7 +129,7 @@ const result = await runOrgRefresh({
 	),
 	maxRuntimeMs: maxRuntimeMinutes * 60_000,
 	// The token is shared with live site traffic, so the run polls its own GraphQL budget and
-	// refuses to spend below the floor. `rateLimit` queries cost 0 points.
+	// refuses to spend below the floor. Each poll costs one point and is counted in the spend.
 	fetchRateLimit: () => fetchRateLimitBudget(GITHUB_TOKEN),
 	fetchOrgProfile,
 	fetchOrgMembers,
@@ -158,6 +165,7 @@ async function shutdown(code: number): Promise<never> {
 		);
 		process.exit(code);
 	});
+	await telemetry.shutdown();
 	await db?.$client.end({ timeout: 5 }).catch(() => {});
 	process.exit(code);
 }
