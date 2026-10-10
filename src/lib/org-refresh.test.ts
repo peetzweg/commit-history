@@ -81,11 +81,13 @@ class FakeStore implements OrgRefreshStore {
 		this.locked = false;
 	}
 
-	async orgsNeedingEnumeration(since: Date, limit: number) {
+	async orgsNeedingEnumeration(since: Date, limit: number, logins?: string[]) {
+		const wanted = logins?.map((l) => `org:${l.toLowerCase()}`);
 		return [...this.orgs.entries()]
 			.filter(
-				([, o]) =>
-					o.membersEnumeratedAt == null || o.membersEnumeratedAt < since,
+				([id, o]) =>
+					(o.membersEnumeratedAt == null || o.membersEnumeratedAt < since) &&
+					(!wanted || wanted.includes(id)),
 			)
 			.sort(([aId, a], [bId, b]) => {
 				const at = a.membersEnumeratedAt?.getTime() ?? -1;
@@ -177,9 +179,12 @@ class FakeStore implements OrgRefreshStore {
 			);
 	}
 
-	async countDueMembers(staleBefore: Date) {
+	async countDueMembers(staleBefore: Date, logins?: string[]) {
+		const wanted = logins?.map((l) => `org:${l.toLowerCase()}`);
 		return this.members.filter(
-			(r) => r.lastFetched == null || r.lastFetched < staleBefore,
+			(r) =>
+				(r.lastFetched == null || r.lastFetched < staleBefore) &&
+				(!wanted || wanted.includes(r.orgId)),
 		).length;
 	}
 
@@ -733,6 +738,55 @@ describe("runOrgRefresh named orgs", () => {
 		expect(result.status).toBe("completed");
 		// The other org's stale member is left alone, and no enumeration happened.
 		expect(result.orgsEnumerated).toBe(0);
+		expect(
+			store.members.find((r) => r.memberId === "user:c")?.lastFetched,
+		).toEqual(LAST_MONTH);
+	});
+});
+
+describe("runOrgRefresh scoped to viewed orgs", () => {
+	it("re-enumerates and refreshes only the scoped org, and only what predates the month", async () => {
+		// The lazy worker mode: someone viewed NixOS. Its membership is from last month and one of
+		// its members is already current; another org is entirely stale but nobody looked at it.
+		const store = new FakeStore([
+			{
+				login: "NixOS",
+				enumeratedAt: LAST_MONTH,
+				members: [
+					{ login: "current", lastFetched: MONTH_START },
+					{ login: "stale", lastFetched: LAST_MONTH },
+				],
+			},
+			{
+				login: "other",
+				enumeratedAt: LAST_MONTH,
+				members: [{ login: "c", lastFetched: LAST_MONTH }],
+			},
+		]);
+		const enumerated: string[] = [];
+		const fetched: string[] = [];
+		const result = await runOrgRefresh(
+			options(store, {
+				orgs: ["NixOS"],
+				fetchOrgMembers: async (login) => {
+					enumerated.push(login);
+					return {
+						members: [memberOf("current"), memberOf("stale")],
+						truncated: false,
+					};
+				},
+				fetchOrgMemberContributions: async (login) => {
+					fetched.push(login);
+					return TOTALS;
+				},
+			}),
+		);
+
+		expect(enumerated).toEqual(["NixOS"]);
+		expect(fetched).toEqual(["stale"]);
+		expect(result.status).toBe("completed");
+		// Due count is scoped too, so the worker can tell this org is done.
+		expect(result.dueRemaining).toBe(0);
 		expect(
 			store.members.find((r) => r.memberId === "user:c")?.lastFetched,
 		).toEqual(LAST_MONTH);

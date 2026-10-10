@@ -20,7 +20,7 @@ export function createOrgRefreshStore(database: DB): OrgRefreshStore {
 		tryLock: lock.tryLock,
 		releaseLock: lock.releaseLock,
 
-		async orgsNeedingEnumeration(since, limit) {
+		async orgsNeedingEnumeration(since, limit, logins) {
 			const rows = await database
 				.select({ id: entities.id, login: entities.login })
 				.from(entities)
@@ -33,6 +33,7 @@ export function createOrgRefreshStore(database: DB): OrgRefreshStore {
 							isNull(entities.membersEnumeratedAt),
 							lt(entities.membersEnumeratedAt, since),
 						),
+						logins ? sql`${entities.id} in ${orgIdList(logins)}` : undefined,
 					),
 				)
 				// Nulls first: never enumerated means the request path recorded the org and refused to
@@ -171,7 +172,7 @@ export function createOrgRefreshStore(database: DB): OrgRefreshStore {
 			);
 		},
 
-		async countDueMembers(staleBefore) {
+		async countDueMembers(staleBefore, logins) {
 			// Must apply exactly the filters `memberQueue` does, or the number never reaches zero and
 			// reads as "the job is not converging" when in fact nothing is left that it can fetch.
 			const [row] = await database.execute<{ n: number | string }>(sql`
@@ -184,7 +185,8 @@ export function createOrgRefreshStore(database: DB): OrgRefreshStore {
 				  and o.created_at is not null
 				  and o.suspended_at is null
 				  and u.suspended_at is null
-				  and u.unreachable_at is null`);
+				  and u.unreachable_at is null
+				  ${logins ? sql`and om.org_id in ${orgIdList(logins)}` : sql``}`);
 			return Number(row?.n ?? 0);
 		},
 
