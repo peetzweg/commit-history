@@ -491,6 +491,31 @@ describe("profile ingestion", () => {
 		expect(github.fetchedChunks).toEqual([]);
 	});
 
+	it("defers background work when the shared quota cannot be read", async () => {
+		const store = new MemoryStore();
+		const github = new FakeGitHub();
+		github.budget = null;
+		const run = createProfileIngestion({
+			store,
+			github,
+			chunkMonths: 2,
+			timeMs: () => NOW.getTime(),
+		});
+
+		const result = await run(TARGET, {
+			token: "token",
+			now: NOW,
+			remainingFloor: 500,
+		});
+
+		expect(result).toEqual({
+			status: "deferred",
+			retryAt: new Date(NOW.getTime() + 5 * 60_000),
+		});
+		expect(github.profileCalls).toBe(0);
+		expect(github.fetchedChunks).toEqual([]);
+	});
+
 	it("follows an immutable identity through a rename and preserves its durable months", async () => {
 		const { run, store, github } = setup();
 		const original = await store.saveProfile({
