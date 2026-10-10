@@ -6,6 +6,12 @@ import type { LeaderMode } from "#/lib/commit-history";
 import { ALL_METRICS, METRIC_LABEL } from "#/lib/metrics";
 import type { LookupResult } from "#/lib/org";
 import { profileMetricModes } from "#/lib/profile-metric-modes";
+import {
+	REPO_DEFAULT_METRIC,
+	REPO_METRIC_LABEL,
+	REPO_METRICS,
+	type RepoMetric,
+} from "#/lib/repositories";
 
 // The leaderboard offers every metric; the chart offers the subset a profile actually has data for.
 const LEADER_MODES: LeaderMode[] = [
@@ -44,10 +50,14 @@ export function MetricBar() {
 	const userMatch = useMatch({ from: "/$user", shouldThrow: false });
 	const lookup = userMatch?.loaderData as LookupResult | undefined;
 
+	// The repository board has its own vocabulary and default (stars), so it gets its own
+	// control; the pill is the same persistent component, so switching boards morphs it.
+	const repoBoard = routeId === "/" && boardKind === "repo";
+
 	let modes: LeaderMode[] | null = null;
 	if (routeId === "/") {
 		// The organization board (?kind=org) ranks by commits only — no metric to pick yet.
-		modes = boardKind === "org" ? null : LEADER_MODES;
+		modes = boardKind === "org" || repoBoard ? null : LEADER_MODES;
 	} else if (routeId === "/-/github") {
 		// The aggregate page always exposes the full contribution vocabulary. A metric may be zero
 		// in an early database, but keeping its tab stable makes the page's interface predictable.
@@ -100,6 +110,32 @@ export function MetricBar() {
 			resetScroll: false,
 		});
 
+	if (repoBoard) {
+		const repoValue = REPO_METRICS.includes(metric as RepoMetric)
+			? (metric as RepoMetric)
+			: REPO_DEFAULT_METRIC;
+		return (
+			<SegmentedControl
+				options={REPO_METRICS.map((m) => ({
+					value: m,
+					label: REPO_METRIC_LABEL[m],
+				}))}
+				value={repoValue}
+				onChange={(m) =>
+					navigate({
+						to: ".",
+						search: (prev) => ({
+							...prev,
+							metric: m === REPO_DEFAULT_METRIC ? undefined : m,
+						}),
+						replace: true,
+						resetScroll: false,
+					})
+				}
+				placement="bottom"
+			/>
+		);
+	}
 	if (!present) return null;
 	return (
 		<>
