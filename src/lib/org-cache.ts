@@ -1,4 +1,4 @@
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
 import { recordLookup } from "#/lib/cache";
 import { type DB, db } from "#/lib/db";
 import { entities, orgMembers } from "#/lib/db/schema";
@@ -29,7 +29,8 @@ import {
  *
  * Divergences from the user cache, both deliberate:
  * - No frontier refresh: a stale org refreshes profile metadata only (1 request). Re-fetching
- *   contributions costs ~2 requests × members and belongs to the background worker.
+ *   contributions costs ~2 requests × members and belongs to the background worker, which a view
+ *   asks for (`queueRefreshIfDue`) once the org's numbers predate the current month.
  * - No in-memory fallback: a build spans requests, so without a database there is nothing to
  *   resume from.
  */
@@ -153,6 +154,7 @@ async function getFromDb(
 		// Record the lookup before the size check so even an oversized org we refuse to build
 		// still surfaces in "recently looked up" — the row exists and the strip links to /$user.
 		await recordLookup(database, id, now);
+		if (profile.memberCount > MAX_ORG_MEMBERS) queueRefresh(row.login);
 		assertBuildable(profile);
 	} else {
 		// Known org, revisited: bump its recency so it re-sorts to the front of the strip.
@@ -161,6 +163,8 @@ async function getFromDb(
 
 	const complete = row.builtAt != null;
 	const fresh = row.lastFetched && nowMs - row.lastFetched.getTime() < ORG_TTL;
+
+	if (complete) queueRefreshIfDue(database, row, now);
 
 	if (complete && fresh) {
 		return summaryFromRow(row, await memberRowCount(database, id), now);
@@ -198,6 +202,7 @@ async function getFromDb(
 	// it — cheaply, from the stored memberCount, so a repeat lookup never pays to re-enumerate its
 	// members before bailing. (assertBuildable already caught it at first sighting.)
 	if ((row.memberCount ?? 0) > MAX_ORG_MEMBERS) {
+		queueRefresh(row.login);
 		throw new GitHubError(tooLargeMessage(login, row.memberCount ?? 0), 422);
 	}
 
@@ -284,6 +289,56 @@ async function getFromDb(
 		membersTotal,
 		now,
 	);
+}
+
+/**
+ * Hand the org to the worker. Fire-and-forget: the page must render from what is stored even if
+ * the queue is unreachable, and a repeat view simply asks again. The producer pulls in pg-boss,
+ * so it is imported lazily to keep it out of the client graph.
+ */
+function queueRefresh(login: string) {
+	void import("#/lib/org-refresh-producer")
+		.then(({ requestOrgRefresh }) => requestOrgRefresh(login))
+		.catch((error) => {
+			console.error(
+				`org-refresh status=enqueue_failed login=${login} error=${JSON.stringify(String(error))}`,
+			);
+		});
+}
+
+/**
+ * Only completed months matter, so a built org is due once its membership or any member's totals
+ * were last read before the current UTC month began. Checked per view; the queue coalesces repeats.
+ */
+function queueRefreshIfDue(database: DB, row: EntityRow, now: Date) {
+	const monthStart = new Date(
+		Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
+	);
+	if (!row.membersEnumeratedAt || row.membersEnumeratedAt < monthStart) {
+		queueRefresh(row.login);
+		return;
+	}
+	void database
+		.select({ memberId: orgMembers.memberId })
+		.from(orgMembers)
+		.where(
+			and(
+				eq(orgMembers.orgId, row.id),
+				or(
+					isNull(orgMembers.lastFetched),
+					lt(orgMembers.lastFetched, monthStart),
+				),
+			),
+		)
+		.limit(1)
+		.then((due) => {
+			if (due.length > 0) queueRefresh(row.login);
+		})
+		.catch((error) => {
+			console.error(
+				`org-refresh status=due_check_failed login=${row.login} error=${JSON.stringify(String(error))}`,
+			);
+		});
 }
 
 function assertBuildable(profile: OrgProfile) {

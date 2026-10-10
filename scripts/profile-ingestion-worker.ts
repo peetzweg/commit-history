@@ -2,7 +2,20 @@ import { eq } from "drizzle-orm";
 import { db } from "#/lib/db";
 import { entities, profileNetworkMembers } from "#/lib/db/schema";
 import { fetchFollowing } from "#/lib/github-following";
-import { fetchProfileByNodeId, fetchRateLimitBudget } from "#/lib/github";
+import {
+	fetchOrgMemberContributions,
+	fetchOrgMembers,
+	fetchOrgProfile,
+	fetchProfileByNodeId,
+	fetchRateLimitBudget,
+	yearlyWindows,
+} from "#/lib/github";
+import { runOrgRefresh } from "#/lib/org-refresh";
+import {
+	createOrgRefreshBoss,
+	createOrgRefreshQueue,
+} from "#/lib/org-refresh-queue";
+import { createOrgRefreshStore } from "#/lib/org-refresh-store";
 import { runProfileIngestion } from "#/lib/profile-ingestion";
 import { backfillProfileNetwork } from "#/lib/profile-network-backfill";
 import {
@@ -26,12 +39,27 @@ if (!connectionString) throw new Error("DATABASE_URL is required.");
 if (!token) throw new Error("GITHUB_TOKEN is required.");
 if (!db) throw new Error("Database client failed to initialise.");
 const database = db;
+// Two budget tiers on the one shared token. Work someone is looking at right now (network
+// discovery for a viewed leaderboard, a viewed org's refresh) may spend down to the reserved floor.
+// Backfill profiles arrived only through someone's network, so they stop much earlier and leave
+// the rest of each hour to viewed orgs and live lookups (which run inline in the web process).
 const remainingFloor = numberFromEnv("PROFILE_INGESTION_REMAINING_FLOOR", 500);
+const backfillFloor = Math.max(
+	remainingFloor,
+	numberFromEnv("NETWORK_BACKFILL_REMAINING_FLOOR", 2000),
+);
+// One org-refresh slice: small enough that no org monopolises the worker (microsoft is ~9k
+// requests), and re-queued behind other orgs until nothing is due.
+const ORG_SLICE_REQUESTS = 200;
+const ORG_SLICE_RUNTIME_MS = 10 * 60_000;
 
 const boss = createProfileIngestionBoss(connectionString);
 const queue = createProfileIngestionQueue(boss);
 const networkBoss = createProfileNetworkBoss(connectionString);
 const networkQueue = createProfileNetworkQueue(networkBoss);
+const orgBoss = createOrgRefreshBoss(connectionString);
+const orgQueue = createOrgRefreshQueue(orgBoss);
+const orgStore = createOrgRefreshStore(database);
 const discoverProfileNetwork = createProfileNetworkDiscovery({
 	store: createProfileNetworkDiscoveryStore(database),
 	admit: async (nodeId) => {
@@ -91,7 +119,12 @@ networkBoss.on("warning", (warning) => {
 	);
 });
 
-startup = Promise.all([queue.start(), networkQueue.start()]).then(() => undefined);
+startup = Promise.all([
+	queue.start(),
+	networkQueue.start(),
+	// Self-provisioning: the org queue is new, and creating it is idempotent.
+	orgQueue.start({ provision: true }),
+]).then(() => undefined);
 await startup;
 
 // A signal may arrive while pg-boss is starting. Shutdown then owns the connections, and no new
@@ -110,7 +143,7 @@ if (!stopping) {
 					// One queued profile at a time, and one GitHub GraphQL request at a time within
 					// that profile. Interactive lookups keep their latency-oriented bounded default.
 					monthlyRequestConcurrency: 1,
-					remainingFloor,
+					remainingFloor: backfillFloor,
 					signal,
 				},
 			);
@@ -184,8 +217,63 @@ if (!stopping) {
 			})
 			.finally(() => { backfillRunning = false; });
 	}, 5_000);
+	await orgQueue.work(async (job) => {
+		const startedAt = Date.now();
+		const result = await runOrgRefresh({
+			store: orgStore,
+			token,
+			orgs: [job.login],
+			maxRequests: ORG_SLICE_REQUESTS,
+			maxEnumerations: 1,
+			maxRuntimeMs: ORG_SLICE_RUNTIME_MS,
+			remainingFloor,
+			fetchRateLimit: () => fetchRateLimitBudget(token),
+			fetchOrgProfile,
+			fetchOrgMembers,
+			fetchOrgMemberContributions,
+			yearlyWindows,
+			logger: console,
+		});
+		let next: string;
+		if (result.status === "locked") {
+			// The local CLI holds the lock; try again shortly.
+			await orgQueue.request(job, new Date(Date.now() + 60_000));
+			next = "locked_retry";
+		} else if (
+			result.stopReason === "rate_limit_floor" ||
+			result.stopReason === "rate_limited"
+		) {
+			const budget = await fetchRateLimitBudget(token);
+			await orgQueue.request(
+				job,
+				notBeforeSoon(
+					budget
+						? new Date(budget.resetAt)
+						: new Date(Date.now() + 15 * 60_000),
+				),
+			);
+			next = "after_reset";
+		} else if (result.stopReason === "consecutive_failures") {
+			// Let pg-boss retry with backoff rather than spinning on a systemic fault.
+			throw new Error(`org refresh for ${job.login} failed repeatedly`);
+		} else if (
+			(result.dueRemaining ?? 0) > 0 &&
+			(result.membersFetched > 0 || result.orgsEnumerated > 0)
+		) {
+			// Back of the line, so other viewed orgs get their slice in between. Requiring progress
+			// stops a member that always fails from re-queueing the org forever.
+			await orgQueue.request(job, new Date(Date.now() + 5_000));
+			next = "next_slice";
+		} else {
+			next = "done";
+		}
+		console.log(
+			`org-refresh-worker status=${next} login=${JSON.stringify(job.login)} members_fetched=${result.membersFetched} due_remaining=${result.dueRemaining ?? "unknown"} duration_ms=${Date.now() - startedAt}`,
+		);
+		return { next, dueRemaining: result.dueRemaining };
+	});
 	console.log(
-		"profile-ingestion-worker status=ready ingestion_concurrency=1 network_concurrency=1",
+		`profile-ingestion-worker status=ready ingestion_concurrency=1 network_concurrency=1 org_concurrency=1 remaining_floor=${remainingFloor} backfill_floor=${backfillFloor}`,
 	);
 }
 
@@ -198,7 +286,7 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
 	try {
 		// Do not race PgBoss.start() with stop() when the platform terminates during startup.
 		await startup?.catch(() => {});
-		await Promise.all([queue.stop(), networkQueue.stop()]);
+		await Promise.all([queue.stop(), networkQueue.stop(), orgQueue.stop()]);
 	} catch (error) {
 		exitCode = 1;
 		console.error(

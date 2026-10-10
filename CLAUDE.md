@@ -31,7 +31,8 @@ the self-hosting playbook live in the private `peetzweg/devops` repo.
 
 ## Background jobs
 
-Recipe, proven by `monthly-user-refresh` and `refresh-orgs`: a CLI in `scripts/` (flags,
+Recipe, proven by `monthly-user-refresh` (org refresh used to run this way too, and now runs
+lazily as an `org-refresh` pg-boss queue in the profile worker, triggered by org views): a CLI in `scripts/` (flags,
 each mirrored by an env var) → bundled by `build:worker` into `.output/worker/<job>.mjs` →
 the Dockerfile already copies `.output`, so shipping a new job needs no Dockerfile change →
 a Coolify **scheduled task** runs `node .output/worker/<job>.mjs` (cron + `docker exec` into

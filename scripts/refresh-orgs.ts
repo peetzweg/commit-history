@@ -1,13 +1,10 @@
 /**
- * Keep every organization's numbers current. One job, one schedule, no manual upkeep.
+ * Local CLI over the org-refresh engine: a sweep across every org, or a debug refresh of named orgs.
  *
- * Bundled by `pnpm build` into `.output/worker/refresh-orgs.mjs`, which is what the production
- * image runs as a Coolify scheduled task (daily, 06:00 UTC — deliberately clear of the monthly
- * user refresh, which runs on the 1st at 03:00 and takes a couple of hours):
- *
- *   node .output/worker/refresh-orgs.mjs
- *
- * Locally, `pnpm refresh:orgs` runs this source through tsx.
+ * Production no longer runs this. Orgs refresh lazily: viewing an org whose numbers predate the
+ * current month queues an `org-refresh` job in the profile worker, which runs the same engine one
+ * bounded slice at a time (see scripts/profile-ingestion-worker.ts). This script is not bundled
+ * into `.output/worker` any more; run it from source with `pnpm refresh:orgs`.
  *
  * The engine (src/lib/org-refresh.ts) works in units of ONE (org, member) pair, so it is designed
  * to never finish and never block: it spends at most --max-requests per run, keeps a floor of the

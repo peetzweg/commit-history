@@ -1,4 +1,8 @@
 import {
+	createOrgRefreshBoss,
+	createOrgRefreshQueue,
+} from "#/lib/org-refresh-queue";
+import {
 	createProfileIngestionBoss,
 	createProfileIngestionQueue,
 } from "#/lib/profile-ingestion-queue";
@@ -14,13 +18,18 @@ const boss = createProfileIngestionBoss(connectionString, { migrate: true });
 const queue = createProfileIngestionQueue(boss);
 const networkBoss = createProfileNetworkBoss(connectionString, { migrate: true });
 const networkQueue = createProfileNetworkQueue(networkBoss);
+const orgBoss = createOrgRefreshBoss(connectionString, { migrate: true });
+const orgQueue = createOrgRefreshQueue(orgBoss);
 
 try {
 	await queue.start({ provision: true });
 	console.log("profile-ingestion-queue status=ready");
 	await networkQueue.start({ provision: true });
 	console.log("profile-network-queue status=ready");
+	await orgQueue.start({ provision: true });
+	console.log("org-refresh-queue status=ready");
 } finally {
 	await queue.stop().catch(() => {});
 	await networkQueue.stop().catch(() => {});
+	await orgQueue.stop().catch(() => {});
 }

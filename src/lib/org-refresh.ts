@@ -1,5 +1,10 @@
 /**
- * Keeps every organization's numbers current, one bounded slice per nightly run.
+ * Brings an organization's numbers up to the last completed month, one bounded slice at a time.
+ *
+ * Runs lazily: viewing an org whose numbers predate the current month (or one too large to build
+ * on the request path) queues an `org-refresh` job, and the worker calls this engine scoped to that
+ * org (`orgs`) for one slice, re-queueing until nothing is due. Orgs nobody looks at cost nothing.
+ * The unscoped mode (every org, round-robin) remains for the local CLI.
  *
  * An org's totals are the sum of its members' contributions *to that org*, so keeping an org
  * current means keeping ~N member rows current. The unit of work here is therefore **one
@@ -132,6 +137,7 @@ export interface OrgRefreshStore {
 	orgsNeedingEnumeration(
 		since: Date,
 		limit: number,
+		logins?: string[],
 	): Promise<OrgEnumerationTarget[]>;
 	/** Upsert the profile columns. Never stamps `builtAt` or `membersEnumeratedAt`. */
 	upsertOrgProfile(profile: OrgProfile, fetchedAt: Date): Promise<string>;
@@ -156,7 +162,7 @@ export interface OrgRefreshStore {
 		logins?: string[];
 	}): Promise<MemberWork[]>;
 	/** How many member rows are still due — the summary line's convergence signal. */
-	countDueMembers(staleBefore: Date): Promise<number>;
+	countDueMembers(staleBefore: Date, logins?: string[]): Promise<number>;
 	saveMemberTotals(
 		orgId: string,
 		memberId: string,
@@ -179,6 +185,12 @@ export interface RunOrgRefreshOptions {
 	 * hatch ("why are NixOS's numbers wrong") — the nightly run passes nothing and needs nothing.
 	 */
 	logins?: string[];
+	/**
+	 * Scope the run to these orgs while keeping the freshness rules: re-enumerate them if not done
+	 * this month, then refresh only their members not read since the month began. This is the
+	 * worker's lazy, view-triggered mode. Ignored when `logins` is set.
+	 */
+	orgs?: string[];
 	/** Per-run GraphQL request budget — one night's fair share of the shared token. */
 	maxRequests?: number;
 	/** Orgs to re-enumerate per run. Cheap (~1 request per 100 members) and it discovers the work. */
@@ -279,9 +291,11 @@ export async function runOrgRefresh(
 	// gets that for free *and* keeps the loop finite: a row this run stamps with `now` is no longer
 	// `< now`, so it drops out of the next page instead of coming back forever.
 	const staleBefore = logins ? now : currentMonthStart(now);
+	const orgs = !logins && opts.orgs?.length ? opts.orgs : undefined;
+	const scope = logins ?? orgs;
 
 	logger.info(
-		`org-refresh startup utc_now=${now.toISOString()} stale_before=${staleBefore.toISOString()} dry_run=${dryRun}${logins ? ` logins=${logins.join(",")}` : ""} max_requests=${maxRequests} max_enumerations=${maxEnumerations} rate_per_hour=${ratePerHour} remaining_floor=${opts.fetchRateLimit ? remainingFloor : "unenforced"} poll_every=${pollEvery} member_pages=${memberPages} max_runtime_minutes=${opts.maxRuntimeMs ? Math.round(opts.maxRuntimeMs / 60_000) : "none"}`,
+		`org-refresh startup utc_now=${now.toISOString()} stale_before=${staleBefore.toISOString()} dry_run=${dryRun}${logins ? ` logins=${logins.join(",")}` : ""}${orgs ? ` orgs=${orgs.join(",")}` : ""} max_requests=${maxRequests} max_enumerations=${maxEnumerations} rate_per_hour=${ratePerHour} remaining_floor=${opts.fetchRateLimit ? remainingFloor : "unenforced"} poll_every=${pollEvery} member_pages=${memberPages} max_runtime_minutes=${opts.maxRuntimeMs ? Math.round(opts.maxRuntimeMs / 60_000) : "none"}`,
 	);
 
 	const result = emptyResult(dryRun);
@@ -325,9 +339,10 @@ export async function runOrgRefresh(
 		// Phase 1 — re-read memberships. First because it *discovers* work: a joiner (or a member
 		// revealed by a raised page cap) becomes a never-fetched row that phase 2 then prioritises.
 		// Skipped for named orgs: naming an org means refreshing its numbers, not hunting joiners.
-		if (!logins) await enumerate(ctx, currentMonthStart(now), maxEnumerations);
+		if (!logins)
+			await enumerate(ctx, currentMonthStart(now), maxEnumerations, orgs);
 		// Phase 2 — drain the member queue in round-robin order until a cap stops us.
-		await refreshMembers(ctx, staleBefore, logins);
+		await refreshMembers(ctx, staleBefore, scope);
 	} catch (err) {
 		if (err instanceof StopRun) {
 			stop(result, err.reason, logger);
@@ -370,6 +385,7 @@ export async function runOrgRefresh(
 		try {
 			result.dueRemaining = await opts.store.countDueMembers(
 				currentMonthStart(now),
+				scope,
 			);
 		} catch {
 			result.dueRemaining = null;
@@ -402,9 +418,14 @@ interface Ctx {
  * per 100 members — and it is the only thing that can discover a member who joined, or who made an
  * existing membership public, after the org's initial build (#150).
  */
-async function enumerate(ctx: Ctx, since: Date, limit: number): Promise<void> {
+async function enumerate(
+	ctx: Ctx,
+	since: Date,
+	limit: number,
+	logins?: string[],
+): Promise<void> {
 	const { opts, logger, result } = ctx;
-	const targets = await opts.store.orgsNeedingEnumeration(since, limit);
+	const targets = await opts.store.orgsNeedingEnumeration(since, limit, logins);
 	logger.info(`org-refresh phase=enumerate orgs=${targets.length}`);
 
 	let consecutiveFailures = 0;
