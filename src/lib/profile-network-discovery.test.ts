@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { createProfileNetworkDiscovery } from "#/lib/profile-network-discovery";
+import {
+	createProfileNetworkDiscovery,
+	NetworkDiscoveryDeferred,
+} from "#/lib/profile-network-discovery";
 
 const job = {
 	version: 1 as const,
@@ -74,17 +77,39 @@ describe("profile network discovery", () => {
 		);
 	});
 
-	it("pauses discovery while the queue is full", async () => {
+	it("defers while the queue is full without spending a GitHub request", async () => {
+		const resolveOwner = vi.fn(async () => ({ login: "owner", following: 1 }));
 		const fetchFollowing = vi.fn(async () => [member(1)]);
+		const storage = store();
 		const discover = createProfileNetworkDiscovery({
-			store: store(),
-			resolveOwner: async () => ({ login: "owner", following: 1000 }),
+			store: storage,
+			resolveOwner,
 			admit: async () => "busy" as const,
 			fetchFollowing,
 		});
-		await expect(discover(job, { token: "token" })).rejects.toThrow(
-			"ingestion queue is busy",
-		);
+		const error = await discover(job, { token: "token" }).catch((e) => e);
+		expect(error).toBeInstanceOf(NetworkDiscoveryDeferred);
+		expect(error.reason).toBe("profile_queue_busy");
+		expect(error.retryAt.getTime()).toBeGreaterThan(Date.now());
+		expect(resolveOwner).not.toHaveBeenCalled();
 		expect(fetchFollowing).not.toHaveBeenCalled();
+		expect(storage.markFailed).not.toHaveBeenCalled();
+	});
+
+	it("defers below the token floor without spending a GitHub request", async () => {
+		const resolveOwner = vi.fn(async () => ({ login: "owner", following: 1 }));
+		const resetAt = new Date(Date.now() + 30 * 60_000);
+		const discover = createProfileNetworkDiscovery({
+			store: store(),
+			resolveOwner,
+			admit: async () => "allowed" as const,
+			budgetDeferral: async () => resetAt,
+			fetchFollowing: async () => [member(1)],
+		});
+		const error = await discover(job, { token: "token" }).catch((e) => e);
+		expect(error).toBeInstanceOf(NetworkDiscoveryDeferred);
+		expect(error.reason).toBe("rate_limit_floor");
+		expect(error.retryAt).toBe(resetAt);
+		expect(resolveOwner).not.toHaveBeenCalled();
 	});
 });

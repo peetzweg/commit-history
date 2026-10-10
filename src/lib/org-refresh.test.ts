@@ -569,6 +569,35 @@ describe("runOrgRefresh caps and failure handling", () => {
 		expect(result.stopReason).toBe("consecutive_failures");
 		expect(result.membersFetched).toBe(0);
 	});
+
+	it("stops quietly when the shared token is rate limited, leaving the member due", async () => {
+		const store = new FakeStore([
+			{
+				login: "acme",
+				enumeratedAt: NOW,
+				members: [
+					{ login: "ok", lastFetched: LAST_MONTH },
+					{ login: "limited", lastFetched: LAST_MONTH },
+				],
+			},
+		]);
+		let calls = 0;
+		const result = await runOrgRefresh(
+			options(store, {
+				fetchOrgMemberContributions: async () => {
+					calls += 1;
+					if (calls > 1) throw new GitHubError("GitHub API error (403).", 403);
+					return TOTALS;
+				},
+			}),
+		);
+
+		expect(result.status).toBe("stopped");
+		expect(result.stopReason).toBe("rate_limited");
+		expect(result.membersFetched).toBe(1);
+		expect(result.membersFailed).toBe(0);
+		expect(result.dueRemaining).toBe(1);
+	});
 });
 
 describe("runOrgRefresh bookkeeping", () => {

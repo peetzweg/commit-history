@@ -12,12 +12,30 @@ export interface ProfileNetworkDiscoveryStore {
 	markFailed(ownerGithubNodeId: string, error: string): Promise<void>;
 }
 
+/**
+ * Thrown when discovery must wait without having spent anything on GitHub. The worker reschedules
+ * the job for `retryAt` instead of counting it as a failure.
+ */
+export class NetworkDiscoveryDeferred extends Error {
+	constructor(
+		readonly reason: "profile_queue_busy" | "rate_limit_floor",
+		readonly retryAt: Date,
+	) {
+		super(`Network discovery deferred: ${reason}.`);
+	}
+}
+
+/** How long to wait before re-checking a full ingestion queue. */
+const BUSY_RETRY_MS = 5 * 60_000;
+
 interface ProfileNetworkDiscoveryDependencies {
 	store: ProfileNetworkDiscoveryStore;
-	admit?(
-		ownerGithubNodeId: string,
-		following: number,
-	): Promise<"allowed" | "busy">;
+	admit?(ownerGithubNodeId: string): Promise<"allowed" | "busy">;
+	/**
+	 * When the shared token is below its reserved floor, the time to retry at; null to proceed.
+	 * Checked before the first GitHub request so a waiting job costs nothing.
+	 */
+	budgetDeferral?(token: string): Promise<Date | null>;
 	resolveOwner(
 		githubNodeId: string,
 		token: string,
@@ -45,17 +63,21 @@ export function createProfileNetworkDiscovery(
 		job: ProfileNetworkJob,
 		opts: { token: string; signal?: AbortSignal; now?: Date },
 	): Promise<ProfileNetworkDiscoveryResult> {
+		// Both gates run before any GitHub request. A full ingestion queue used to be detected only
+		// after resolving the owner, so thousands of waiting jobs each spent a GraphQL request every
+		// five minutes just to learn "not yet" — enough to pin the shared token at zero.
+		if ((await deps.admit?.(job.ownerGithubNodeId)) === "busy") {
+			throw new NetworkDiscoveryDeferred(
+				"profile_queue_busy",
+				new Date(Date.now() + BUSY_RETRY_MS),
+			);
+		}
+		const retryAt = await deps.budgetDeferral?.(opts.token);
+		if (retryAt)
+			throw new NetworkDiscoveryDeferred("rate_limit_floor", retryAt);
+
 		try {
 			const owner = await deps.resolveOwner(job.ownerGithubNodeId, opts.token);
-			const admission = await deps.admit?.(
-				job.ownerGithubNodeId,
-				owner.following,
-			);
-			if (admission === "busy") {
-				throw new Error(
-					"Network discovery is paused while the ingestion queue is busy.",
-				);
-			}
 			const members = await deps.fetchFollowing(
 				owner.login,
 				opts.token,
