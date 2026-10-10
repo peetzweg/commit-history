@@ -2,14 +2,17 @@ import { eq } from "drizzle-orm";
 import { db } from "#/lib/db";
 import { entities, profileNetworkMembers } from "#/lib/db/schema";
 import { fetchFollowing } from "#/lib/github-following";
-import { fetchProfileByNodeId } from "#/lib/github";
+import { fetchProfileByNodeId, fetchRateLimitBudget } from "#/lib/github";
 import { runProfileIngestion } from "#/lib/profile-ingestion";
 import { backfillProfileNetwork } from "#/lib/profile-network-backfill";
 import {
 	createProfileIngestionBoss,
 	createProfileIngestionQueue,
 } from "#/lib/profile-ingestion-queue";
-import { createProfileNetworkDiscovery } from "#/lib/profile-network-discovery";
+import {
+	createProfileNetworkDiscovery,
+	NetworkDiscoveryDeferred,
+} from "#/lib/profile-network-discovery";
 import { claimNetworkDiscovery } from "#/lib/profile-network-capacity";
 import {
 	createProfileNetworkBoss,
@@ -23,6 +26,7 @@ if (!connectionString) throw new Error("DATABASE_URL is required.");
 if (!token) throw new Error("GITHUB_TOKEN is required.");
 if (!db) throw new Error("Database client failed to initialise.");
 const database = db;
+const remainingFloor = numberFromEnv("PROFILE_INGESTION_REMAINING_FLOOR", 500);
 
 const boss = createProfileIngestionBoss(connectionString);
 const queue = createProfileIngestionQueue(boss);
@@ -30,7 +34,7 @@ const networkBoss = createProfileNetworkBoss(connectionString);
 const networkQueue = createProfileNetworkQueue(networkBoss);
 const discoverProfileNetwork = createProfileNetworkDiscovery({
 	store: createProfileNetworkDiscoveryStore(database),
-	admit: async (nodeId, following) => {
+	admit: async (nodeId) => {
 		const [owner] = await database
 			.select({ id: entities.id })
 			.from(entities)
@@ -41,11 +45,16 @@ const discoverProfileNetwork = createProfileNetworkDiscovery({
 			await claimNetworkDiscovery(
 				database,
 				owner.id,
-				following,
+				null,
 				new Date(),
 				true,
 			)
 		).admission;
+	},
+	budgetDeferral: async (token) => {
+		const budget = await fetchRateLimitBudget(token);
+		if (!budget || budget.remaining > remainingFloor) return null;
+		return new Date(budget.resetAt);
 	},
 	resolveOwner: async (nodeId, token) => {
 		const owner = await fetchProfileByNodeId(nodeId, token);
@@ -101,15 +110,12 @@ if (!stopping) {
 					// One queued profile at a time, and one GitHub GraphQL request at a time within
 					// that profile. Interactive lookups keep their latency-oriented bounded default.
 					monthlyRequestConcurrency: 1,
-					remainingFloor: numberFromEnv(
-						"PROFILE_INGESTION_REMAINING_FLOOR",
-						500,
-					),
+					remainingFloor,
 					signal,
 				},
 			);
 			if (result.status === "deferred") {
-				await queue.defer(job, result.retryAt);
+				await queue.defer(job, notBeforeSoon(result.retryAt));
 			}
 			if (result.status === "unreachable" && !result.history) {
 				await database
@@ -148,9 +154,11 @@ if (!stopping) {
 			);
 			return result;
 		} catch (error) {
-			if (String(error).includes("Network discovery is paused while the ingestion queue is busy.")) {
-				await networkQueue.defer(job, new Date(Date.now() + 5 * 60_000));
-				console.log(`profile-network-worker status=deferred login=${JSON.stringify(job.login)} reason=profile_queue_busy`);
+			if (error instanceof NetworkDiscoveryDeferred) {
+				await networkQueue.defer(job, notBeforeSoon(error.retryAt));
+				console.log(
+					`profile-network-worker status=deferred login=${JSON.stringify(job.login)} reason=${error.reason}`,
+				);
 				return { membersFound: 0, profilesEnqueued: 0 };
 			}
 			console.error(
@@ -201,6 +209,14 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
 	}
 	console.log(`profile-ingestion-worker status=stopped code=${exitCode}`);
 	process.exitCode = exitCode;
+}
+
+/**
+ * GitHub's `resetAt` can already be in the past by the time a job defers (the window rolled over
+ * mid-job), and the queues reject a deferral that isn't in the future. Retry shortly instead.
+ */
+function notBeforeSoon(retryAt: Date): Date {
+	return new Date(Math.max(retryAt.getTime(), Date.now() + 30_000));
 }
 
 function numberFromEnv(name: string, fallback: number): number {

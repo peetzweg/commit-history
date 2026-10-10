@@ -76,6 +76,18 @@ const WINDOWS_PER_REQUEST = 6;
 const MAX_CONSECUTIVE_FAILURES = 3;
 
 /**
+ * GitHub refusing the token (403 secondary limit, or the primary quota mapped to 429) says nothing
+ * about this job's health: the token is shared, and another consumer can drain it. Stop cleanly and
+ * let the next run continue, rather than counting it toward `consecutive_failures` and failing the
+ * scheduled task.
+ */
+function isRateLimited(err: unknown): boolean {
+	return (
+		err instanceof GitHubError && (err.status === 403 || err.status === 429)
+	);
+}
+
+/**
  * One page of the member queue ≈ one round-robin sweep across the orgs that have due members.
  * Paged rather than fetched whole so a run never holds ~47,000 rows in memory, and so each page
  * reflects the writes of the one before it.
@@ -205,6 +217,7 @@ export interface OrgRefreshResult {
 		| "max_runtime"
 		| "max_requests"
 		| "rate_limit_floor"
+		| "rate_limited"
 		| "consecutive_failures";
 	/** Memberships re-read from GitHub. */
 	orgsEnumerated: number;
@@ -439,6 +452,7 @@ async function enumerate(ctx: Ctx, since: Date, limit: number): Promise<void> {
 			);
 		} catch (err) {
 			if (err instanceof StopRun) throw err;
+			if (isRateLimited(err)) throw new StopRun("rate_limited");
 			result.orgsFailed += 1;
 			consecutiveFailures += 1;
 			const status = err instanceof GitHubError ? err.status : undefined;
@@ -516,6 +530,7 @@ async function refreshMembers(
 				result.membersFetched += 1;
 				consecutiveFailures = 0;
 			} catch (err) {
+				if (isRateLimited(err)) throw new StopRun("rate_limited");
 				result.membersFailed += 1;
 				const permanent =
 					err instanceof GitHubError &&
