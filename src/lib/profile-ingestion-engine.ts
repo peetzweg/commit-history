@@ -106,6 +106,7 @@ interface ProfileIngestionDependencies {
 
 const CHUNK_MONTHS = 18;
 const CACHE_TTL_MS = 60_000;
+const BUDGET_UNKNOWN_RETRY_MS = 5 * 60_000;
 
 /**
  * Build the profile-ingestion operation around concrete adapters. This constructor is internal
@@ -152,6 +153,7 @@ export function createProfileIngestion(deps: ProfileIngestionDependencies) {
 			opts.token,
 			opts.remainingFloor,
 			1,
+			timeMs(),
 		);
 		if (initialDeferral) return initialDeferral;
 		opts.signal?.throwIfAborted();
@@ -227,6 +229,7 @@ export function createProfileIngestion(deps: ProfileIngestionDependencies) {
 					opts.token,
 					opts.remainingFloor,
 					chunk.length,
+					timeMs(),
 				);
 				if (deferral) return deferral;
 				const chunkCounts = await deps.github.fetchMonthlyCommits(
@@ -375,13 +378,20 @@ async function rateLimitDeferral(
 	token: string,
 	remainingFloor: number | undefined,
 	requiredHeadroom: number,
+	nowMs: number,
 ): Promise<Extract<ProfileIngestionResult, { status: "deferred" }> | null> {
 	if (remainingFloor == null) return null;
 	const floor = nonNegativeNumber(remainingFloor, "remainingFloor");
 	const budget = await github.fetchRateLimitBudget(token);
-	if (!budget || budget.remaining >= floor + Math.max(1, requiredHeadroom)) {
-		return null;
+	// A floored caller is background work, so an unreadable budget fails closed. The poll itself
+	// is rejected once the token is exhausted, and proceeding then only turns a wait into failures.
+	if (!budget) {
+		return {
+			status: "deferred",
+			retryAt: new Date(nowMs + BUDGET_UNKNOWN_RETRY_MS),
+		};
 	}
+	if (budget.remaining >= floor + Math.max(1, requiredHeadroom)) return null;
 	const retryAt = new Date(budget.resetAt);
 	if (Number.isNaN(retryAt.getTime())) {
 		throw new Error("GitHub returned an invalid rate-limit reset time.");

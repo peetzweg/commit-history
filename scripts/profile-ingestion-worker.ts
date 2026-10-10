@@ -81,7 +81,9 @@ const discoverProfileNetwork = createProfileNetworkDiscovery({
 	},
 	budgetDeferral: async (token) => {
 		const budget = await fetchRateLimitBudget(token);
-		if (!budget || budget.remaining > remainingFloor) return null;
+		// The poll is rejected once the token is exhausted; treat unknown as "not now".
+		if (!budget) return new Date(Date.now() + 5 * 60_000);
+		if (budget.remaining > remainingFloor) return null;
 		return new Date(budget.resetAt);
 	},
 	resolveOwner: async (nodeId, token) => {
