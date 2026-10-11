@@ -8,6 +8,7 @@ import {
 	fetchOrgProfile,
 	fetchProfileByNodeId,
 	fetchRateLimitBudget,
+	GitHubError,
 	yearlyWindows,
 } from "#/lib/github";
 import { runOrgRefresh } from "#/lib/org-refresh";
@@ -52,6 +53,7 @@ const backfillFloor = Math.max(
 // requests), and re-queued behind other orgs until nothing is due.
 const ORG_SLICE_REQUESTS = 200;
 const ORG_SLICE_RUNTIME_MS = 10 * 60_000;
+const RATE_LIMITED_RETRY_MS = 5 * 60_000;
 
 const boss = createProfileIngestionBoss(connectionString);
 const queue = createProfileIngestionQueue(boss);
@@ -115,6 +117,13 @@ networkBoss.on("error", (error) => {
 		`profile-network-worker status=queue_error error=${JSON.stringify(String(error))}`,
 	);
 });
+// Every pg-boss instance needs an error listener: an unhandled 'error' event kills the process,
+// and a brief database stall at the top of the hour is enough to emit one.
+orgBoss.on("error", (error) => {
+	console.error(
+		`org-refresh-worker status=queue_error error=${JSON.stringify(String(error))}`,
+	);
+});
 networkBoss.on("warning", (warning) => {
 	console.warn(
 		`profile-network-worker status=queue_warning warning=${JSON.stringify(String(warning))}`,
@@ -171,6 +180,17 @@ if (!stopping) {
 			);
 			return result;
 		} catch (error) {
+			// The budget poll can pass and the request still be refused: visitor lookups have no floor
+			// and spend the last points first, around the hourly reset. Backfill waits instead of
+			// burning a retry.
+			if (await isBudgetRefusal(error, token)) {
+				const retryAt = new Date(Date.now() + RATE_LIMITED_RETRY_MS);
+				await queue.defer(job, retryAt);
+				console.log(
+					`profile-ingestion-worker status=deferred reason=rate_limited login=${JSON.stringify(job.login)} node_id=${JSON.stringify(job.githubNodeId)} duration_ms=${Date.now() - startedAt}`,
+				);
+				return { status: "deferred", retryAt } as const;
+			}
 			console.error(
 				`profile-ingestion-worker status=failed login=${JSON.stringify(job.login)} node_id=${JSON.stringify(job.githubNodeId)} duration_ms=${Date.now() - startedAt} error=${JSON.stringify(String(error))}`,
 			);
@@ -299,6 +319,21 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
 	}
 	console.log(`profile-ingestion-worker status=stopped code=${exitCode}`);
 	process.exitCode = exitCode;
+}
+
+/**
+ * A 403/429 that coincides with an exhausted (or unreadable) budget is the shared token running
+ * dry, not something wrong with the job. Any other 403 still fails and retries normally, so a
+ * permanently forbidden profile ends in the dead-letter queue instead of deferring forever.
+ */
+async function isBudgetRefusal(
+	error: unknown,
+	githubToken: string,
+): Promise<boolean> {
+	if (!(error instanceof GitHubError)) return false;
+	if (error.status !== 403 && error.status !== 429) return false;
+	const budget = await fetchRateLimitBudget(githubToken);
+	return !budget || budget.remaining <= backfillFloor;
 }
 
 /**
