@@ -117,16 +117,14 @@ pnpm monthly:user --dry-run            # preview the cohort, no GitHub calls, no
 pnpm monthly:user --help               # every flag and its env var
 ```
 
-In production it runs as a Coolify **scheduled task** on the app image, no separate service:
+In production it runs inside the profile worker as the `monthly-user-refresh` pg-boss queue. The
+worker registers its own cron on startup (`0 4 1-3 * *` UTC, after the 03:00 database backup), so
+there is no Coolify scheduled task. Each job is a 10-minute slice that re-queues itself until the
+cohort is done, so a deploy mid-pass costs at most one slice.
 
-| Setting | Value |
-| --- | --- |
-| **Command** | `node .output/worker/monthly-user-refresh.mjs` |
-| **Schedule (UTC)** | `0 3 1 * *` main pass · `0 9 1 * *` and `0 3 2 * *` retry passes |
-
-Run it several times rather than once. Every pass is idempotent: users whose target month is
+It fires on three days rather than once. Every pass is idempotent: users whose target month is
 already **complete** are skipped without a GitHub call, so an incomplete month row *is* the retry
-queue.
+queue, and the later days only pick up what an earlier one left behind.
 
 "Complete" means the row's `monthly_commits.fetched_at` is at/after the month's own end — not
 merely that a row exists. Those differ: before `a44f442` a lookup mid-month stored a few days of
@@ -196,7 +194,6 @@ existing scheduled flow; network expansion is the only automatic queue producer.
 | **Build** | `docker build .` (or `pnpm build` for bare Node) |
 | **Run** | container `CMD` / `pnpm start` → listens on `:3000` (`PORT` overridable) |
 | **Profile worker** | `node .output/worker/profile-ingestion-worker.mjs` (domainless, concurrency 1) |
-| **Scheduled task** | `node .output/worker/monthly-user-refresh.mjs` (see above) |
 | **Environment variables** | `GITHUB_TOKEN` (required), `DATABASE_URL` (for the persistent cache + leaderboard) |
 
 ## 🛠️ Tech

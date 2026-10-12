@@ -5,12 +5,21 @@ import { fetchFollowing } from "#/lib/github-following";
 import {
 	fetchOrgMemberContributions,
 	fetchOrgMembers,
+	fetchMonthlyCommits,
 	fetchOrgProfile,
 	fetchProfileByNodeId,
 	fetchRateLimitBudget,
 	GitHubError,
 	yearlyWindows,
 } from "#/lib/github";
+import {
+	createMonthlyRefreshBoss,
+	createMonthlyRefreshQueue,
+	MONTHLY_REFRESH_CRON,
+	planMonthlyRefreshFollowUp,
+} from "#/lib/monthly-refresh-queue";
+import { runMonthlyUserRefresh } from "#/lib/monthly-user-refresh";
+import { createMonthlyUserRefreshStore } from "#/lib/monthly-user-refresh-store";
 import { runOrgRefresh } from "#/lib/org-refresh";
 import {
 	createOrgRefreshBoss,
@@ -54,6 +63,9 @@ const backfillFloor = Math.max(
 const ORG_SLICE_REQUESTS = 200;
 const ORG_SLICE_RUNTIME_MS = 10 * 60_000;
 const RATE_LIMITED_RETRY_MS = 5 * 60_000;
+// One monthly-refresh slice. The cohort (~2k users at 1,000/hour) takes a couple of hours, so it
+// runs as a chain of slices that each survive a deploy, rather than one multi-hour process.
+const MONTHLY_SLICE_RUNTIME_MS = 10 * 60_000;
 
 const boss = createProfileIngestionBoss(connectionString);
 const queue = createProfileIngestionQueue(boss);
@@ -62,6 +74,9 @@ const networkQueue = createProfileNetworkQueue(networkBoss);
 const orgBoss = createOrgRefreshBoss(connectionString);
 const orgQueue = createOrgRefreshQueue(orgBoss);
 const orgStore = createOrgRefreshStore(database);
+const monthlyBoss = createMonthlyRefreshBoss(connectionString);
+const monthlyQueue = createMonthlyRefreshQueue(monthlyBoss);
+const monthlyStore = createMonthlyUserRefreshStore(database);
 const discoverProfileNetwork = createProfileNetworkDiscovery({
 	store: createProfileNetworkDiscoveryStore(database),
 	admit: async (nodeId) => {
@@ -124,6 +139,11 @@ orgBoss.on("error", (error) => {
 		`org-refresh-worker status=queue_error error=${JSON.stringify(String(error))}`,
 	);
 });
+monthlyBoss.on("error", (error) => {
+	console.error(
+		`monthly-refresh-worker status=queue_error error=${JSON.stringify(String(error))}`,
+	);
+});
 networkBoss.on("warning", (warning) => {
 	console.warn(
 		`profile-network-worker status=queue_warning warning=${JSON.stringify(String(warning))}`,
@@ -135,6 +155,8 @@ startup = Promise.all([
 	networkQueue.start(),
 	// Self-provisioning: the org queue is new, and creating it is idempotent.
 	orgQueue.start({ provision: true }),
+	// Owns the cron that used to be three Coolify scheduled tasks.
+	monthlyQueue.start({ provision: true, schedule: true }),
 ]).then(() => undefined);
 await startup;
 
@@ -294,8 +316,36 @@ if (!stopping) {
 		);
 		return { next, dueRemaining: result.dueRemaining };
 	});
+	await monthlyQueue.work(async (job) => {
+		const startedAt = Date.now();
+		const result = await runMonthlyUserRefresh({
+			store: monthlyStore,
+			token,
+			now: new Date(),
+			targetMonth: job.targetMonth,
+			maxRuntimeMs: MONTHLY_SLICE_RUNTIME_MS,
+			remainingFloor,
+			fetchRateLimit: () => fetchRateLimitBudget(token),
+			fetchMonthlyCommits,
+			logger: console,
+		});
+		const budget =
+			result.stopReason === "rate_limit_floor"
+				? await fetchRateLimitBudget(token)
+				: null;
+		const followUp = planMonthlyRefreshFollowUp(
+			result,
+			new Date(),
+			budget ? new Date(budget.resetAt) : null,
+		);
+		if (followUp.next !== "done") await monthlyQueue.request(job, followUp.at);
+		console.log(
+			`monthly-refresh-worker status=${followUp.next} target_month=${result.targetMonth} refreshed=${result.refreshed} failed=${result.failed} unreachable=${result.unreachable} skipped_complete=${result.skippedComplete} duration_ms=${Date.now() - startedAt}`,
+		);
+		return { next: followUp.next, targetMonth: result.targetMonth };
+	});
 	console.log(
-		`profile-ingestion-worker status=ready ingestion_concurrency=1 network_concurrency=1 org_concurrency=1 remaining_floor=${remainingFloor} backfill_floor=${backfillFloor}`,
+		`profile-ingestion-worker status=ready ingestion_concurrency=1 network_concurrency=1 org_concurrency=1 monthly_cron=${JSON.stringify(MONTHLY_REFRESH_CRON)} remaining_floor=${remainingFloor} backfill_floor=${backfillFloor}`,
 	);
 }
 
@@ -308,7 +358,12 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
 	try {
 		// Do not race PgBoss.start() with stop() when the platform terminates during startup.
 		await startup?.catch(() => {});
-		await Promise.all([queue.stop(), networkQueue.stop(), orgQueue.stop()]);
+		await Promise.all([
+			queue.stop(),
+			networkQueue.stop(),
+			orgQueue.stop(),
+			monthlyQueue.stop(),
+		]);
 	} catch (error) {
 		exitCode = 1;
 		console.error(

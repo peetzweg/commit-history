@@ -31,13 +31,14 @@ the self-hosting playbook live in the private `peetzweg/devops` repo.
 
 ## Background jobs
 
-Recipe, proven by `monthly-user-refresh` (org refresh used to run this way too, and now runs
-lazily as an `org-refresh` pg-boss queue in the profile worker, triggered by org views): a CLI in `scripts/` (flags,
-each mirrored by an env var) → bundled by `build:worker` into `.output/worker/<job>.mjs` →
-the Dockerfile already copies `.output`, so shipping a new job needs no Dockerfile change →
-a Coolify **scheduled task** runs `node .output/worker/<job>.mjs` (cron + `docker exec` into
-the running app container; container TZ is UTC). Logic goes in a pure engine
-(`src/lib/<job>.ts`) over an injected store (`<job>-store.ts`) so it unit-tests against fakes.
+Background jobs run as pg-boss queues inside the profile worker
+(`scripts/profile-ingestion-worker.ts`), not as Coolify scheduled tasks: `org-refresh` is queued
+lazily by org views, `monthly-user-refresh` by a pg-boss cron the worker registers on startup
+(`src/lib/monthly-refresh-queue.ts`). Each job is a bounded **slice** that re-queues itself until
+nothing is due, so a deploy or crash costs one slice. Every pg-boss instance needs an `error`
+listener, or a database blip kills the worker. Logic goes in a pure engine (`src/lib/<job>.ts`)
+over an injected store (`<job>-store.ts`) so it unit-tests against fakes; a CLI in `scripts/`
+stays for local runs (`pnpm refresh:orgs`, `pnpm monthly:user`).
 
 Every job must: take its advisory lock from `LOCK_KEYS` in `src/lib/job-runner.ts` (unique key
 per job); use `createBudgetGuard` so it can't drain the GitHub token below the floor that live
@@ -46,8 +47,8 @@ freshness marker (**the missing row is the retry queue** — no job-state table)
 idempotent upserts; isolate per-item failures to a narrow status allowlist; and emit one
 greppable `<job> done status=… ` summary line. Size the **unit of work** so no single item can
 monopolise a run — `refresh-orgs` works one (org, member) pair at a time precisely because
-one-org-at-a-time made a 4,000-member org an indivisible multi-hour job that could never finish. Stagger schedules: the prod box has no swap and
-`docker exec` adds a second node process inside the app container.
+one-org-at-a-time made a 4,000-member org an indivisible multi-hour job that could never finish. Keep
+crons off 03:00 UTC: the daily database backup runs then and can stall connections.
 
 Two failure modes worth knowing: cleanup must release the lock **first and defensively**, or a
 crash mid-teardown leaves it held by a server-side session that outlives the process and every
