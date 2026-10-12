@@ -1,12 +1,10 @@
 /**
- * Refresh the newest completed contribution month for visible leaderboard users.
+ * Local CLI: refresh the newest completed contribution month for visible leaderboard users.
  *
- * Bundled by `pnpm build` into `.output/worker/monthly-user-refresh.mjs`, which is what the
- * production image runs as a Coolify scheduled task:
- *
- *   node .output/worker/monthly-user-refresh.mjs
- *
- * Locally, `pnpm monthly:user` runs this source directly through tsx.
+ * Production no longer runs this. The profile worker runs the same engine as the
+ * `monthly-user-refresh` pg-boss queue on its own cron (src/lib/monthly-refresh-queue.ts), in
+ * bounded slices. This script is not bundled any more; `pnpm monthly:user` runs it through tsx,
+ * for dry runs and deliberate backfills.
  *
  * Execute-by-default. Use `--dry-run` to inspect the candidate set without spending GitHub API
  * requests or writing rows. Current/future months require `--allow-incomplete-month`.
@@ -230,7 +228,6 @@ function parseMetrics(raw: string | undefined): UserRefreshMetric[] {
 function usage(): string {
 	return [
 		"Usage:",
-		"  node .output/worker/monthly-user-refresh.mjs [flags]      # built image",
 		"  pnpm monthly:user [flags]                                 # local source via tsx",
 		"",
 		"Flags override env vars:",

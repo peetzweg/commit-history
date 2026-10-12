@@ -11,7 +11,7 @@
  * so stopping early is normal and cheap, and exiting 0 with work left over is a success.
  */
 
-import type { DB } from "#/lib/db";
+import type { Sql } from "postgres";
 import type { RateLimitBudget } from "#/lib/github";
 
 export interface JobLogger {
@@ -49,40 +49,55 @@ export interface JobLock {
 }
 
 /**
- * Session-scoped advisory lock pinned to one reserved connection.
+ * Session-scoped advisory lock on its own dedicated connection.
  *
- * `database.execute` takes an arbitrary connection out of the postgres.js pool, and unlocking from
- * a different connection than the one holding the lock silently returns false. Mutual exclusion
- * would work either way (a second process is a second session), but a release that quietly no-ops
- * is a trap, so the connection is held for the run's lifetime and released in `releaseLock`.
+ * Unlocking from a different connection than the one holding the lock silently returns false, so
+ * the lock needs one connection for the run's lifetime. It must NOT come from the shared pool: the
+ * worker runs with DATABASE_POOL_MAX=2, and two jobs each pinning a pooled connection left zero for
+ * their own queries, so both waited forever (2026-10-12, org + monthly refresh on a preview).
  *
  * Keys must be unique per job — see the LOCK_KEYS table below.
  */
 export function createJobLock(
-	database: DB,
 	key1: number,
 	key2: number,
 	label: string,
+	connectionString = process.env.DATABASE_URL,
 ): JobLock {
-	let lockConn: Awaited<ReturnType<DB["$client"]["reserve"]>> | null = null;
+	let lockConn: LockConnection | null = null;
 
 	return {
 		async tryLock() {
-			lockConn = await database.$client.reserve();
-			const [row] = await lockConn<Array<{ acquired: boolean }>>`
-				select pg_try_advisory_lock(${key1}, ${key2}) as acquired`;
-			const acquired = Boolean(row?.acquired);
-			if (!acquired) {
-				lockConn.release();
-				lockConn = null;
+			if (!connectionString)
+				throw new Error(`${label} lock needs DATABASE_URL.`);
+			// Dynamic import keeps postgres.js out of any client-reachable graph.
+			const { default: postgres } = await import("postgres");
+			const conn = postgres(connectionString, {
+				max: 1,
+				prepare: false,
+				connection: { application_name: `commit-history-lock-${label}` },
+			});
+			try {
+				const [row] = await conn<Array<{ acquired: boolean }>>`
+					select pg_try_advisory_lock(${key1}, ${key2}) as acquired`;
+				if (row?.acquired) {
+					lockConn = conn;
+					return true;
+				}
+			} catch (err) {
+				await conn.end({ timeout: 5 }).catch(() => {});
+				throw err;
 			}
-			return acquired;
+			await conn.end({ timeout: 5 }).catch(() => {});
+			return false;
 		},
 
 		async releaseLock() {
-			if (!lockConn) return;
+			const conn = lockConn;
+			if (!conn) return;
+			lockConn = null;
 			try {
-				const [row] = await lockConn<Array<{ released: boolean }>>`
+				const [row] = await conn<Array<{ released: boolean }>>`
 					select pg_advisory_unlock(${key1}, ${key2}) as released`;
 				if (!row?.released) {
 					console.warn(
@@ -90,12 +105,14 @@ export function createJobLock(
 					);
 				}
 			} finally {
-				lockConn.release();
-				lockConn = null;
+				// Closing the session releases the lock server-side even if the unlock query failed.
+				await conn.end({ timeout: 5 }).catch(() => {});
 			}
 		},
 	};
 }
+
+type LockConnection = Sql;
 
 /**
  * Advisory-lock keys, one row per background job. Same first key, distinct second — collisions

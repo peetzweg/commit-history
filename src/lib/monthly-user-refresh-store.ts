@@ -33,7 +33,6 @@ export function createMonthlyUserRefreshStore(
 	database: DB,
 ): MonthlyRefreshStore {
 	const lock = createJobLock(
-		database,
 		...LOCK_KEYS.monthlyUserRefresh,
 		"monthly-user-refresh",
 	);

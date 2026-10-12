@@ -14,7 +14,7 @@ import {
 const CHUNK_ROWS = 100;
 
 export function createOrgRefreshStore(database: DB): OrgRefreshStore {
-	const lock = createJobLock(database, ...LOCK_KEYS.orgRefresh, "org-refresh");
+	const lock = createJobLock(...LOCK_KEYS.orgRefresh, "org-refresh");
 
 	return {
 		tryLock: lock.tryLock,
