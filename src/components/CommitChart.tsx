@@ -2,7 +2,7 @@ import { useState } from "react";
 import { ChartAttribution } from "#/components/ChartAttribution";
 import { ChartLegend } from "#/components/ChartLegend";
 import { pickYearTicks } from "#/lib/chart-ticks";
-import type { CommitPoint } from "#/lib/github";
+import type { CommitPoint, InProgressMonth, MonthlyCount } from "#/lib/github";
 import { useIsMobile } from "#/lib/useIsMobile";
 
 // Fixed viewBox; the <svg> scales to its container via width:100%. Because labels are sized in
@@ -93,7 +93,7 @@ export function chartCaption(mode: ChartMode): string {
  * public commits + issues + PRs + reviews + repos, plus the opaque private (restricted) count —
  * all disjoint buckets, so nothing is double-counted.
  */
-export function metricDelta(p: CommitPoint, mode: ChartMode): number {
+export function metricDelta(p: MonthlyCount, mode: ChartMode): number {
 	switch (mode) {
 		case "public":
 			return p.commits;
@@ -137,11 +137,14 @@ export function cumulativeSeries(
 
 export function CommitChart({
 	points,
+	inProgress = null,
 	mode = "public",
 	label,
 	title = chartTitle(mode),
 }: {
 	points: CommitPoint[];
+	/** Current month so far plus its projection, drawn dashed past the last completed month. */
+	inProgress?: InProgressMonth | null;
 	mode?: ChartMode;
 	/** Username shown in the in-chart legend (omit to hide the legend). */
 	label?: string;
@@ -160,9 +163,24 @@ export function CommitChart({
 	const dval = (p: CommitPoint) => metricDelta(p, mode);
 
 	const n = points.length;
-	const max = Math.max(...cum, 1);
+	// The in-progress month gets one extra slot on the x axis: month-to-date sits partway into it
+	// (at the fraction of the month elapsed), the projection at its end.
+	const ip = inProgress
+		? (() => {
+				const base = cum[n - 1] ?? 0;
+				return {
+					...inProgress,
+					actual: base + metricDelta(inProgress.actual, mode),
+					projected: base + metricDelta(inProgress.projected, mode),
+					actualDelta: metricDelta(inProgress.actual, mode),
+					projectedDelta: metricDelta(inProgress.projected, mode),
+				};
+			})()
+		: null;
+	const slots = n + (ip ? 1 : 0);
+	const max = Math.max(...cum, ip?.projected ?? 0, 1);
 	const x = (i: number) =>
-		PAD.left + (n === 1 ? innerW / 2 : (i / (n - 1)) * innerW);
+		PAD.left + (slots === 1 ? innerW / 2 : (i / (slots - 1)) * innerW);
 	const y = (v: number) => PAD.top + innerH - (v / max) * innerH;
 	const baseline = PAD.top + innerH;
 
@@ -188,13 +206,17 @@ export function CommitChart({
 		const rect = e.currentTarget.getBoundingClientRect();
 		const frac = (e.clientX - rect.left) / rect.width; // viewBox scales proportionally
 		const px = frac * W;
-		const i = Math.round(((px - PAD.left) / innerW) * (n - 1));
-		setHover(Math.max(0, Math.min(n - 1, i)));
+		const i = Math.round(((px - PAD.left) / innerW) * (slots - 1));
+		setHover(Math.max(0, Math.min(slots - 1, i)));
 	}
 
-	const hp = hover != null ? points[hover] : null;
-	const hx = hover != null ? x(hover) : 0;
-	const hcum = hover != null ? cum[hover] : 0;
+	const hoverIp = ip != null && hover === n;
+	const hp = hover != null && !hoverIp ? points[hover] : null;
+	const hx = hoverIp && ip ? ipX(ip.elapsed) : hover != null ? x(hover) : 0;
+	const hcum = hoverIp && ip ? ip.actual : hover != null && hp ? cum[hover] : 0;
+	function ipX(elapsed: number) {
+		return x(n - 1) + elapsed * (x(n) - x(n - 1));
+	}
 
 	return (
 		<svg
@@ -307,6 +329,38 @@ export function CommitChart({
 				)}
 			</g>
 
+			{/* In-progress month: dashed to the real month-to-date value, then fainter to the
+			    projected month end. Kept off the wobble filter so short dashes stay legible. */}
+			{ip && (
+				<g>
+					<path
+						d={`M${x(n - 1).toFixed(1)},${y(cum[n - 1]).toFixed(1)} L${ipX(ip.elapsed).toFixed(1)},${y(ip.actual).toFixed(1)}`}
+						fill="none"
+						stroke={ACCENT}
+						strokeWidth={2.5}
+						strokeDasharray="5 4"
+						strokeLinecap="round"
+					/>
+					<path
+						d={`M${ipX(ip.elapsed).toFixed(1)},${y(ip.actual).toFixed(1)} L${x(n).toFixed(1)},${y(ip.projected).toFixed(1)}`}
+						fill="none"
+						stroke={ACCENT}
+						strokeOpacity={0.45}
+						strokeWidth={2}
+						strokeDasharray="2 4"
+						strokeLinecap="round"
+					/>
+					<circle
+						cx={ipX(ip.elapsed)}
+						cy={y(ip.actual)}
+						r={3}
+						fill="var(--background, #fff)"
+						stroke={ACCENT}
+						strokeWidth={1.5}
+					/>
+				</g>
+			)}
+
 			{label && (
 				<ChartLegend
 					entries={[{ label, color: ACCENT }]}
@@ -344,6 +398,29 @@ export function CommitChart({
 					>
 						{monthLabel(hp.date)}: {hcum.toLocaleString()} total
 						{dval(hp) ? ` (+${dval(hp)})` : ""}
+					</text>
+				</g>
+			)}
+			{hoverIp && ip && (
+				<g>
+					<line
+						x1={hx}
+						x2={hx}
+						y1={PAD.top}
+						y2={baseline}
+						stroke="#9ca3af"
+						strokeWidth={1}
+						strokeDasharray="3 3"
+					/>
+					<text
+						x={Math.min(Math.max(hx, PAD.left + 80), W - PAD.right - 80)}
+						y={PAD.top - 8}
+						textAnchor="middle"
+						fill="currentColor"
+						fontSize={FONT.readout}
+					>
+						{monthLabel(ip.date)}: +{ip.actualDelta.toLocaleString()} → ~
+						{ip.projectedDelta.toLocaleString()}
 					</text>
 				</g>
 			)}

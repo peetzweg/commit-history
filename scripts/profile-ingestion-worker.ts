@@ -1,6 +1,14 @@
 import { eq } from "drizzle-orm";
 import { db } from "#/lib/db";
 import { entities, profileNetworkMembers } from "#/lib/db/schema";
+import { runCurrentMonthRefresh } from "#/lib/current-month";
+import {
+	CURRENT_MONTH_CRON,
+	createCurrentMonthBoss,
+	createCurrentMonthQueue,
+	planCurrentMonthFollowUp,
+} from "#/lib/current-month-queue";
+import { createCurrentMonthStore } from "#/lib/current-month-store";
 import { fetchFollowing } from "#/lib/github-following";
 import {
 	fetchOrgMemberContributions,
@@ -10,6 +18,7 @@ import {
 	fetchProfileByNodeId,
 	fetchRateLimitBudget,
 	GitHubError,
+	monthToDateWindow,
 	yearlyWindows,
 } from "#/lib/github";
 import {
@@ -66,6 +75,8 @@ const RATE_LIMITED_RETRY_MS = 5 * 60_000;
 // One monthly-refresh slice. The cohort (~2k users at 1,000/hour) takes a couple of hours, so it
 // runs as a chain of slices that each survive a deploy, rather than one multi-hour process.
 const MONTHLY_SLICE_RUNTIME_MS = 10 * 60_000;
+// One slice of the daily current-month pass (~1.2k users, one request each).
+const CURRENT_MONTH_SLICE_RUNTIME_MS = 10 * 60_000;
 
 const boss = createProfileIngestionBoss(connectionString);
 const queue = createProfileIngestionQueue(boss);
@@ -77,6 +88,9 @@ const orgStore = createOrgRefreshStore(database);
 const monthlyBoss = createMonthlyRefreshBoss(connectionString);
 const monthlyQueue = createMonthlyRefreshQueue(monthlyBoss);
 const monthlyStore = createMonthlyUserRefreshStore(database);
+const currentMonthBoss = createCurrentMonthBoss(connectionString);
+const currentMonthQueue = createCurrentMonthQueue(currentMonthBoss);
+const currentMonthStore = createCurrentMonthStore(database);
 const discoverProfileNetwork = createProfileNetworkDiscovery({
 	store: createProfileNetworkDiscoveryStore(database),
 	admit: async (nodeId) => {
@@ -144,6 +158,11 @@ monthlyBoss.on("error", (error) => {
 		`monthly-refresh-worker status=queue_error error=${JSON.stringify(String(error))}`,
 	);
 });
+currentMonthBoss.on("error", (error) => {
+	console.error(
+		`current-month-worker status=queue_error error=${JSON.stringify(String(error))}`,
+	);
+});
 networkBoss.on("warning", (warning) => {
 	console.warn(
 		`profile-network-worker status=queue_warning warning=${JSON.stringify(String(warning))}`,
@@ -157,6 +176,7 @@ startup = Promise.all([
 	orgQueue.start({ provision: true }),
 	// Owns the cron that used to be three Coolify scheduled tasks.
 	monthlyQueue.start({ provision: true, schedule: true }),
+	currentMonthQueue.start({ provision: true, schedule: true }),
 ]).then(() => undefined);
 await startup;
 
@@ -344,8 +364,39 @@ if (!stopping) {
 		);
 		return { next: followUp.next, targetMonth: result.targetMonth };
 	});
+	// The daily pass is background work, so it stops at the backfill floor. Lookups read the
+	// current month inline in the web process.
+	await currentMonthQueue.workDaily(async () => {
+		const startedAt = Date.now();
+		const result = await runCurrentMonthRefresh({
+			store: currentMonthStore,
+			token,
+			maxRuntimeMs: CURRENT_MONTH_SLICE_RUNTIME_MS,
+			remainingFloor: backfillFloor,
+			fetchRateLimit: () => fetchRateLimitBudget(token),
+			// Strict: a window that keeps failing must not be stored as a zero month.
+			fetchMonthlyCommits: (login, githubToken, windows) =>
+				fetchMonthlyCommits(login, githubToken, windows, { strict: true }),
+			monthToDateWindow,
+			logger: console,
+		});
+		const budget =
+			result.stopReason === "rate_limit_floor"
+				? await fetchRateLimitBudget(token)
+				: null;
+		const followUp = planCurrentMonthFollowUp(
+			result,
+			new Date(),
+			budget ? new Date(budget.resetAt) : null,
+		);
+		if (followUp.next !== "done") await currentMonthQueue.requestDaily(followUp.at);
+		console.log(
+			`current-month-worker status=${followUp.next} refreshed=${result.refreshed} skipped_fresh=${result.skippedFresh} failed=${result.failed} unreachable=${result.unreachable} duration_ms=${Date.now() - startedAt}`,
+		);
+		return { next: followUp.next };
+	});
 	console.log(
-		`profile-ingestion-worker status=ready ingestion_concurrency=1 network_concurrency=1 org_concurrency=1 monthly_cron=${JSON.stringify(MONTHLY_REFRESH_CRON)} remaining_floor=${remainingFloor} backfill_floor=${backfillFloor}`,
+		`profile-ingestion-worker status=ready ingestion_concurrency=1 network_concurrency=1 org_concurrency=1 monthly_cron=${JSON.stringify(MONTHLY_REFRESH_CRON)} current_month_cron=${JSON.stringify(CURRENT_MONTH_CRON)} remaining_floor=${remainingFloor} backfill_floor=${backfillFloor}`,
 	);
 }
 
@@ -363,6 +414,7 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
 			networkQueue.stop(),
 			orgQueue.stop(),
 			monthlyQueue.stop(),
+			currentMonthQueue.stop(),
 		]);
 	} catch (error) {
 		exitCode = 1;

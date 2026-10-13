@@ -295,8 +295,9 @@ export async function runMonthlyUserRefresh(
 	return result;
 }
 
-async function candidateUnion(
-	store: MonthlyRefreshStore,
+/** Every board's top `limit`, interleaved rank by rank and deduped (rank 1s first, then rank 2s…). */
+export async function candidateUnion(
+	store: Pick<MonthlyRefreshStore, "usersForMetric">,
 	metrics: readonly UserRefreshMetric[],
 	limit: number,
 ): Promise<RefreshCandidate[]> {

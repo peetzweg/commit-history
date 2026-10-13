@@ -122,6 +122,7 @@ type LockConnection = Sql;
 export const LOCK_KEYS = {
 	monthlyUserRefresh: [20260701, 1],
 	orgRefresh: [20260701, 2],
+	currentMonthRefresh: [20260701, 3],
 } as const;
 
 export interface BudgetGuard {

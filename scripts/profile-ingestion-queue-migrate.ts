@@ -1,4 +1,8 @@
 import {
+	createCurrentMonthBoss,
+	createCurrentMonthQueue,
+} from "#/lib/current-month-queue";
+import {
 	createMonthlyRefreshBoss,
 	createMonthlyRefreshQueue,
 } from "#/lib/monthly-refresh-queue";
@@ -28,6 +32,10 @@ const monthlyBoss = createMonthlyRefreshBoss(connectionString, {
 	migrate: true,
 });
 const monthlyQueue = createMonthlyRefreshQueue(monthlyBoss);
+const currentMonthBoss = createCurrentMonthBoss(connectionString, {
+	migrate: true,
+});
+const currentMonthQueue = createCurrentMonthQueue(currentMonthBoss);
 
 try {
 	await queue.start({ provision: true });
@@ -38,9 +46,12 @@ try {
 	console.log("org-refresh-queue status=ready");
 	await monthlyQueue.start({ provision: true });
 	console.log("monthly-refresh-queue status=ready");
+	await currentMonthQueue.start({ provision: true });
+	console.log("current-month-queue status=ready");
 } finally {
 	await queue.stop().catch(() => {});
 	await networkQueue.stop().catch(() => {});
 	await orgQueue.stop().catch(() => {});
 	await monthlyQueue.stop().catch(() => {});
+	await currentMonthQueue.stop().catch(() => {});
 }

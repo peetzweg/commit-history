@@ -112,6 +112,42 @@ export const monthlyCommits = pgTable(
 );
 
 /**
+ * Month-to-date counts for the in-progress month: one `contributionsCollection(from: 1st, to: now)`
+ * read per row, at most one row per entity per UTC day (a later read that day overwrites it), so
+ * the rows double as a daily history.
+ *
+ * Display-only and deliberately separate from `monthly_commits`: a partial month stored there
+ * flattened charts, skewed totals and passed for a completed month (a44f442). Nothing here may
+ * ever feed totals, rankings or the monthly refresh.
+ */
+export const monthToDateSnapshots = pgTable(
+	"month_to_date_snapshots",
+	{
+		entityId: text("entity_id")
+			.notNull()
+			.references(() => entities.id),
+		day: date("day").notNull(), // UTC day of the read, YYYY-MM-DD
+		month: date("month").notNull(), // YYYY-MM-01 the counts cover, from the 1st up to fetched_at
+		commits: integer("commits").notNull(),
+		restricted: integer("restricted").notNull(),
+		issues: integer("issues").notNull(),
+		pullRequests: integer("pull_requests").notNull(),
+		reviews: integer("reviews").notNull(),
+		repos: integer("repos").notNull(),
+		fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull(),
+	},
+	(t) => [
+		primaryKey({ columns: [t.entityId, t.day] }),
+		// The daily cohort's "fresh in the last 12 h" check and the lookup read both want the
+		// newest row per entity.
+		index("month_to_date_snapshots_entity_fetched_idx").on(
+			t.entityId,
+			t.fetchedAt,
+		),
+	],
+);
+
+/**
  * Org membership + each member's lifetime contributions *to that org* (org-scoped
  * `contributionsCollection(organizationID: …)` sums — a different number from the member's
  * global totals on `entities`). Summed per org these produce the org row's entity totals;

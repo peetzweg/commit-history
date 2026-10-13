@@ -169,6 +169,23 @@ export interface CommitHistory {
 	totalReviews: number;
 	/** Lifetime public repositories created. */
 	totalRepos: number;
+	/**
+	 * The in-progress month, display-only: never part of `points` or any total. Set only when a
+	 * month-to-date snapshot exists for the month right after the last completed point.
+	 */
+	inProgress?: InProgressMonth | null;
+}
+
+/** Month-to-date counts for the current month plus a damped end-of-month projection. */
+export interface InProgressMonth {
+	/** First day of the in-progress month, YYYY-MM-DD. */
+	date: string;
+	/** When the month-to-date counts were read from GitHub, ISO datetime. */
+	fetchedAt: string;
+	/** Fraction of the month elapsed at `fetchedAt`, 0–1. */
+	elapsed: number;
+	actual: MonthlyCount;
+	projected: MonthlyCount;
 }
 
 /** Sum the additional public contribution-type counts across a series of points. */
@@ -249,6 +266,17 @@ export function monthlyWindows(start: Date, now: Date): MonthWindow[] {
 		}
 	}
 	return windows;
+}
+
+/** The in-progress month as one window: the 1st at 00:00 UTC up to `now`. */
+export function monthToDateWindow(now: Date): MonthWindow {
+	const year = now.getUTCFullYear();
+	const month = now.getUTCMonth();
+	return {
+		from: new Date(Date.UTC(year, month, 1)).toISOString(),
+		to: now.toISOString(),
+		label: `${year}-${String(month + 1).padStart(2, "0")}-01`,
+	};
 }
 
 // Milliseconds in a flat 365-day span. Used instead of calendar-year arithmetic so a window can
@@ -757,7 +785,11 @@ export async function fetchMonthlyCommits(
 	rawLogin: string,
 	token: string,
 	windows: MonthWindow[],
-	opts: { concurrency?: number } = {},
+	/**
+	 * `strict` rethrows instead of degrading a window that keeps failing to a zero month. A lifetime
+	 * build self-heals that zero on the frontier re-fetch; a month-to-date snapshot would show it.
+	 */
+	opts: { concurrency?: number; strict?: boolean } = {},
 ): Promise<MonthlyCount[]> {
 	const login = assertLogin(rawLogin);
 	if (windows.length === 0) return [];
@@ -812,7 +844,10 @@ export async function fetchMonthlyCommits(
 			return await fetchBatch(batch);
 		} catch (err) {
 			if (!isResourceLimit(err) && !isServerHiccup(err)) throw err;
-			if (batch.length === 1) return [ZERO_MONTH];
+			if (batch.length === 1) {
+				if (opts.strict) throw err;
+				return [ZERO_MONTH];
+			}
 			const mid = Math.ceil(batch.length / 2);
 			const left = await fetchAdaptive(batch.slice(0, mid));
 			const right = await fetchAdaptive(batch.slice(mid));

@@ -540,6 +540,14 @@ function ProfilePanel({
 		points[0],
 	);
 	const busiestCount = busiest ? metricDelta(busiest, mode) : 0;
+	// The in-progress month is an estimate, so it gets its own stat and never touches the total.
+	const ip = history.inProgress;
+	const ipMonth = ip
+		? new Date(ip.date).toLocaleDateString("en-US", {
+				month: "short",
+				timeZone: "UTC",
+			})
+		: null;
 
 	return (
 		<div>
@@ -587,6 +595,12 @@ function ProfilePanel({
 							: "—"
 					}
 				/>
+				{ip && metricDelta(ip.projected, mode) > 0 && (
+					<Stat
+						label={`${ipMonth} so far`}
+						value={`+${metricDelta(ip.actual, mode).toLocaleString()} → ~${metricDelta(ip.projected, mode).toLocaleString()}`}
+					/>
+				)}
 			</div>
 		</div>
 	);
@@ -622,7 +636,12 @@ function SingleView({
 				transition={{ duration: 0.5 }}
 				className="-mx-4 mt-8 pt-5 pb-1.5 sm:mx-0"
 			>
-				<CommitChart points={points} mode={effectiveMode} label={user.login} />
+				<CommitChart
+					points={points}
+					inProgress={history.inProgress}
+					mode={effectiveMode}
+					label={user.login}
+				/>
 			</motion.div>
 
 			{/* Caption sits on its own line so the chart + subtitle stay clean to screenshot; the

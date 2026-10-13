@@ -12,12 +12,19 @@ import {
 } from "drizzle-orm";
 import type { ChartMode } from "#/components/CommitChart";
 import { getCommitHistory as getCachedCommitHistory } from "#/lib/cache";
+import type {
+	CurrentMonthStore,
+	MonthToDateSnapshot,
+} from "#/lib/current-month";
 import { db } from "#/lib/db";
 import { entities, lookups } from "#/lib/db/schema";
 import {
 	type BuildProgress,
 	type CommitHistory,
+	fetchMonthlyCommits,
 	GitHubError,
+	type InProgressMonth,
+	monthToDateWindow,
 } from "#/lib/github";
 import {
 	activeRankedUser,
@@ -352,6 +359,133 @@ async function ranksFor(
 }
 
 /**
+ * The display-only in-progress month for each loaded history, from the newest month-to-date
+ * snapshot. A missing or stale snapshot is re-read inline, so a profile's first view already shows
+ * the estimate: one GitHub request per user, at most every `CURRENT_MONTH_STALE_MS`. A failed or
+ * slow read falls back to the stored snapshot; the next view tries again. The store pulls in
+ * server-only libs, so it loads lazily.
+ */
+async function inProgressFor(
+	histories: (CommitHistory | null)[],
+	flags: EntityFlags,
+	token: string,
+): Promise<(InProgressMonth | null)[]> {
+	const database = db;
+	if (!database) return [];
+	const [
+		{ createCurrentMonthStore, latestSnapshots },
+		{ buildInProgress, isSnapshotFresh },
+	] = await Promise.all([
+		import("#/lib/current-month-store"),
+		import("#/lib/current-month"),
+	]);
+	// Entity ids are not always `user:<login>`: a renamed profile keeps its old id and a recycled
+	// login gets `github-user:<nodeId>`. The node id is the stable key, so resolve through it.
+	const nodeIds = histories.flatMap((h) => (h ? [h.user.nodeId] : []));
+	const idRows =
+		nodeIds.length === 0
+			? []
+			: await database
+					.select({ id: entities.id, nodeId: entities.githubNodeId })
+					.from(entities)
+					.where(
+						and(
+							eq(entities.kind, "user"),
+							inArray(entities.githubNodeId, nodeIds),
+						),
+					);
+	const idByNode = new Map(idRows.map((r) => [r.nodeId, r.id]));
+	const ids = histories.map((h) =>
+		h ? (idByNode.get(h.user.nodeId) ?? null) : null,
+	);
+	const snapshots = await latestSnapshots(
+		database,
+		ids.filter((id): id is string => id != null),
+	);
+	const store = createCurrentMonthStore(database);
+	const now = new Date();
+	return Promise.all(
+		histories.map(async (history, i) => {
+			const id = ids[i];
+			if (!history || !id) return null;
+			let snapshot = snapshots.get(id) ?? null;
+			const login = history.user.login;
+			if (
+				!isSnapshotFresh(snapshot, now) &&
+				!flags.unreachable.has(login.toLowerCase())
+			) {
+				try {
+					snapshot = await withTimeout(
+						readMonthToDateOnce(store, id, login, token, now),
+						INLINE_MONTH_TIMEOUT_MS,
+					);
+				} catch (error) {
+					console.warn(
+						`current-month status=inline_failed login=${login} error=${JSON.stringify(String(error))}`,
+					);
+				}
+			}
+			return buildInProgress(history.points, snapshot);
+		}),
+	);
+}
+
+/**
+ * Past this the page renders without a fresh estimate. The read keeps going and still stores its
+ * snapshot, so the next view has it.
+ */
+const INLINE_MONTH_TIMEOUT_MS = 2_000;
+
+/** One in-flight read per entity, so concurrent first viewers share a single GitHub request. */
+const inFlightReads = new Map<string, Promise<MonthToDateSnapshot>>();
+
+function readMonthToDateOnce(
+	store: { upsertSnapshot: CurrentMonthStore["upsertSnapshot"] },
+	id: string,
+	login: string,
+	token: string,
+	now: Date,
+): Promise<MonthToDateSnapshot> {
+	const pending = inFlightReads.get(id);
+	if (pending) return pending;
+	const read = readMonthToDate(store, id, login, token, now).finally(() =>
+		inFlightReads.delete(id),
+	);
+	inFlightReads.set(id, read);
+	return read;
+}
+
+async function readMonthToDate(
+	store: { upsertSnapshot: CurrentMonthStore["upsertSnapshot"] },
+	id: string,
+	login: string,
+	token: string,
+	now: Date,
+): Promise<MonthToDateSnapshot> {
+	const window = monthToDateWindow(now);
+	const [counts] = await fetchMonthlyCommits(login, token, [window], {
+		strict: true,
+	});
+	// No counts is a failure, never a stored zero (same rule as the background jobs).
+	if (!counts) throw new Error("no counts returned for the current month");
+	await store.upsertSnapshot(id, window.label, counts, now);
+	return { month: window.label, fetchedAt: now, counts };
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	return Promise.race([
+		promise,
+		new Promise<never>((_, reject) => {
+			timer = setTimeout(
+				() => reject(new Error(`timed out after ${ms}ms`)),
+				ms,
+			);
+		}),
+	]).finally(() => clearTimeout(timer));
+}
+
+/**
  * Resolve several users' histories, tolerating partial failure so one bad username doesn't sink
  * the whole comparison. Plain server-side function — exported for getLookup (org.ts), which
  * composes it with the org fallback. Server functions must NOT call each other (a server-side
@@ -370,6 +504,12 @@ export async function lookupUsers(rawLogins: string[]): Promise<UserResult[]> {
 		),
 		entityFlags(logins).catch(noFlags),
 	]);
+	// Best-effort like the flags: no estimate is better than no profile.
+	const inProgress = await inProgressFor(
+		settled.map((o) => (o.status === "fulfilled" ? o.value : null)),
+		flags,
+		token,
+	).catch(() => []);
 	return Promise.all(
 		settled.map(async (outcome, i): Promise<UserResult> => {
 			const login = logins[i];
@@ -399,7 +539,7 @@ export async function lookupUsers(rawLogins: string[]): Promise<UserResult[]> {
 					building,
 				};
 			}
-			const history = outcome.value;
+			const history = { ...outcome.value, inProgress: inProgress[i] ?? null };
 			// Ranks are supplementary — never let a ranking-query failure drop a loaded profile.
 			const ranks = await ranksFor(history).catch(() => ({}));
 			return {
