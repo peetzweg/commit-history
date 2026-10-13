@@ -1,3 +1,4 @@
+import { describeError } from "#/lib/job-runner";
 import {
 	createProfileNetworkBoss,
 	createProfileNetworkQueue,
@@ -28,7 +29,7 @@ async function startProducer(): Promise<ProfileNetworkQueue> {
 	const boss = createProfileNetworkBoss(connectionString);
 	boss.on("error", (error) => {
 		console.error(
-			`profile-network-producer status=queue_error error=${JSON.stringify(String(error))}`,
+			`profile-network-producer status=queue_error error=${JSON.stringify(describeError(error))}`,
 		);
 	});
 	const queue = createProfileNetworkQueue(boss);

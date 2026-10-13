@@ -29,6 +29,30 @@ export const quietLogger: JobLogger = {
 export const defaultSleep = (ms: number) =>
 	new Promise<void>((resolve) => setTimeout(resolve, ms));
 
+/**
+ * A loggable message for whatever an event emitter hands us. pg-boss emits plain objects as well as
+ * Errors, and `String()` turns those into "[object Object]", hiding the actual cause.
+ */
+export function describeError(error: unknown): string {
+	const plain = (value: unknown): unknown =>
+		value instanceof Error
+			? {
+					name: value.name,
+					message: value.message,
+					...("code" in value ? { code: value.code } : {}),
+					...(value.cause !== undefined ? { cause: plain(value.cause) } : {}),
+				}
+			: value;
+	if (error instanceof Error && error.cause === undefined && !("code" in error))
+		return error.message;
+	if (typeof error !== "object" || error === null) return String(error);
+	try {
+		return JSON.stringify(plain(error), (_key, value) => plain(value));
+	} catch {
+		return String(error);
+	}
+}
+
 export function positiveInteger(value: number, name: string): number {
 	if (!Number.isInteger(value) || value <= 0) {
 		throw new Error(`${name} must be a positive integer.`);

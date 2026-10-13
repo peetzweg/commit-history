@@ -1,3 +1,4 @@
+import { describeError } from "#/lib/job-runner";
 import { eq } from "drizzle-orm";
 import { db } from "#/lib/db";
 import { entities, profileNetworkMembers } from "#/lib/db/schema";
@@ -133,7 +134,7 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
 
 boss.on("error", (error) => {
 	console.error(
-		`profile-ingestion-worker status=queue_error error=${JSON.stringify(String(error))}`,
+		`profile-ingestion-worker status=queue_error error=${JSON.stringify(describeError(error))}`,
 	);
 });
 boss.on("warning", (warning) => {
@@ -143,29 +144,29 @@ boss.on("warning", (warning) => {
 });
 networkBoss.on("error", (error) => {
 	console.error(
-		`profile-network-worker status=queue_error error=${JSON.stringify(String(error))}`,
+		`profile-network-worker status=queue_error error=${JSON.stringify(describeError(error))}`,
 	);
 });
 // Every pg-boss instance needs an error listener: an unhandled 'error' event kills the process,
 // and a brief database stall at the top of the hour is enough to emit one.
 orgBoss.on("error", (error) => {
 	console.error(
-		`org-refresh-worker status=queue_error error=${JSON.stringify(String(error))}`,
+		`org-refresh-worker status=queue_error error=${JSON.stringify(describeError(error))}`,
 	);
 });
 monthlyBoss.on("error", (error) => {
 	console.error(
-		`monthly-refresh-worker status=queue_error error=${JSON.stringify(String(error))}`,
+		`monthly-refresh-worker status=queue_error error=${JSON.stringify(describeError(error))}`,
 	);
 });
 currentMonthBoss.on("error", (error) => {
 	console.error(
-		`current-month-worker status=queue_error error=${JSON.stringify(String(error))}`,
+		`current-month-worker status=queue_error error=${JSON.stringify(describeError(error))}`,
 	);
 });
 networkBoss.on("warning", (warning) => {
 	console.warn(
-		`profile-network-worker status=queue_warning warning=${JSON.stringify(String(warning))}`,
+		`profile-network-worker status=queue_warning warning=${JSON.stringify(describeError(warning))}`,
 	);
 });
 
@@ -234,7 +235,7 @@ if (!stopping) {
 				return { status: "deferred", retryAt } as const;
 			}
 			console.error(
-				`profile-ingestion-worker status=failed login=${JSON.stringify(job.login)} node_id=${JSON.stringify(job.githubNodeId)} duration_ms=${Date.now() - startedAt} error=${JSON.stringify(String(error))}`,
+				`profile-ingestion-worker status=failed login=${JSON.stringify(job.login)} node_id=${JSON.stringify(job.githubNodeId)} duration_ms=${Date.now() - startedAt} error=${JSON.stringify(describeError(error))}`,
 			);
 			throw error;
 		}
@@ -259,7 +260,7 @@ if (!stopping) {
 				return { membersFound: 0, profilesEnqueued: 0 };
 			}
 			console.error(
-				`profile-network-worker status=failed login=${JSON.stringify(job.login)} node_id=${JSON.stringify(job.ownerGithubNodeId)} duration_ms=${Date.now() - startedAt} error=${JSON.stringify(String(error))}`,
+				`profile-network-worker status=failed login=${JSON.stringify(job.login)} node_id=${JSON.stringify(job.ownerGithubNodeId)} duration_ms=${Date.now() - startedAt} error=${JSON.stringify(describeError(error))}`,
 			);
 			throw error;
 		}
@@ -277,7 +278,7 @@ if (!stopping) {
 				}
 			})
 			.catch((error) => {
-				console.error(`profile-network-worker status=backfill_error error=${JSON.stringify(String(error))}`);
+				console.error(`profile-network-worker status=backfill_error error=${JSON.stringify(describeError(error))}`);
 			})
 			.finally(() => { backfillRunning = false; });
 	}, 5_000);
@@ -419,7 +420,7 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
 	} catch (error) {
 		exitCode = 1;
 		console.error(
-			`profile-ingestion-worker status=shutdown_error error=${JSON.stringify(String(error))}`,
+			`profile-ingestion-worker status=shutdown_error error=${JSON.stringify(describeError(error))}`,
 		);
 	} finally {
 		await database.$client.end({ timeout: 5 }).catch(() => {});

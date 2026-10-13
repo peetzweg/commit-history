@@ -1,3 +1,4 @@
+import { describeError } from "#/lib/job-runner";
 import {
 	createProfileIngestionBoss,
 	createProfileIngestionQueue,
@@ -28,7 +29,7 @@ async function startProducer(): Promise<ProfileIngestionQueue> {
 	const boss = createProfileIngestionBoss(connectionString);
 	boss.on("error", (error) => {
 		console.error(
-			`profile-ingestion-producer status=queue_error error=${JSON.stringify(String(error))}`,
+			`profile-ingestion-producer status=queue_error error=${JSON.stringify(describeError(error))}`,
 		);
 	});
 	const queue = createProfileIngestionQueue(boss);
