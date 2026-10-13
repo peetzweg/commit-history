@@ -597,8 +597,8 @@ function ProfilePanel({
 				/>
 				{ip && metricDelta(ip.projected, mode) > 0 && (
 					<Stat
-						label={`${ipMonth} so far (pace)`}
-						value={`+${metricDelta(ip.actual, mode).toLocaleString()} (~${metricDelta(ip.projected, mode).toLocaleString()})`}
+						label={`${ipMonth} so far`}
+						value={`+${metricDelta(ip.actual, mode).toLocaleString()} → ~${metricDelta(ip.projected, mode).toLocaleString()}`}
 					/>
 				)}
 			</div>

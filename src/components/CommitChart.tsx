@@ -413,14 +413,13 @@ export function CommitChart({
 						strokeDasharray="3 3"
 					/>
 					<text
-						x={Math.min(Math.max(hx, PAD.left + 80), W - PAD.right - 150)}
+						x={Math.min(Math.max(hx, PAD.left + 80), W - PAD.right - 80)}
 						y={PAD.top - 8}
 						textAnchor="middle"
 						fill="currentColor"
 						fontSize={FONT.readout}
 					>
-						{monthLabel(ip.date)} so far: +{ip.actualDelta.toLocaleString()}
-						{" · on pace for ~+"}
+						{monthLabel(ip.date)}: +{ip.actualDelta.toLocaleString()} → ~
 						{ip.projectedDelta.toLocaleString()}
 					</text>
 				</g>
