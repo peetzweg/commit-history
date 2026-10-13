@@ -174,7 +174,11 @@ export const getLookup = createServerFn({ method: "GET" })
 		if (
 			solo &&
 			users[0]?.error &&
-			/could not resolve to a user/i.test(users[0].error)
+			// GitHub's raw message (in-memory path) or the ingestion path's own 404, which is what
+			// a never-seen org hits in prod: both mean "no such user", so try the org.
+			/could not resolve to a user|^User ".+" not found\.$/i.test(
+				users[0].error,
+			)
 		) {
 			const org = await resolveOrg(solo);
 			if (org.org || org.building || org.indexing) return { kind: "org", org };
