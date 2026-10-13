@@ -785,7 +785,11 @@ export async function fetchMonthlyCommits(
 	rawLogin: string,
 	token: string,
 	windows: MonthWindow[],
-	opts: { concurrency?: number } = {},
+	/**
+	 * `strict` rethrows instead of degrading a window that keeps failing to a zero month. A lifetime
+	 * build self-heals that zero on the frontier re-fetch; a month-to-date snapshot would show it.
+	 */
+	opts: { concurrency?: number; strict?: boolean } = {},
 ): Promise<MonthlyCount[]> {
 	const login = assertLogin(rawLogin);
 	if (windows.length === 0) return [];
@@ -840,7 +844,10 @@ export async function fetchMonthlyCommits(
 			return await fetchBatch(batch);
 		} catch (err) {
 			if (!isResourceLimit(err) && !isServerHiccup(err)) throw err;
-			if (batch.length === 1) return [ZERO_MONTH];
+			if (batch.length === 1) {
+				if (opts.strict) throw err;
+				return [ZERO_MONTH];
+			}
 			const mid = Math.ceil(batch.length / 2);
 			const left = await fetchAdaptive(batch.slice(0, mid));
 			const right = await fetchAdaptive(batch.slice(mid));

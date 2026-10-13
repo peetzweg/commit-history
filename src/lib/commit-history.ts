@@ -12,7 +12,10 @@ import {
 } from "drizzle-orm";
 import type { ChartMode } from "#/components/CommitChart";
 import { getCommitHistory as getCachedCommitHistory } from "#/lib/cache";
-import type { CurrentMonthStore } from "#/lib/current-month";
+import type {
+	CurrentMonthStore,
+	MonthToDateSnapshot,
+} from "#/lib/current-month";
 import { db } from "#/lib/db";
 import { entities, lookups } from "#/lib/db/schema";
 import {
@@ -358,9 +361,9 @@ async function ranksFor(
 /**
  * The display-only in-progress month for each loaded history, from the newest month-to-date
  * snapshot. A missing or stale snapshot is re-read inline, so a profile's first view already shows
- * the estimate: one GitHub request per user, capped by `INLINE_MONTH_TIMEOUT_MS`. A failed or slow
- * read falls back to the stored snapshot and hands the refresh to the worker instead. The store
- * and producer pull in server-only libs, so they load lazily.
+ * the estimate: one GitHub request per user, at most every `CURRENT_MONTH_STALE_MS`. A failed or
+ * slow read falls back to the stored snapshot; the next view tries again. The store pulls in
+ * server-only libs, so it loads lazily.
  */
 async function inProgressFor(
 	histories: (CommitHistory | null)[],
@@ -376,8 +379,24 @@ async function inProgressFor(
 		import("#/lib/current-month-store"),
 		import("#/lib/current-month"),
 	]);
+	// Entity ids are not always `user:<login>`: a renamed profile keeps its old id and a recycled
+	// login gets `github-user:<nodeId>`. The node id is the stable key, so resolve through it.
+	const nodeIds = histories.flatMap((h) => (h ? [h.user.nodeId] : []));
+	const idRows =
+		nodeIds.length === 0
+			? []
+			: await database
+					.select({ id: entities.id, nodeId: entities.githubNodeId })
+					.from(entities)
+					.where(
+						and(
+							eq(entities.kind, "user"),
+							inArray(entities.githubNodeId, nodeIds),
+						),
+					);
+	const idByNode = new Map(idRows.map((r) => [r.nodeId, r.id]));
 	const ids = histories.map((h) =>
-		h ? `user:${h.user.login.toLowerCase()}` : null,
+		h ? (idByNode.get(h.user.nodeId) ?? null) : null,
 	);
 	const snapshots = await latestSnapshots(
 		database,
@@ -397,14 +416,13 @@ async function inProgressFor(
 			) {
 				try {
 					snapshot = await withTimeout(
-						readMonthToDate(store, id, login, token, now),
+						readMonthToDateOnce(store, id, login, token, now),
 						INLINE_MONTH_TIMEOUT_MS,
 					);
 				} catch (error) {
 					console.warn(
 						`current-month status=inline_failed login=${login} error=${JSON.stringify(String(error))}`,
 					);
-					queueCurrentMonthRefresh(login);
 				}
 			}
 			return buildInProgress(history.points, snapshot);
@@ -412,8 +430,30 @@ async function inProgressFor(
 	);
 }
 
-/** Inline month-to-date reads give up after this; the worker then catches up in the background. */
-const INLINE_MONTH_TIMEOUT_MS = 3_000;
+/**
+ * Past this the page renders without a fresh estimate. The read keeps going and still stores its
+ * snapshot, so the next view has it.
+ */
+const INLINE_MONTH_TIMEOUT_MS = 2_000;
+
+/** One in-flight read per entity, so concurrent first viewers share a single GitHub request. */
+const inFlightReads = new Map<string, Promise<MonthToDateSnapshot>>();
+
+function readMonthToDateOnce(
+	store: { upsertSnapshot: CurrentMonthStore["upsertSnapshot"] },
+	id: string,
+	login: string,
+	token: string,
+	now: Date,
+): Promise<MonthToDateSnapshot> {
+	const pending = inFlightReads.get(id);
+	if (pending) return pending;
+	const read = readMonthToDate(store, id, login, token, now).finally(() =>
+		inFlightReads.delete(id),
+	);
+	inFlightReads.set(id, read);
+	return read;
+}
 
 async function readMonthToDate(
 	store: { upsertSnapshot: CurrentMonthStore["upsertSnapshot"] },
@@ -421,9 +461,11 @@ async function readMonthToDate(
 	login: string,
 	token: string,
 	now: Date,
-) {
+): Promise<MonthToDateSnapshot> {
 	const window = monthToDateWindow(now);
-	const [counts] = await fetchMonthlyCommits(login, token, [window]);
+	const [counts] = await fetchMonthlyCommits(login, token, [window], {
+		strict: true,
+	});
 	// No counts is a failure, never a stored zero (same rule as the background jobs).
 	if (!counts) throw new Error("no counts returned for the current month");
 	await store.upsertSnapshot(id, window.label, counts, now);
@@ -441,17 +483,6 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 			);
 		}),
 	]).finally(() => clearTimeout(timer));
-}
-
-/** Fire-and-forget: the page must render even if the queue is unreachable. */
-function queueCurrentMonthRefresh(login: string) {
-	void import("#/lib/current-month-producer")
-		.then(({ requestCurrentMonthRefresh }) => requestCurrentMonthRefresh(login))
-		.catch((error) => {
-			console.error(
-				`current-month status=enqueue_failed login=${login} error=${JSON.stringify(String(error))}`,
-			);
-		});
 }
 
 /**

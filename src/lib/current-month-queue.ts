@@ -5,9 +5,7 @@ import {
 	type UpdateQueueOptions,
 } from "pg-boss";
 import type { CurrentMonthRefreshResult } from "#/lib/current-month";
-import { isValidLogin } from "#/lib/github";
 
-export const CURRENT_MONTH_LOOKUP_QUEUE_NAME = "current-month-lookup-v1";
 export const CURRENT_MONTH_DAILY_QUEUE_NAME = "current-month-daily-v1";
 export const CURRENT_MONTH_DEAD_QUEUE_NAME = "current-month-dead-v1";
 
@@ -28,17 +26,6 @@ const DEAD_SETTINGS = {
 	deleteAfterSeconds: 0,
 } satisfies QueueSettings;
 
-const LOOKUP_SETTINGS = {
-	// A failed lookup refresh is cheap to drop: the next view past the stale window asks again.
-	retryLimit: 1,
-	retryDelay: 60,
-	expireInSeconds: 5 * 60,
-	retentionSeconds: 24 * 60 * 60,
-	deleteAfterSeconds: 2 * 24 * 60 * 60,
-	deadLetter: CURRENT_MONTH_DEAD_QUEUE_NAME,
-	warningQueueSize: 500,
-} satisfies QueueSettings;
-
 const DAILY_SETTINGS = {
 	retryLimit: 3,
 	retryDelay: 5 * 60,
@@ -52,12 +39,6 @@ const DAILY_SETTINGS = {
 	deadLetter: CURRENT_MONTH_DEAD_QUEUE_NAME,
 } satisfies QueueSettings;
 
-/** "Re-read this user's month-to-date counts." Coalesced per login, so repeat views are free. */
-export interface CurrentMonthLookupJob {
-	version: 1;
-	login: string;
-}
-
 /** One slice of the daily pass over the top of every board. */
 export interface CurrentMonthDailyJob {
 	version: 1;
@@ -65,11 +46,7 @@ export interface CurrentMonthDailyJob {
 
 export interface CurrentMonthQueue {
 	start(opts?: { provision?: boolean; schedule?: boolean }): Promise<void>;
-	requestLookup(job: CurrentMonthLookupJob): Promise<void>;
 	requestDaily(startAfter?: Date): Promise<void>;
-	workLookup(
-		handler: (job: CurrentMonthLookupJob) => Promise<unknown>,
-	): Promise<void>;
 	workDaily(
 		handler: (job: CurrentMonthDailyJob) => Promise<unknown>,
 	): Promise<void>;
@@ -96,15 +73,10 @@ export function createCurrentMonthQueue(boss: PgBoss): CurrentMonthQueue {
 		async start(opts = {}) {
 			await boss.start();
 			if (opts.provision) await provisionCurrentMonthQueues(boss);
-			for (const name of [
-				CURRENT_MONTH_LOOKUP_QUEUE_NAME,
-				CURRENT_MONTH_DAILY_QUEUE_NAME,
-			]) {
-				if (!(await boss.getQueue(name))) {
-					throw new Error(
-						`Queue ${name} is not provisioned; start the worker or run profile:queue:migrate first.`,
-					);
-				}
+			if (!(await boss.getQueue(CURRENT_MONTH_DAILY_QUEUE_NAME))) {
+				throw new Error(
+					"Current-month queue is not provisioned; start the worker or run profile:queue:migrate first.",
+				);
 			}
 			// Idempotent: the stored schedule is replaced, so a changed cron ships with a deploy.
 			if (opts.schedule) {
@@ -117,13 +89,6 @@ export function createCurrentMonthQueue(boss: PgBoss): CurrentMonthQueue {
 			}
 		},
 
-		async requestLookup(job) {
-			const payload = parseCurrentMonthLookupJob(job);
-			await boss.upsert(CURRENT_MONTH_LOOKUP_QUEUE_NAME, payload, {
-				singletonKey: payload.login.toLowerCase(),
-			});
-		},
-
 		async requestDaily(startAfter) {
 			await boss.upsert(
 				CURRENT_MONTH_DAILY_QUEUE_NAME,
@@ -131,22 +96,6 @@ export function createCurrentMonthQueue(boss: PgBoss): CurrentMonthQueue {
 				{
 					singletonKey: DAILY_SINGLETON_KEY,
 					...(startAfter ? { startAfter } : {}),
-				},
-			);
-		},
-
-		async workLookup(handler) {
-			await boss.work<unknown>(
-				CURRENT_MONTH_LOOKUP_QUEUE_NAME,
-				{
-					batchSize: 1,
-					localConcurrency: 1,
-					// A visitor is waiting for the next page view to pick this up.
-					pollingIntervalSeconds: 2,
-				},
-				async ([job]) => {
-					if (!job) throw new Error("pg-boss delivered an empty batch.");
-					return handler(parseCurrentMonthLookupJob(job.data));
 				},
 			);
 		},
@@ -185,12 +134,6 @@ export async function provisionCurrentMonthQueues(boss: PgBoss) {
 	);
 	await provisionQueue(
 		boss,
-		CURRENT_MONTH_LOOKUP_QUEUE_NAME,
-		"stately",
-		LOOKUP_SETTINGS,
-	);
-	await provisionQueue(
-		boss,
 		CURRENT_MONTH_DAILY_QUEUE_NAME,
 		"stately",
 		DAILY_SETTINGS,
@@ -212,25 +155,6 @@ async function provisionQueue(
 		);
 	}
 	await boss.updateQueue(name, settings);
-}
-
-export function parseCurrentMonthLookupJob(
-	value: unknown,
-): CurrentMonthLookupJob {
-	if (!value || typeof value !== "object") {
-		throw new Error("Current-month payload must be an object.");
-	}
-	const payload = value as Record<string, unknown>;
-	if (payload.version !== 1) {
-		throw new Error("Unsupported current-month payload version.");
-	}
-	if (
-		typeof payload.login !== "string" ||
-		!isValidLogin(payload.login.trim())
-	) {
-		throw new Error("Current-month payload has an invalid GitHub login.");
-	}
-	return { version: 1, login: payload.login.trim() };
 }
 
 export type CurrentMonthFollowUp =

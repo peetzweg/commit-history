@@ -364,23 +364,8 @@ if (!stopping) {
 		);
 		return { next: followUp.next, targetMonth: result.targetMonth };
 	});
-	// Lookups spend the visitor-facing floor (someone is looking at this profile right now); the
-	// daily pass is background work and stops at the backfill floor.
-	await currentMonthQueue.workLookup(async (job) => {
-		const result = await runCurrentMonthRefresh({
-			store: currentMonthStore,
-			token,
-			candidates: [
-				{ id: `user:${job.login.toLowerCase()}`, login: job.login },
-			],
-			remainingFloor,
-			fetchRateLimit: () => fetchRateLimitBudget(token),
-			fetchMonthlyCommits,
-			monthToDateWindow,
-			logger: console,
-		});
-		return { refreshed: result.refreshed, skippedFresh: result.skippedFresh };
-	});
+	// The daily pass is background work, so it stops at the backfill floor. Lookups read the
+	// current month inline in the web process.
 	await currentMonthQueue.workDaily(async () => {
 		const startedAt = Date.now();
 		const result = await runCurrentMonthRefresh({
@@ -389,7 +374,9 @@ if (!stopping) {
 			maxRuntimeMs: CURRENT_MONTH_SLICE_RUNTIME_MS,
 			remainingFloor: backfillFloor,
 			fetchRateLimit: () => fetchRateLimitBudget(token),
-			fetchMonthlyCommits,
+			// Strict: a window that keeps failing must not be stored as a zero month.
+			fetchMonthlyCommits: (login, githubToken, windows) =>
+				fetchMonthlyCommits(login, githubToken, windows, { strict: true }),
 			monthToDateWindow,
 			logger: console,
 		});
