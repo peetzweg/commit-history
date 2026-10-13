@@ -18,6 +18,7 @@ import {
 	type BuildProgress,
 	type CommitHistory,
 	GitHubError,
+	type InProgressMonth,
 } from "#/lib/github";
 import {
 	activeRankedUser,
@@ -352,6 +353,54 @@ async function ranksFor(
 }
 
 /**
+ * The display-only in-progress month for each loaded history, from the newest month-to-date
+ * snapshot. A missing or stale snapshot is handed to the worker (fire-and-forget, coalesced per
+ * login), so the estimate appears or updates on a later view; the request never calls GitHub for
+ * it. The store and producer pull in server-only libs, so they load lazily.
+ */
+async function inProgressFor(
+	histories: (CommitHistory | null)[],
+	flags: EntityFlags,
+): Promise<(InProgressMonth | null)[]> {
+	const database = db;
+	if (!database) return [];
+	const [{ latestSnapshots }, { buildInProgress, isSnapshotFresh }] =
+		await Promise.all([
+			import("#/lib/current-month-store"),
+			import("#/lib/current-month"),
+		]);
+	const ids = histories.map((h) =>
+		h ? `user:${h.user.login.toLowerCase()}` : null,
+	);
+	const snapshots = await latestSnapshots(
+		database,
+		ids.filter((id): id is string => id != null),
+	);
+	const now = new Date();
+	return histories.map((history, i) => {
+		const id = ids[i];
+		if (!history || !id) return null;
+		const snapshot = snapshots.get(id) ?? null;
+		const login = history.user.login;
+		if (
+			!isSnapshotFresh(snapshot, now) &&
+			!flags.unreachable.has(login.toLowerCase())
+		) {
+			void import("#/lib/current-month-producer")
+				.then(({ requestCurrentMonthRefresh }) =>
+					requestCurrentMonthRefresh(login),
+				)
+				.catch((error) => {
+					console.error(
+						`current-month status=enqueue_failed login=${login} error=${JSON.stringify(String(error))}`,
+					);
+				});
+		}
+		return buildInProgress(history.points, snapshot);
+	});
+}
+
+/**
  * Resolve several users' histories, tolerating partial failure so one bad username doesn't sink
  * the whole comparison. Plain server-side function — exported for getLookup (org.ts), which
  * composes it with the org fallback. Server functions must NOT call each other (a server-side
@@ -370,6 +419,11 @@ export async function lookupUsers(rawLogins: string[]): Promise<UserResult[]> {
 		),
 		entityFlags(logins).catch(noFlags),
 	]);
+	// Best-effort like the flags: no estimate is better than no profile.
+	const inProgress = await inProgressFor(
+		settled.map((o) => (o.status === "fulfilled" ? o.value : null)),
+		flags,
+	).catch(() => []);
 	return Promise.all(
 		settled.map(async (outcome, i): Promise<UserResult> => {
 			const login = logins[i];
@@ -399,7 +453,7 @@ export async function lookupUsers(rawLogins: string[]): Promise<UserResult[]> {
 					building,
 				};
 			}
-			const history = outcome.value;
+			const history = { ...outcome.value, inProgress: inProgress[i] ?? null };
 			// Ranks are supplementary — never let a ranking-query failure drop a loaded profile.
 			const ranks = await ranksFor(history).catch(() => ({}));
 			return {

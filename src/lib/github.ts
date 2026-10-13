@@ -169,6 +169,23 @@ export interface CommitHistory {
 	totalReviews: number;
 	/** Lifetime public repositories created. */
 	totalRepos: number;
+	/**
+	 * The in-progress month, display-only: never part of `points` or any total. Set only when a
+	 * month-to-date snapshot exists for the month right after the last completed point.
+	 */
+	inProgress?: InProgressMonth | null;
+}
+
+/** Month-to-date counts for the current month plus a damped end-of-month projection. */
+export interface InProgressMonth {
+	/** First day of the in-progress month, YYYY-MM-DD. */
+	date: string;
+	/** When the month-to-date counts were read from GitHub, ISO datetime. */
+	fetchedAt: string;
+	/** Fraction of the month elapsed at `fetchedAt`, 0–1. */
+	elapsed: number;
+	actual: MonthlyCount;
+	projected: MonthlyCount;
 }
 
 /** Sum the additional public contribution-type counts across a series of points. */
@@ -249,6 +266,17 @@ export function monthlyWindows(start: Date, now: Date): MonthWindow[] {
 		}
 	}
 	return windows;
+}
+
+/** The in-progress month as one window: the 1st at 00:00 UTC up to `now`. */
+export function monthToDateWindow(now: Date): MonthWindow {
+	const year = now.getUTCFullYear();
+	const month = now.getUTCMonth();
+	return {
+		from: new Date(Date.UTC(year, month, 1)).toISOString(),
+		to: now.toISOString(),
+		label: `${year}-${String(month + 1).padStart(2, "0")}-01`,
+	};
 }
 
 // Milliseconds in a flat 365-day span. Used instead of calendar-year arithmetic so a window can

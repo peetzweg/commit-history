@@ -150,7 +150,7 @@ export function createMonthlyUserRefreshStore(
 	};
 }
 
-async function usersForMetric(
+export async function usersForMetric(
 	database: DB,
 	metric: UserRefreshMetric,
 	limit: number,
