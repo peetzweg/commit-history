@@ -1,3 +1,4 @@
+import { describeError } from "#/lib/job-runner";
 import {
 	createOrgRefreshBoss,
 	createOrgRefreshQueue,
@@ -30,7 +31,7 @@ async function startProducer(): Promise<OrgRefreshQueue> {
 	const boss = createOrgRefreshBoss(connectionString);
 	boss.on("error", (error) => {
 		console.error(
-			`org-refresh-producer status=queue_error error=${JSON.stringify(String(error))}`,
+			`org-refresh-producer status=queue_error error=${JSON.stringify(describeError(error))}`,
 		);
 	});
 	const queue = createOrgRefreshQueue(boss);
