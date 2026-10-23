@@ -65,8 +65,7 @@ export function ProfileNetworkLeaderboard({
 	const linkMetric = metric === "public" ? undefined : metric;
 	const ownerName = profileName || data?.ownerLogin || login;
 	const incomplete =
-		!data ||
-		data.status !== "ready" ||
+		data?.status !== "ready" ||
 		data.readyCount + data.unavailableCount < data.totalCount;
 	const showStatus =
 		query.isError || incomplete || Boolean(data?.unavailableCount);

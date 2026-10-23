@@ -92,7 +92,7 @@ export const getProfileNetwork = createServerFn({ method: "POST" })
 			discover: value?.discover === true,
 			ownerGithubNodeId:
 				typeof value?.ownerGithubNodeId === "string" &&
-				Boolean(value.ownerGithubNodeId.trim()) &&
+				value.ownerGithubNodeId.trim() &&
 				value.ownerGithubNodeId.trim().length <= 255
 					? value.ownerGithubNodeId.trim()
 					: "",

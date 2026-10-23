@@ -1,5 +1,6 @@
 import {
 	createFileRoute,
+	type ErrorComponentProps,
 	Link,
 	notFound,
 	useNavigate,
@@ -872,12 +873,14 @@ function AddUser({
 	);
 }
 
-function UserError({ error }: { error: Error }) {
+function UserError({ error }: ErrorComponentProps) {
 	const router = useRouter();
 	return (
 		<main className="mx-auto max-w-md px-6 py-24 text-center">
 			<h1 className="text-xl font-semibold">Couldn’t load that history</h1>
-			<p className="mt-3 text-sm text-muted-foreground">{error.message}</p>
+			<p className="mt-3 text-sm text-muted-foreground">
+				{error instanceof Error ? error.message : String(error)}
+			</p>
 			<button
 				type="button"
 				onClick={() => router.invalidate()}
