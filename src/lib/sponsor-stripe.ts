@@ -71,10 +71,21 @@ export async function loadPaymentLinkSlot(
 
 function sponsorPrice(price: Stripe.Price | null): SponsorPrice | undefined {
 	if (!price?.recurring || price.unit_amount === null) return undefined;
+	const { interval } = price.recurring;
+	// Stripe's types leave `interval` open-ended; only advertise intervals we know how to format.
+	if (!isSponsorInterval(interval)) return undefined;
 	return {
 		unitAmount: price.unit_amount,
 		currency: price.currency,
-		interval: price.recurring.interval,
+		interval,
 		intervalCount: price.recurring.interval_count,
 	};
+}
+
+const SPONSOR_INTERVALS = new Set<string>(["day", "week", "month", "year"]);
+
+function isSponsorInterval(
+	interval: string,
+): interval is SponsorPrice["interval"] {
+	return SPONSOR_INTERVALS.has(interval);
 }
