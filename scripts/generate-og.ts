@@ -95,7 +95,7 @@ write(
 		contentCard(
 			"/ sponsoring",
 			"Sponsoring commit-history.com",
-			"Put your product in front of a developer-first audience: 15k unique visitors and 57k page views in under a month, in a sponsor slot on both leaderboards.",
+			"Put your product in front of a developer-first audience: 66k unique visitors a month, in a sponsor slot on both leaderboards.",
 		),
 	),
 	"sponsoring.png",
