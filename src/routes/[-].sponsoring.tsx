@@ -7,7 +7,7 @@ import { formatSponsorPrice } from "#/lib/sponsor-price";
 const SITE = "https://commit-history.com";
 const TITLE = "Sponsoring commit-history.com";
 const DESCRIPTION =
-	"Put your product, job opening, or developer opportunity in front of a developer-first audience of 70k unique visitors per month, in a sponsor slot on both leaderboards.";
+	"Put your product, job opening, or developer opportunity in front of a developer-first audience of 66k unique visitors per month, in a sponsor slot on both leaderboards.";
 // Lives under the reserved /-/ namespace like all editorial content: "-" can never be a
 // GitHub login, so this page can't shadow the $user route (the old single-segment
 // /sponsoring URL 301s here — see sponsoring.tsx).
@@ -24,11 +24,12 @@ const MAILTO_LOGO = `mailto:${CONTACT}?subject=${encodeURIComponent(
 	"Hi! I just rented a sponsor slot. My logo is attached (SVG or PNG).\n\nName of product, company, or role:\nOne-line description:\nLink URL:",
 )}`;
 
-// Cloudflare Web Analytics for July 25–August 24, 2026. Refresh with the supporting screenshot.
-const LAST_UPDATED = "August 24, 2026";
+// Cloudflare Web Analytics for October 24–November 23, 2026. Refresh with the supporting
+// screenshot, under a new dated filename: the edge caches public images for 4h.
+const LAST_UPDATED = "November 23, 2026";
 const STATS = [
-	{ value: "70.66k", label: "unique visitors" },
-	{ value: "685.35k", label: "total requests" },
+	{ value: "66.38k", label: "unique visitors" },
+	{ value: "1.09M", label: "total requests" },
 	{ value: "30 days", label: "reporting period" },
 	{ value: "Cloudflare", label: "analytics source" },
 ] as const;
@@ -93,8 +94,8 @@ function SponsoringPage() {
 
 			<h2 className="mt-12 text-xl font-semibold">The numbers</h2>
 			<p className="mt-2 text-muted-foreground">
-				Cloudflare Web Analytics recorded 70.66k unique visitors and 685.35k
-				total requests over the last 30 days (July 25–August 24, 2026; last
+				Cloudflare Web Analytics recorded 66.38k unique visitors and 1.09M total
+				requests over the last 30 days (October 24–November 23, 2026; last
 				updated {LAST_UPDATED}).
 			</p>
 			<dl className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -107,10 +108,10 @@ function SponsoringPage() {
 			</dl>
 			<figure className="mt-6 overflow-hidden rounded-lg border bg-muted/20">
 				<img
-					src="/cloudflare-analytics-30-days.png"
-					alt="Cloudflare analytics for July 25 to August 24 showing 70.66 thousand unique visitors and 685.35 thousand total requests."
-					width={1552}
-					height={736}
+					src="/cloudflare-analytics-2026-11-23.png"
+					alt="Cloudflare analytics for October 24 to November 23 showing 66.38 thousand unique visitors and 1.09 million total requests."
+					width={1638}
+					height={700}
 					className="h-auto w-full"
 				/>
 				<figcaption className="border-t px-4 py-3 text-sm text-muted-foreground">
